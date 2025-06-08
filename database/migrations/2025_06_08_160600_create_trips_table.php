@@ -13,6 +13,12 @@ return new class extends Migration
     {
         Schema::create('trips', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->string('departure');
+            $table->string('destination');
+            $table->date('date');
+            $table->integer('capacity');
+            $table->string('status');
             $table->timestamps();
         });
     }
