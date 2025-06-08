@@ -11,9 +11,23 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('luggage', function (Blueprint $table) {
+        Schema::create('luggages', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->string('description');
+            $table->float('weight');
+            $table->string('dimensions');
+            $table->string('pickup_city');
+            $table->string('delivery_city');
+            $table->date('pickup_date');
+            $table->date('delivery_date');
             $table->timestamps();
+            $table->enum('status', [
+                'en_attente',   // Valise créée, pas encore assignée à un trajet
+                'reservee',     // Un booking a été créé
+                'livree',       // La valise a été transportée et livrée
+                'annulee',      // Annulée par l’expéditeur ou le système
+            ])->default('en_attente');
         });
     }
 

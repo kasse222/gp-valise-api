@@ -18,7 +18,11 @@ return new class extends Migration
             $table->string('destination');
             $table->date('date');
             $table->integer('capacity');
-            $table->string('status');
+            $table->enum('status', [
+                'actif',
+                'complet',
+                'annulé'
+            ])->default('actif');
             $table->timestamps();
         });
     }

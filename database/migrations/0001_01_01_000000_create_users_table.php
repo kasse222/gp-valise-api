@@ -17,6 +17,14 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+
+            // Rôle (expediteur, voyageur, admin)
+            $table->enum('role', [
+                'expediteur',
+                'voyageur',
+                'admin',
+            ])->default('expediteur');
+
             $table->rememberToken();
             $table->timestamps();
         });

@@ -13,6 +13,11 @@ return new class extends Migration
     {
         Schema::create('reports', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->string('target_type');
+            $table->unsignedBigInteger('target_id');
+            $table->string('reason');
+            $table->text('comment')->nullable();
             $table->timestamps();
         });
     }
