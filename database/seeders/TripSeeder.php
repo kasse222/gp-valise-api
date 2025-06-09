@@ -20,10 +20,9 @@ class TripSeeder extends Seeder
         // Pour chaque voyageur, créer entre 1 et 3 trajets
         foreach ($voyageurs as $voyageur) {
             Trip::factory()
-                ->count(rand(1, 3))
-                ->create([
-                    'user_id' => $voyageur->id,
-                ]);
+                ->count(2)
+                ->for($voyageur) // équivaut à user_id = $voyageur->id
+                ->create();
         }
     }
 }

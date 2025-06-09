@@ -16,7 +16,7 @@ class TripFactory extends Factory
     public function definition(): array
     {
         return [
-            'user_id' => User::factory()->voyageurs(), // uniquement voyageurs
+            'user_id' => User::where('role', 'voyageur')->inRandomOrder()->first()->id, // uniquement voyageurs
             'departure' => fake()->city(),
             'destination' => fake()->city(),
             'date' => fake()->dateTimeBetween('+1 day', '+2 weeks'),

@@ -13,10 +13,15 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
 
+        // Ordre important pour respecter les dépendances
         $this->call([
-            UserSeeder::class, // Appelle le seeder des utilisateurs avec rôles
+            UserSeeder::class,
+            TripSeeder::class,
+            LuggageSeeder::class,
+            BookingSeeder::class,
+            PaymentSeeder::class,
+            ReportSeeder::class,
         ]);
     }
 }

@@ -11,6 +11,7 @@ class Luggage extends Model
     use HasFactory;
 
 
+    protected $table = 'luggages';
 
     /**
      * The attributes that are mass assignable.
