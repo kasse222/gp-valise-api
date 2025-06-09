@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Models\Luggage;
+use App\Models\Trip;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -9,15 +11,13 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class BookingFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
     public function definition(): array
     {
         return [
-            //
+            'trip_id' => Trip::factory(),
+            'luggage_id' => Luggage::factory(),
+            'status' => 'en_attente',
+            'notes' => $this->faker->sentence(),
         ];
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -17,7 +18,11 @@ class ReportFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'user_id' => User::factory(),
+            'target_type' => $this->faker->randomElement(['trip', 'booking', 'user']),
+            'target_id' => $this->faker->numberBetween(1, 50),
+            'reason' => $this->faker->randomElement(['contenu illicite', 'arnaque', 'propos déplacés']),
+            'comment' => $this->faker->sentence(12),
         ];
     }
 }
