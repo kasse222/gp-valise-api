@@ -16,12 +16,12 @@ class TripFactory extends Factory
     public function definition(): array
     {
         return [
-            'user_id' => User::where('role', 'voyageur')->inRandomOrder()->first()->id, // uniquement voyageurs
             'departure' => fake()->city(),
             'destination' => fake()->city(),
-            'date' => fake()->dateTimeBetween('+1 day', '+2 weeks'),
-            'capacity' => fake()->numberBetween(5, 23),
-            'status' => 'actif', // par défaut
+            'date' => fake()->dateTimeBetween('+1 days', '+30 days'),
+            'capacity' => fake()->numberBetween(5, 25), // en kg
+            'status' => 'actif',
+            'flight_number' => 'AF' . fake()->numberBetween(100, 9999),
         ];
     }
 }

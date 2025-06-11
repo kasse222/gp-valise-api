@@ -24,12 +24,17 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
+            'first_name' => fake()->firstName(),
+            'last_name'  => fake()->lastName(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
-            'password' => static::$password ??= Hash::make('password'),
+            'password' => bcrypt('password'),
+            'role' => fake()->randomElement(['voyageur', 'expediteur']),
+            'verified_user' => fake()->boolean(80),
+            'phone' => fake()->phoneNumber(),
+            'country' => fake()->country(),
+            'kyc_passed_at' => now()->subDays(rand(1, 90)),
             'remember_token' => Str::random(10),
-            'role' => fake()->randomElement(['expediteur', 'voyageur']), // admin non généré automatiquement
         ];
     }
     public function admin(): static

@@ -13,16 +13,18 @@ return new class extends Migration
     {
         Schema::create('trips', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->string('departure');
-            $table->string('destination');
-            $table->date('date');
-            $table->integer('capacity');
-            $table->enum('status', [
-                'actif',
-                'complet',
-                'annulé'
-            ])->default('actif');
+
+            $table->foreignId('user_id')
+                ->constrained()
+                ->cascadeOnDelete(); // 🔁 Si le voyageur supprime son compte
+
+            $table->string('departure');     // Ville de départ
+            $table->string('destination');   // Ville d’arrivée
+            $table->date('date');            // Date du voyage
+            $table->integer('capacity');     // Capacité totale (en kg ou % volume)
+            $table->string('status')->default('actif'); // actif / complet / annulé
+            $table->string('flight_number')->nullable(); // ✈ Pour les trajets aériens
+
             $table->timestamps();
         });
     }

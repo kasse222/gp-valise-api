@@ -19,10 +19,15 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
+        'first_name',
+        'last_name',
         'email',
         'password',
         'role',
+        'verified_user',       // ✅ Validation KYC
+        'phone',               // ✅ Pour contact & vérif
+        'country',             // ✅ Pays d’origine (diaspora)
+        'kyc_passed_at',       // ✅ Date de vérif
     ];
 
     /**
@@ -48,31 +53,29 @@ class User extends Authenticatable
         ];
     }
 
+    // Relations existantes
     public function trips()
     {
         return $this->hasMany(Trip::class);
     }
-
     public function luggages()
     {
         return $this->hasMany(Luggage::class);
     }
-
     public function reports()
     {
         return $this->hasMany(Report::class);
     }
 
+    // Scopes pratiques
     public function scopeVoyageurs($query)
     {
         return $query->where('role', 'voyageur');
     }
-
     public function scopeExpediteurs($query)
     {
         return $query->where('role', 'expediteur');
     }
-
     public function scopeAdmins($query)
     {
         return $query->where('role', 'admin');
