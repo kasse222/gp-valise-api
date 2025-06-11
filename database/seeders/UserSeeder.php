@@ -13,10 +13,15 @@ class UserSeeder extends Seeder
     {
         // Admin principal (accès test)
         User::factory()->create([
-            'name' => 'Admin Test',
-            'email' => 'admin@gp-valise.com',
-            'password' => Hash::make('password'),
-            'role' => 'admin',
+            'first_name' => 'Admin',
+            'last_name'  => 'Test',
+            'email'      => 'admin@gp-valise.com',
+            'password'   => Hash::make('password'),
+            'role'       => 'admin',
+            'verified_user' => true,
+            'country'    => 'France',
+            'phone'      => '+33600000000',
+            'kyc_passed_at' => now(),
         ]);
 
         // 5 voyageurs
