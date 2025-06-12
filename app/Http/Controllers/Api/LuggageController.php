@@ -1,12 +1,10 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Api;
 
-use App\Http\Requests\StoreTripRequest;
-use App\Http\Requests\UpdateTripRequest;
-use App\Models\Trip;
+use Illuminate\Http\Request;
 
-class TripController extends Controller
+class LuggageController
 {
     /**
      * Display a listing of the resource.
@@ -19,7 +17,7 @@ class TripController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(StoreTripRequest $request)
+    public function store(Request $request)
     {
         //
     }
@@ -27,7 +25,7 @@ class TripController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Trip $trip)
+    public function show(string $id)
     {
         //
     }
@@ -35,7 +33,7 @@ class TripController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateTripRequest $request, Trip $trip)
+    public function update(Request $request, string $id)
     {
         //
     }
@@ -43,7 +41,7 @@ class TripController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Trip $trip)
+    public function destroy(string $id)
     {
         //
     }

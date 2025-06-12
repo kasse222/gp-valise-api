@@ -1,12 +1,10 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Api;
 
-use App\Http\Requests\StoreReportRequest;
-use App\Http\Requests\UpdateReportRequest;
-use App\Models\Report;
+use Illuminate\Http\Request;
 
-class ReportController extends Controller
+class BookingController
 {
     /**
      * Display a listing of the resource.
@@ -19,7 +17,7 @@ class ReportController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(StoreReportRequest $request)
+    public function store(Request $request)
     {
         //
     }
@@ -27,7 +25,7 @@ class ReportController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Report $report)
+    public function show(string $id)
     {
         //
     }
@@ -35,7 +33,7 @@ class ReportController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateReportRequest $request, Report $report)
+    public function update(Request $request, string $id)
     {
         //
     }
@@ -43,7 +41,7 @@ class ReportController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Report $report)
+    public function destroy(string $id)
     {
         //
     }

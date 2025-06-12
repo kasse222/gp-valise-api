@@ -1,12 +1,10 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Api;
 
-use App\Http\Requests\StoreLuggageRequest;
-use App\Http\Requests\UpdateLuggageRequest;
-use App\Models\Luggage;
+use Illuminate\Http\Request;
 
-class LuggageController extends Controller
+class PaymentController
 {
     /**
      * Display a listing of the resource.
@@ -19,7 +17,7 @@ class LuggageController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(StoreLuggageRequest $request)
+    public function store(Request $request)
     {
         //
     }
@@ -27,7 +25,7 @@ class LuggageController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Luggage $luggage)
+    public function show(string $id)
     {
         //
     }
@@ -35,7 +33,7 @@ class LuggageController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateLuggageRequest $request, Luggage $luggage)
+    public function update(Request $request, string $id)
     {
         //
     }
@@ -43,7 +41,7 @@ class LuggageController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Luggage $luggage)
+    public function destroy(string $id)
     {
         //
     }
