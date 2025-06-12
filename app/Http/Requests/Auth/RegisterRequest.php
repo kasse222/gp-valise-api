@@ -6,23 +6,28 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class RegisterRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
-        return false;
+        // 👉 On autorise l'accès à tous (route publique)
+        return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
-            //
+            'first_name' => ['required', 'string', 'max:100'],
+            'last_name'  => ['nullable', 'string', 'max:100'], // facultatif pour être plus souple
+            'email'      => ['required', 'email', 'unique:users,email'],
+            'password'   => ['required', 'string', 'min:8', 'confirmed'], // nécessite "password_confirmation"
+            'role'       => ['required', 'in:voyageur,expediteur'], // 🌍 logique métier GP-Valise
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'role.in' => 'Le rôle doit être soit "voyageur", soit "expediteur".',
+            'email.unique' => 'Cet email est déjà utilisé.',
         ];
     }
 }

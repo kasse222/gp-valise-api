@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\Api\V1;
 
 use Illuminate\Http\Request;
 
-class TripController
+class UserController
 {
     /**
      * Display a listing of the resource.
