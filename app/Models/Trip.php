@@ -41,6 +41,14 @@ class Trip extends Model
     }
 
     /**
+     * 🔗 Toutes les Ajouter les relations inverses sur ce trajet
+     */
+    public function bookingItems()
+    {
+        return $this->hasMany(BookingItem::class);
+    }
+
+    /**
      * 🛰️ Liste des coordonnées GPS liées à ce trajet
      */
     public function locations()

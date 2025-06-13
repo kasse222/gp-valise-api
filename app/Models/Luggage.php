@@ -46,6 +46,11 @@ class Luggage extends Model
         return $this->hasOne(Booking::class);
     }
 
+    public function bookingItems()
+    {
+        return $this->hasMany(BookingItem::class);
+    }
+
     /**
      * Scope to get only available luggages.
      */

@@ -30,6 +30,14 @@ class Booking extends Model
     }
 
     /**
+     * Get the booking  Ajouter les relations inverses
+     */
+    public function bookingItems()
+    {
+        return $this->hasMany(BookingItem::class);
+    }
+
+    /**
      * Get the luggage associated with the booking.
      */
     public function luggage()
