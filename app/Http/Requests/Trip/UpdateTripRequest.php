@@ -22,7 +22,12 @@ class UpdateTripRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'departure'      => ['sometimes', 'string', 'max:255'],
+            'destination'    => ['sometimes', 'string', 'max:255'],
+            'date'           => ['sometimes', 'date', 'after:now'],
+            'capacity'       => ['sometimes', 'integer', 'min:1'],
+            'flight_number'  => ['nullable', 'string', 'max:50'],
+            'status'         => ['in:open,closed', 'nullable'],
         ];
     }
 }

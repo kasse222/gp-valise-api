@@ -6,23 +6,20 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class StoreTripRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
-        return false;
+        return true; // ✔️ Accessible via auth:sanctum
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
-            //
+            'departure'      => ['required', 'string', 'max:255'],
+            'destination'    => ['required', 'string', 'max:255'],
+            'date'           => ['required', 'date', 'after:now'],
+            'capacity'       => ['required', 'integer', 'min:1'],
+            'flight_number'  => ['nullable', 'string', 'max:50'],
+            'status'         => ['in:open,closed', 'nullable'], // si tu veux gérer les trajets archivé/actif
         ];
     }
 }
