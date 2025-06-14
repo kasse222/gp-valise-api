@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Booking\ConfirmBooking;
 use App\Actions\Booking\ReserveBooking;
 use App\Http\Requests\Booking\StoreBookingRequest;
 use App\Http\Requests\Booking\UpdateBookingRequest;
@@ -95,5 +96,18 @@ class BookingController extends Controller
         $booking->delete();
 
         return response()->json(['message' => 'Réservation supprimée.']);
+    }
+
+    /**
+     * ✅ Confirmer une réservation (par le voyageur propriétaire du trip)
+     */
+    public function confirm(string $id, ConfirmBooking $action)
+    {
+        $booking = $action->execute((int) $id);
+
+        return response()->json([
+            'message' => 'Réservation confirmée.',
+            'booking' => $booking
+        ]);
     }
 }

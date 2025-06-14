@@ -76,4 +76,9 @@ class Booking extends Model
     {
         return $query->where('status', 'refusee');
     }
+    //centralise la règle métier
+    public function canBeConfirmed(): bool
+    {
+        return $this->status === 'en_attente' && $this->trip && $this->trip->user_id === auth()->id();
+    }
 }
