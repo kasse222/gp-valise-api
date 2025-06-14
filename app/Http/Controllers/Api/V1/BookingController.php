@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Booking\ReserveBooking;
 use App\Http\Requests\Booking\StoreBookingRequest;
 use App\Http\Requests\Booking\UpdateBookingRequest;
 use App\Models\Booking;
@@ -32,7 +33,7 @@ class BookingController extends Controller
     /**
      * 🎯 Créer une nouvelle réservation — avec logique métier (à implémenter)
      */
-    public function store(StoreBookingRequest $request)
+    public function store(StoreBookingRequest $request, ReserveBooking $action)
     {
         $user = Auth::user();
         $validated = $request->validated();
@@ -44,19 +45,7 @@ class BookingController extends Controller
             'status'  => 'en_attente',
         ]);
 
-        foreach ($validated['items'] as $item) {
-            BookingItem::create([
-                'booking_id'  => $booking->id,
-                'trip_id'     => $trip->id,
-                'luggage_id'  => $item['luggage_id'],
-                'kg_reserved' => $item['kg_reserved'],
-                'price'       => $item['price'],
-            ]);
-
-            // On passe la valise en état "réservée"
-            Luggage::find($item['luggage_id'])->update(['status' => 'reservee']);
-        }
-
+        $booking = $action->execute($request->validated());
         return response()->json([
             'message' => 'Réservation créée.',
             'booking' => $booking->load('bookingItems.luggage'),
