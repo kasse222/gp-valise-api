@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Booking\CancelBooking;
+use App\Actions\Booking\CompleteBooking;
 use App\Actions\Booking\ConfirmBooking;
 use App\Actions\Booking\ReserveBooking;
 use App\Http\Requests\Booking\StoreBookingRequest;
@@ -108,6 +110,31 @@ class BookingController extends Controller
         return response()->json([
             'message' => 'Réservation confirmée.',
             'booking' => $booking
+        ]);
+    }
+
+    /**
+     * ✅ annule une réservation (par le voyageur propriétaire du trip)
+     */
+    public function cancel(string $id, CancelBooking $action)
+    {
+        $booking = $action->execute((int) $id);
+
+        return response()->json([
+            'message' => 'Réservation annulée.',
+            'booking' => $booking->load('bookingItems.luggage'),
+        ]);
+    }
+
+
+
+    public function complete(string $id, CompleteBooking $action)
+    {
+        $booking = $action->execute((int) $id);
+
+        return response()->json([
+            'message' => 'Réservation livrée avec succès.',
+            'booking' => $booking,
         ]);
     }
 }
