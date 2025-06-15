@@ -68,11 +68,15 @@
 
 ## 🧪 Tests automatisés
 
--   **PestPHP** (en cours)
--   Couverture prévue :
-    -   Authentification & accès
-    -   Réservations (création, confirmation, annulation, complétion)
-    -   Cas limites (poids réservé, collision de réservation…)
+\*PestPHP (full TDD sur bookings/trips/luggages)
+
+\*Couverture :
+
+-Authentification & accès
+
+-éservations : création, mise à jour statuts, suppression, annulation, confirmation
+
+-Cas limites (bagage déjà réservé, rôle, accès interdit…)
 
 ---
 
@@ -81,8 +85,10 @@
 -   Middleware `auth:sanctum` sur toutes les routes sensibles
 -   Règles métier :
     -   Un Booking appartient toujours à l’utilisateur qui le crée
-    -   Seul le propriétaire du trajet peut confirmer/annuler
-    -   Validation poids & capacité avant réservation
+    -   Seul l’expéditeur peut réserver, seul le voyageur du trip peut confirmer/refuser
+    -   Statut modifiable selon le rôle, validation statuts via enum
+    -   Contrôle du poids/capacité avant réservation (à renforcer)
+    -   Tentatives non autorisées → 403 Forbidden
 -   Roadmap sécurité :
     -   Policies & Gates
     -   Contrôle par rôles (admin, premium…)
