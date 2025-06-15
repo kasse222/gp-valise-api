@@ -21,7 +21,7 @@ class Luggage extends Model
     protected $fillable = [
         'user_id',
         'description',
-        'weight',
+        'weight_kg',
         'dimensions',
         'pickup_city',
         'delivery_city',

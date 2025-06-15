@@ -42,11 +42,6 @@ class BookingController extends Controller
         $validated = $request->validated();
 
         $trip = Trip::findOrFail($validated['trip_id']);
-        $booking = Booking::create([
-            'user_id' => $user->id,
-            'trip_id' => $trip->id,
-            'status'  => 'en_attente',
-        ]);
 
         $booking = $action->execute($request->validated());
         return response()->json([
@@ -71,16 +66,21 @@ class BookingController extends Controller
     public function update(UpdateBookingRequest $request, string $id)
     {
         $booking = Booking::findOrFail($id);
+        $user = auth()->user();
+        $newStatus = $request->validated('status');
 
-        $booking->update([
-            'status' => $request->validated('status'),
-        ]);
+        if (! $booking->canBeUpdatedTo($newStatus, $user)) {
+            abort(403, 'Action non autorisée ou transition invalide.');
+        }
+
+        $booking->update(['status' => $newStatus]);
 
         return response()->json([
             'message' => 'Statut mis à jour.',
             'booking' => $booking
         ]);
     }
+
 
     /**
      * ❌ Supprimer une réservation (et ses booking_items associés)

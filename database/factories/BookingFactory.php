@@ -17,7 +17,9 @@ class BookingFactory extends Factory
             'trip_id' => Trip::factory(),
             'luggage_id' => Luggage::factory(),
             'status' => 'en_attente',
+            'total_weight_kg' => $this->faker->randomFloat(1, 1, 100),
             'notes' => $this->faker->sentence(),
+
         ];
     }
 }

@@ -15,6 +15,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('trip_id')->constrained()->onDelete('cascade');
             $table->foreignId('luggage_id')->constrained('luggages')->onDelete('cascade');
+            $table->decimal('total_weight_kg', 6, 1)->nullable();
+
             $table->text('notes')->nullable();
             $table->timestamps();
             $table->enum('status', [

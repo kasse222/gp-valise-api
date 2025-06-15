@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->string('description');
-            $table->float('weight');
+            $table->float('weight_kg', 5, 1);
             $table->string('dimensions');
             $table->string('pickup_city');
             $table->string('delivery_city');

@@ -64,21 +64,31 @@ class Booking extends Model
     /**
      * Scope for accepted bookings.
      */
-    public function scopeAcceptees($query)
+    public function scopeAccepte($query)
     {
-        return $query->where('status', 'acceptee');
+        return $query->where('status', 'accepte');
     }
 
     /**
      * Scope for refused bookings.
      */
-    public function scopeRefusees($query)
+    public function scopeRefuse($query)
     {
-        return $query->where('status', 'refusee');
+        return $query->where('status', 'refuse');
     }
     //centralise la règle métier
     public function canBeConfirmed(): bool
     {
         return $this->status === 'en_attente' && $this->trip && $this->trip->user_id === auth()->id();
+    }
+
+    public function canBeUpdatedTo(string $newStatus, User $user): bool
+    {
+        return match ($newStatus) {
+            'accepte', 'refuse' => $this->status === 'en_attente' && $user->id === $this->trip->user_id,
+            'annule'            => in_array($this->status, ['en_attente', 'accepte']) && $user->id === $this->user_id,
+            'termine'           => $this->status === 'accepte' && $user->id === $this->trip->user_id,
+            default             => false,
+        };
     }
 }

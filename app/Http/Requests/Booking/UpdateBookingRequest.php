@@ -15,7 +15,7 @@ class UpdateBookingRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', 'in:en_attente,acceptee,refusee,annulee'],
+            'status' => ['required', 'in:en_attente,accepte,refuse,annule,termine'],
         ];
     }
 }
