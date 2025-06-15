@@ -1,5 +1,6 @@
 <?php
 
+use App\Status\BookingStatus;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -14,18 +15,13 @@ return new class extends Migration
         Schema::create('bookings', function (Blueprint $table) {
             $table->id();
             $table->foreignId('trip_id')->constrained()->onDelete('cascade');
-            $table->foreignId('luggage_id')->constrained('luggages')->onDelete('cascade');
+            $table->foreignId('luggage_id')->nullable()->constrained('luggages')->onDelete('cascade');
             $table->decimal('total_weight_kg', 6, 1)->nullable();
 
             $table->text('notes')->nullable();
             $table->timestamps();
-            $table->enum('status', [
-                'en_attente',   // réservation faite, en attente d’action du voyageur
-                'accepte',      // acceptée par le voyageur
-                'refuse',       // refusée par le voyageur
-                'termine',      // le transport a été effectué
-                'annule',       // annulée par une des parties
-            ])->default('en_attente');
+            $table->enum('status', array_column(BookingStatus::cases(), 'value'))
+                ->default(BookingStatus::EN_ATTENTE->value);
         });
     }
 

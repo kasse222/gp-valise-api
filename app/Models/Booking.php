@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Status\BookingStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -16,7 +17,6 @@ class Booking extends Model
      */
     protected $fillable = [
         'trip_id',
-        'luggage_id',
         'status',
         'notes',
     ];
@@ -37,13 +37,6 @@ class Booking extends Model
         return $this->hasMany(BookingItem::class);
     }
 
-    /**
-     * Get the luggage associated with the booking.
-     */
-    public function luggage()
-    {
-        return $this->belongsTo(Luggage::class);
-    }
 
     /**
      * Get the payment associated with this booking.
@@ -82,13 +75,24 @@ class Booking extends Model
         return $this->status === 'en_attente' && $this->trip && $this->trip->user_id === auth()->id();
     }
 
-    public function canBeUpdatedTo(string $newStatus, User $user): bool
+    protected $casts = [
+        'status' => BookingStatus::class,
+    ];
+
+
+    public function canBeUpdatedTo(BookingStatus $newStatus, User $user): bool
     {
         return match ($newStatus) {
-            'accepte', 'refuse' => $this->status === 'en_attente' && $user->id === $this->trip->user_id,
-            'annule'            => in_array($this->status, ['en_attente', 'accepte']) && $user->id === $this->user_id,
-            'termine'           => $this->status === 'accepte' && $user->id === $this->trip->user_id,
-            default             => false,
+            BookingStatus::ACCEPTE, BookingStatus::REFUSE =>
+            $this->status === BookingStatus::EN_ATTENTE && $user->id === $this->trip->user_id,
+
+            BookingStatus::ANNULE =>
+            in_array($this->status, [BookingStatus::EN_ATTENTE, BookingStatus::ACCEPTE]) && $user->id === $this->user_id,
+
+            BookingStatus::TERMINE =>
+            $this->status === BookingStatus::ACCEPTE && $user->id === $this->trip->user_id,
+
+            default => false,
         };
     }
 }

@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Booking;
 
+use App\Status\BookingStatus;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateBookingRequest extends FormRequest
 {
@@ -15,7 +17,7 @@ class UpdateBookingRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', 'in:en_attente,accepte,refuse,annule,termine'],
+            'status' => ['required', Rule::in(array_column(BookingStatus::cases(), 'value'))],
         ];
     }
 }

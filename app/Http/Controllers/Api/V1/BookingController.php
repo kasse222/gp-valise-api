@@ -12,6 +12,7 @@ use App\Models\Booking;
 use App\Models\BookingItem;
 use App\Models\Luggage;
 use App\Models\Trip;
+use App\Status\BookingStatus;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -67,7 +68,9 @@ class BookingController extends Controller
     {
         $booking = Booking::findOrFail($id);
         $user = auth()->user();
-        $newStatus = $request->validated('status');
+
+        $newStatus = BookingStatus::from($request->validated('status'));
+
 
         if (! $booking->canBeUpdatedTo($newStatus, $user)) {
             abort(403, 'Action non autorisée ou transition invalide.');

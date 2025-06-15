@@ -16,6 +16,7 @@ class TripFactory extends Factory
     public function definition(): array
     {
         return [
+            'user_id' => User::factory(),
             'departure' => fake()->city(),
             'destination' => fake()->city(),
             'date' => fake()->dateTimeBetween('+1 days', '+30 days'),

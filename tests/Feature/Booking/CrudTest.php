@@ -6,6 +6,7 @@ uses(
 );
 
 use App\Models\Booking;
+use App\Models\Luggage;
 use App\Models\Trip;
 use App\Models\User;
 use function Pest\Laravel\actingAs;
@@ -28,6 +29,7 @@ test('index retourne les réservations de l’utilisateur connecté', function (
     $response = getJson('/api/v1/bookings');
     $response->assertStatus(200)->assertJsonCount(2);
 });
+
 
 test('store crée une réservation', function () {
     $luggage = \App\Models\Luggage::factory()->create(['status' => 'en_attente']);
@@ -68,6 +70,37 @@ test('update modifie le statut d’une réservation', function () {
 
     $response->assertOk()->assertJsonPath('booking.status', 'accepte');
 });
+
+test('on ne peut pas changer une réservation terminée', function () {
+    $voyageur = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $voyageur->id]);
+    $booking = Booking::factory()->create([
+        'trip_id' => $trip->id,
+        'status' => 'termine',
+    ]);
+
+    actingAs($voyageur);
+
+    $response = putJson("/api/v1/bookings/{$booking->id}", ['status' => 'annule']);
+    $response->assertStatus(403);
+});
+
+
+test('on ne peut pas mettre un statut invalide', function () {
+    $luggage = Luggage::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $this->user->id]);
+    $booking = Booking::factory()->create([
+        'trip_id' => $trip->id,
+
+    ]);
+
+    $response = putJson("/api/v1/bookings/{$booking->id}", [
+        'status' => 'invalide',
+    ]);
+
+    $response->assertStatus(422);
+});
+
 
 
 test('destroy supprime une réservation', function () {

@@ -20,11 +20,11 @@ class BookingItemFactory extends Factory
     public function definition(): array
     {
         return [
-            'booking_id' => Booking::factory(),
-            'luggage_id' => Luggage::factory(),
-            'trip_id'    => Trip::factory(),
-            'kg_reserved' => $this->faker->randomFloat(1, 1, 20),
-            'price'      => $this->faker->randomFloat(2, 10, 200),
+            'booking_id'   => null, // assigné depuis le test
+            'luggage_id'   => null, // assigné depuis le test
+            'trip_id'      => null, // optionnel, dérivable de Booking
+            'kg_reserved'  => $this->faker->randomFloat(1, 1, 20),
+            'price'        => $this->faker->randomFloat(2, 10, 200),
         ];
     }
 }
