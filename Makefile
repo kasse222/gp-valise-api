@@ -1,20 +1,19 @@
-up:
+up: copy-env chmod-entrypoint
 	docker-compose up -d --build
 
 down:
 	docker-compose down
 
-restart:
-	docker-compose down && docker-compose up -d --build
+restart: down up
 
 logs:
 	docker-compose logs -f --tail=100
 
+logs-app:
+	docker-compose logs -f app
+
 bash:
 	docker-compose exec app bash
-
-migrate:
-	docker-compose exec app php artisan migrate
 
 seed:
 	docker-compose exec app php artisan db:seed
@@ -25,6 +24,8 @@ key:
 test:
 	docker-compose exec app ./vendor/bin/pest
 
-init:
+chmod-entrypoint:
 	chmod +x docker/php/entrypoint.sh
 
+copy-env:
+	cp .env.docker .env
