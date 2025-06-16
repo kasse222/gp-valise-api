@@ -24,3 +24,7 @@ key:
 
 test:
 	docker-compose exec app ./vendor/bin/pest
+
+init:
+	chmod +x docker/php/entrypoint.sh
+
