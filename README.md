@@ -41,13 +41,18 @@
 | Modèle        | Description                                                              |
 | ------------- | ------------------------------------------------------------------------ |
 | `User`        | Utilisateur avec rôle : `voyageur`, `expediteur`, `admin`                |
-| `Trip`        | Trajet proposé par un voyageur (lieux, capacité, date, n° vol)           |
+| `Trip`        | Trajet proposé par un voyageur (lieux, capacité, date, n° vol, **type**) |
 | `Luggage`     | Valise, colis ou document à envoyer par un expéditeur                    |
 | `Booking`     | Réservation d’un trajet pour un ou plusieurs bagages                     |
 | `BookingItem` | Association entre réservation et bagages (kg, prix, suivi)               |
 | `Payment`     | Paiement associé à une réservation                                       |
 | `Report`      | Signalement sur un utilisateur, un trajet ou une réservation (morphable) |
 | `Location`    | Coordonnées GPS pour suivi en temps réel                                 |
+
+> **Nouveauté** :
+>
+> -   `Trip` intègre le champ `type_trip` (enum : `standard`, `express`, `sur_devis`, etc.)
+> -   Le README, les tests et factories prennent en compte la gestion de futurs types de réservation.
 
 ---
 
@@ -94,17 +99,17 @@
 ### Couverture :
 
 -   Authentification
--   Réservations : création, statuts, edge-cases
--   Règles métier
--   Accès interdits → 403
+-   Réservations : création, statuts, edge-cases, types de réservations
+-   Règles métier (transition, accès, poids/capacité)
+-   Accès refusés → 403 (ex : mauvais rôle, type inconnu)
 
 ---
 
 ## 🧱 Sécurité & Accès
 
 -   `auth:sanctum` + FormRequest
--   Enum `BookingStatusEnum`
--   Validation des rôles, poids, capacité
+-   Enum `BookingStatusEnum` / `TripTypeEnum`
+-   Validation des rôles, statuts, types, poids, capacité
 -   Plans à venir :
     -   Policies, Gates
     -   Gestion des rôles avec `spatie/laravel-permission`
@@ -116,7 +121,7 @@
 ## 🧬 Données de test (seeders)
 
 -   15 utilisateurs (`5 voyageurs`, `5 expéditeurs`, `5 admins`)
--   30 `Trips`
+-   30 `Trips` (avec type varié)
 -   40 `Luggages`
 -   20 `Bookings` avec items & paiements simulés
 -   10 `Reports` (signalements)
@@ -149,19 +154,24 @@ make seed
 ```
 
 🛠️ Roadmap fonctionnelle
-Tâche État
-Authentification Sanctum ✅ Terminé
-Booking CRUD + logique métier ✅ Terminé
-Trip CRUD complet ✅ Terminé
-Documentation Swagger ✅ En place
-Dockerisation (Laravel + MySQL + NGINX) 🔄 En cours
-CI/CD GitHub Actions 🔄 En cours
-Sécurité avancée (Policies, rôles, etc.) 🔜 À venir
-Modules Luggage, Payment, Users complets 🔜 À venir
-Backups, monitoring, alertes 🔜 À venir
+| Tâche | État |
+| ---------------------------------------- | ----------- |
+| Authentification Sanctum | ✅ Terminé |
+| Booking CRUD + logique métier | ✅ Terminé |
+| Trip CRUD (avec type) | ✅ Terminé |
+| Documentation Swagger | ✅ En place |
+| Dockerisation (Laravel + MySQL + NGINX) | 🔄 En cours |
+| CI/CD GitHub Actions | 🔄 En cours |
+| Sécurité avancée (Policies, rôles, etc.) | 🔜 À venir |
+| Modules Luggage, Payment, Users complets | 🔜 À venir |
+| Backups, monitoring, alertes | 🔜 À venir |
+
+🔗 Liens utiles
+GitHub : https://github.com/kasse222/gp-valise-api
+
+Swagger : /api/documentation
 
 👨‍💻 À propos
 Projet développé dans le cadre d'une reconversion professionnelle vers le back-end & DevOps.
-
 Auteur : Kasse Lamine
 📧 Contact : lamine.kasse.dev@gmail.com
