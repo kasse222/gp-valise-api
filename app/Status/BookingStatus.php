@@ -15,6 +15,8 @@ enum BookingStatus: string
         // Cas post-acceptation
     case TERMINE          = 'termine';          // livraison effectuée
     case ANNULE           = 'annule';           // par expéditeur ou système
+    case CONFIRMEE        = 'confirmee';
+    case LIVREE           = 'livree';
 
         // Exceptions
     case EN_LITIGE        = 'en_litige';        // conflit / réclamation en cours
@@ -22,6 +24,8 @@ enum BookingStatus: string
     case EXPIREE          = 'expiree';          // date dépassée sans action
     case PAIEMENT_ECHOUE  = 'paiement_echoue';  // tentative échouée
     case SUSPENDUE        = 'suspendue';        // manuellement désactivée
+
+
 
     public function isFinal(): bool
     {

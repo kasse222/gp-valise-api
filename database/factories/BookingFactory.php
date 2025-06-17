@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Luggage;
 use App\Models\Trip;
+use App\Models\User;
 use App\Status\BookingStatus;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -17,6 +18,7 @@ class BookingFactory extends Factory
     {
 
         return [
+            'user_id' => User::factory(),
             'trip_id' => Trip::factory(),
             'luggage_id' => null,
             'status' => BookingStatus::EN_ATTENTE->value,
