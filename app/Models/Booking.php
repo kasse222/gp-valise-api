@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Status\BookingStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
 class Booking extends Model
@@ -53,6 +54,12 @@ class Booking extends Model
     {
         return $this->hasOne(Payment::class);
     }
+
+    public function statusHistories(): HasMany
+    {
+        return $this->hasMany(BookingStatusHistory::class);
+    }
+
 
     /**
      * Scope for pending bookings.
@@ -140,21 +147,21 @@ class Booking extends Model
         };
     }
 
-    public function transitionTo(BookingStatus $newStatus, User $user): bool
+    public function transitionTo(BookingStatus $newStatus, User $user, ?string $reason = null): bool
     {
         if (! $this->canBeUpdatedTo($newStatus, $user)) {
             return false;
         }
 
-        return DB::transaction(function () use ($newStatus, $user) {
+        return DB::transaction(function () use ($newStatus, $user, $reason) {
             // Historique
-            BookingStatusHistory::create([
-                'booking_id' => $this->id,
-                'old_status' => $this->status,
-                'new_status' => $newStatus,
-                'changed_by' => $user->id,
-                'changed_at' => now(),
-            ]);
+            BookingStatusHistory::log(
+                booking: $this,
+                old: $this->status,
+                new: $newStatus,
+                user: $user,
+                reason: $reason
+            );
 
             // Mise à jour du statut
             $this->update(['status' => $newStatus]);
