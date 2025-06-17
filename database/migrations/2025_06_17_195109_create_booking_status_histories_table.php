@@ -13,11 +13,15 @@ return new class extends Migration
     {
         Schema::create('booking_status_histories', function (Blueprint $table) {
             $table->id();
+
             $table->foreignId('booking_id')->constrained()->onDelete('cascade');
+            $table->foreignId('changed_by')->constrained('users');
+
             $table->string('old_status');
             $table->string('new_status');
-            $table->foreignId('changed_by')->constrained('users');
-            $table->timestamp('changed_at');
+
+            $table->string('reason')->nullable();
+
             $table->timestamps();
         });
     }

@@ -30,7 +30,7 @@ class BookingStatusHistory extends Model
     }
 
     /**
-     * Utilisateur qui a modifié le statut
+     * Utilisateur ayant effectué le changement  statut
      */
     public function user(): BelongsTo
     {
