@@ -2,22 +2,14 @@
 
 namespace App\Models;
 
+use App\Status\LuggageStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Luggage extends Model
 {
-    /** @use HasFactory<\Database\Factories\LuggageFactory> */
     use HasFactory;
 
-
-    protected $table = 'luggages';
-
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'user_id',
         'description',
@@ -30,8 +22,15 @@ class Luggage extends Model
         'status',
     ];
 
+    protected $casts = [
+        'pickup_date'   => 'date',
+        'delivery_date' => 'date',
+        'status'         => LuggageStatus::class,
+
+    ];
+
     /**
-     * Get the user (expéditeur) who owns the luggage.
+     * 🔗 L’expéditeur (propriétaire de la valise)
      */
     public function user()
     {
@@ -39,23 +38,23 @@ class Luggage extends Model
     }
 
     /**
-     * Get the booking associated with this luggage.
+     * 🔗 Liaisons multiples via BookingItems (si la valise est partagée)
      */
-    public function booking()
-    {
-        return $this->hasOne(Booking::class);
-    }
-
     public function bookingItems()
     {
         return $this->hasMany(BookingItem::class);
     }
 
     /**
-     * Scope to get only available luggages.
+     * 🎯 Scope pour filtrer les valises disponibles
      */
     public function scopeDisponibles($query)
     {
         return $query->where('status', 'en_attente');
+    }
+
+    public function canBeReserved(): bool
+    {
+        return $this->status->isReservable();
     }
 }

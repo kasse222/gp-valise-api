@@ -6,36 +6,31 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('luggages', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->string('description');
-            $table->float('weight_kg', 5, 1);
-            $table->string('dimensions');
+
+            $table->foreignId('user_id')
+                ->constrained()
+                ->cascadeOnDelete(); // 🧍 Expéditeur supprimé = valises supprimées
+
+            $table->string('description')->nullable();
+            $table->decimal('weight_kg', 5, 2); // max 999.99 kg
+            $table->string('dimensions')->nullable(); // ex: "55x40x20"
+
             $table->string('pickup_city');
             $table->string('delivery_city');
             $table->date('pickup_date');
             $table->date('delivery_date');
+
+            $table->string('status')->default('en_attente'); // enum possible
             $table->timestamps();
-            $table->enum('status', [
-                'en_attente',   // Valise créée, pas encore assignée à un trajet
-                'reservee',     // Un booking a été créé
-                'livree',       // La valise a été transportée et livrée
-                'annulee',      // Annulée par l’expéditeur ou le système
-            ])->default('en_attente');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('luggage');
+        Schema::dropIfExists('luggages');
     }
 };
