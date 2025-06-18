@@ -23,6 +23,12 @@ class EnsureRole
         if (! $user || ! in_array($user->role->value, $roles)) {
             return response()->json(['message' => 'Accès refusé – rôle requis : ' . implode(', ', $roles)], Response::HTTP_FORBIDDEN);
         }
+        //  dans le cas d’un cast mal configuré ou d’un utilisateur corrompu en base
+        if (! $user || ! $user->role || ! in_array($user->role->value, $roles)) {
+            return response()->json([
+                'message' => 'Accès refusé – rôle requis : ' . implode(', ', $roles),
+            ], Response::HTTP_FORBIDDEN);
+        }
 
         return $next($request);
     }

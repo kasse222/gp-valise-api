@@ -8,13 +8,13 @@ class LoginRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // ✅ Accessible publiquement
+        return true; // Accessible sans token
     }
 
     public function rules(): array
     {
         return [
-            'email'    => ['required', 'email', 'exists:users,email'],
+            'email'    => ['required', 'email'],
             'password' => ['required', 'string'],
         ];
     }
@@ -22,8 +22,8 @@ class LoginRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'email.exists' => 'Aucun utilisateur avec cet email.',
-            'email.required' => 'L’email est requis.',
+            'email.required'    => 'L’email est requis.',
+            'email.email'       => 'Le format de l’email est invalide.',
             'password.required' => 'Le mot de passe est requis.',
         ];
     }

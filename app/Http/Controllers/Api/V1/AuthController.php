@@ -23,7 +23,7 @@ class AuthController extends Controller
             'last_name'       => $request->last_name,
             'email'           => $request->email,
             'password'        => Hash::make($request->password),
-            'role'            => $request->role,
+            'role'            => $request->validatedRole(), // 👈 sécurisé ici
             'phone'           => $request->phone,
             'country'         => $request->country,
             'verified_user'   => false,
