@@ -3,6 +3,7 @@
 namespace App\Actions\Booking;
 
 use App\Models\Booking;
+use App\Status\BookingStatus;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
@@ -13,33 +14,22 @@ class CancelBooking
         $user = Auth::user();
         $booking = Booking::with(['bookingItems.luggage', 'trip'])->findOrFail($bookingId);
 
-        // Vérification d'autorisation : voyageur ou expéditeur
-        $isVoyageur = $booking->trip->user_id === $user->id;
-        $isExpediteur = $booking->user_id === $user->id;
-
-        if (!$isVoyageur && !$isExpediteur) {
+        // 🔐 Autorisation métier via Booking::canBeUpdatedTo
+        if (! $booking->canBeUpdatedTo(BookingStatus::ANNULE, $user)) {
             throw ValidationException::withMessages([
-                'booking' => 'Vous n’êtes pas autorisé à annuler cette réservation.',
+                'booking' => 'Annulation non autorisée ou statut invalide.',
             ]);
         }
 
-        // Déjà annulée ?
-        if ($booking->status === 'annulee') {
+        // ✅ Transition métier centralisée
+        $success = $booking->transitionTo(BookingStatus::ANNULE, $user, 'Annulation par l’utilisateur');
+
+        if (! $success) {
             throw ValidationException::withMessages([
-                'booking' => 'La réservation est déjà annulée.',
+                'booking' => 'Impossible d’annuler la réservation.',
             ]);
         }
 
-        // Libérer les valises
-        foreach ($booking->bookingItems as $item) {
-            $item->luggage->update(['status' => 'en_attente']);
-            $item->delete();
-        }
-
-        $booking->update([
-            'status' => 'annulee',
-        ]);
-
-        return $booking;
+        return $booking->fresh(['bookingItems.luggage']);
     }
 }

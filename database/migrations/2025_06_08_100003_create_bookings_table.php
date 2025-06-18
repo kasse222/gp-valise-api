@@ -15,7 +15,6 @@ return new class extends Migration
         Schema::create('bookings', function (Blueprint $table) {
             $table->id();
             $table->foreignId('trip_id')->constrained()->onDelete('cascade');
-            $table->foreignId('luggage_id')->nullable()->constrained('luggages')->onDelete('cascade');
             $table->decimal('total_weight_kg', 6, 1)->nullable();
 
             $table->text('notes')->nullable();

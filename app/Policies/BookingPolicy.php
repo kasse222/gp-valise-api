@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Booking;
 use App\Models\User;
+use App\Status\BookingStatus;
 use Illuminate\Auth\Access\Response;
 
 class BookingPolicy
@@ -17,50 +18,34 @@ class BookingPolicy
     }
 
     /**
-     * Determine whether the user can view the model.
+     * Autorise la confirmation si :
+     * - l'utilisateur est le propriétaire du Trip
+     * - la réservation est en attente
      */
-    public function view(User $user, Booking $booking): bool
+    public function confirm(User $user, Booking $booking): bool
     {
-        return false;
+        return $user->id === $booking->trip->user_id
+            && $booking->status === BookingStatus::EN_ATTENTE;
     }
 
     /**
-     * Determine whether the user can create models.
+     * Autorise l’annulation si :
+     * - le voyageur (propriétaire du trip) annule un booking en attente
      */
-    public function create(User $user): bool
+    public function cancel(User $user, Booking $booking): bool
     {
-        return false;
+        return $user->id === $booking->trip->user_id
+            && $booking->status === BookingStatus::EN_ATTENTE;
     }
 
     /**
-     * Determine whether the user can update the model.
+     * Autorise la complétion si :
+     * - le voyageur (propriétaire du trip)
+     * - statut déjà confirmé
      */
-    public function update(User $user, Booking $booking): bool
+    public function complete(User $user, Booking $booking): bool
     {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can delete the model.
-     */
-    public function delete(User $user, Booking $booking): bool
-    {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can restore the model.
-     */
-    public function restore(User $user, Booking $booking): bool
-    {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can permanently delete the model.
-     */
-    public function forceDelete(User $user, Booking $booking): bool
-    {
-        return false;
+        return $user->id === $booking->trip->user_id
+            && $booking->status === BookingStatus::CONFIRMEE;
     }
 }

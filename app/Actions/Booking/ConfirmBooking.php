@@ -3,38 +3,27 @@
 namespace App\Actions\Booking;
 
 use App\Models\Booking;
+use App\Status\BookingStatus;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
 class ConfirmBooking
 {
-    /**
-     * Confirme une réservation si les règles métier sont respectées.
-     *
-     * @throws ValidationException
-     */
     public function execute(int $bookingId): Booking
     {
+        $user = Auth::user();
         $booking = Booking::with(['trip', 'bookingItems'])->findOrFail($bookingId);
 
-        // 🔐 1. Booking doit être en attente
-        if ($booking->status !== 'en_attente') {
+        // 🔐 Vérifie l'autorisation métier
+        if (! $booking->canBeUpdatedTo(BookingStatus::CONFIRMEE, $user)) {
             throw ValidationException::withMessages([
-                'status' => 'La réservation doit être en attente pour être confirmée.',
+                'booking' => 'Confirmation non autorisée ou transition invalide.',
             ]);
         }
 
-        // 🔐 2. L'utilisateur doit être le voyageur (propriétaire du trip)
-        $user = Auth::user();
-        if ($booking->trip->user_id !== $user->id) {
-            throw ValidationException::withMessages([
-                'user' => 'Vous n\'êtes pas autorisé à confirmer cette réservation.',
-            ]);
-        }
-
-        // 📦 3. Calculer capacité restante sur le trip
+        // 📦 Vérifie la capacité du trajet
         $totalKgReserved = $booking->trip->bookings()
-            ->where('status', 'confirmee')
+            ->where('status', BookingStatus::CONFIRMEE)
             ->with('bookingItems')
             ->get()
             ->flatMap->bookingItems
@@ -45,12 +34,18 @@ class ConfirmBooking
 
         if (($totalKgReserved + $thisBookingKg) > $tripCapacity) {
             throw ValidationException::withMessages([
-                'trip' => 'La capacité du trajet est insuffisante pour confirmer cette réservation.',
+                'trip' => 'Capacité du trajet insuffisante pour confirmer cette réservation.',
             ]);
         }
 
-        // ✅ 4. Confirmation
-        $booking->update(['status' => 'confirmee']);
+        // ✅ Transition vers 'confirmée'
+        $success = $booking->transitionTo(BookingStatus::CONFIRMEE, $user, 'Confirmation par le voyageur');
+
+        if (! $success) {
+            throw ValidationException::withMessages([
+                'booking' => 'Impossible de confirmer cette réservation.',
+            ]);
+        }
 
         return $booking->fresh(['bookingItems.luggage', 'trip']);
     }
