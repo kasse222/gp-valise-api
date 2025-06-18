@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
 
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
-
+use Illuminate\Routing\Controller;
 
 class AuthController extends Controller
 {
@@ -18,12 +17,15 @@ class AuthController extends Controller
      */
     public function register(RegisterRequest $request)
     {
+        // 🔐 Vérifie que l'utilisateur courant a le droit de créer un autre utilisateur
+        $this->authorize('create', User::class);
+
         $user = User::create([
             'first_name'      => $request->first_name,
             'last_name'       => $request->last_name,
             'email'           => $request->email,
             'password'        => Hash::make($request->password),
-            'role'            => $request->validatedRole(), // 👈 sécurisé ici
+            'role'            => $request->role,
             'phone'           => $request->phone,
             'country'         => $request->country,
             'verified_user'   => false,
@@ -38,6 +40,7 @@ class AuthController extends Controller
             'token'   => $token,
         ], 201);
     }
+
 
     /**
      * Connexion d’un utilisateur
