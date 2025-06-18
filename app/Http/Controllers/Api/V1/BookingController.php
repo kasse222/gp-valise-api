@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Actions\Booking\CancelBooking;
 use App\Actions\Booking\ConfirmBooking;
 use App\Actions\Booking\ReserveBooking;
+use App\Actions\Booking\CompleteBooking;
 use App\Http\Requests\Booking\StoreBookingRequest;
 use App\Http\Requests\Booking\UpdateBookingRequest;
 use App\Models\Booking;
@@ -137,7 +138,7 @@ class BookingController extends Controller
     /**
      * 📦 Marquer comme livrée
      */
-    public function complete(string $id, CompleteBooking $action)
+    public function complete(string $id, App\Http\Controllers\Api\V1\CompleteBooking $action)
     {
         $booking = Booking::with('trip')->findOrFail($id);
 

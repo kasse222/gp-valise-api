@@ -17,6 +17,7 @@ class TripResource extends JsonResource
             'capacity'    => $this->capacity,
             'flight_number' => $this->flight_number,
             'status'      => $this->status,
+            'type_trip'     => $this->type_trip, // ✅ Ajouté ici
             'created_at'  => $this->created_at,
         ];
     }

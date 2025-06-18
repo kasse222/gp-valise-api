@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Status\TripTypeEnum;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -17,11 +18,13 @@ class Trip extends Model
         'date',
         'capacity',
         'status',
+        'type_trip',
         'flight_number', // ✈️ Pour les trajets aériens
     ];
 
     protected $casts = [
         'date' => 'date',
+        'type_trip' => TripTypeEnum::class, // 🆕 cast enum
     ];
 
     /**

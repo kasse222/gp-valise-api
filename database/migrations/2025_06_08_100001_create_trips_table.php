@@ -16,15 +16,17 @@ return new class extends Migration
 
             $table->foreignId('user_id')
                 ->constrained()
-                ->cascadeOnDelete(); // 🔁 Si le voyageur supprime son compte
+                ->cascadeOnDelete();
 
-            $table->string('departure');     // Ville de départ
-            $table->string('destination');   // Ville d’arrivée
-            $table->date('date');            // Date du voyage
-            $table->integer('capacity');     // Capacité totale (en kg ou % volume)
-            $table->string('status')->default('actif'); // actif / complet / annulé
-            $table->string('flight_number')->nullable(); // ✈ Pour les trajets aériens
+            $table->string('departure');
+            $table->string('destination');
+            $table->date('date');
+            $table->integer('capacity');
+            $table->string('status')->default('actif');
+            $table->string('type_trip')->default('standard'); // 🆕 Type de trajet
+            $table->string('flight_number')->nullable();
 
+            $table->softDeletes(); // 🗑️ Active le soft delete
             $table->timestamps();
         });
     }

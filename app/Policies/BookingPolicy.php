@@ -17,6 +17,12 @@ class BookingPolicy
         return false;
     }
 
+    public function update(User $user, Booking $booking): bool
+    {
+        return $booking->canBeUpdatedTo(BookingStatus::from(request('status')), $user);
+    }
+
+
     /**
      * Autorise la confirmation si :
      * - l'utilisateur est le propriétaire du Trip
@@ -34,9 +40,18 @@ class BookingPolicy
      */
     public function cancel(User $user, Booking $booking): bool
     {
-        return $user->id === $booking->trip->user_id
-            && $booking->status === BookingStatus::EN_ATTENTE;
+        return (
+            // Voyageur
+            $user->id === $booking->trip->user_id
+            ||
+            // Expéditeur
+            $user->id === $booking->user_id
+        ) && in_array($booking->status, [
+            BookingStatus::EN_ATTENTE,
+            BookingStatus::ACCEPTE
+        ]);
     }
+
 
     /**
      * Autorise la complétion si :

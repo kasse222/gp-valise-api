@@ -3,15 +3,17 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Requests\Trip\StoreTripRequest;
-use App\Http\Requests\UpdateTripRequest;
+use App\Http\Requests\Trip\UpdateTripRequest;
 use App\Http\Resources\TripResource;
 use App\Models\Trip;
+use App\Status\TripTypeEnum;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
 
-class TripController
+class TripController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * 📦 Lister les trajets de l’utilisateur connecté.
      */
     public function index(Request $request)
     {
@@ -23,18 +25,19 @@ class TripController
     }
 
     /**
-     * Store a newly created resource in storage.
+     * 🛫 Créer un nouveau trajet.
      */
     public function store(StoreTripRequest $request)
     {
         $trip = Trip::create([
-            'user_id'     => $request->user()->id,
-            'departure'   => $request->departure,
-            'destination' => $request->destination,
-            'date'        => $request->date,
-            'capacity'    => $request->capacity,
+            'user_id'       => $request->user()->id,
+            'departure'     => $request->departure,
+            'destination'   => $request->destination,
+            'date'          => $request->date,
+            'capacity'      => $request->capacity,
             'flight_number' => $request->flight_number,
-            'status'      => $request->status ?? 'open',
+            'type_trip'     => $request->type_trip ?? TripTypeEnum::STANDARD->value,
+            'status'        => $request->status ?? 'actif',
         ]);
 
         return response()->json([
@@ -43,27 +46,26 @@ class TripController
         ], 201);
     }
 
-
     /**
-     * Display the specified resource.
+     * 🔍 Voir un trajet en détail (authentifié + propriétaire).
      */
     public function show($id)
     {
-        $trip = Trip::where('id', $id)
-            ->where('user_id', auth()->id()) // Sécurité : ownership
-            ->firstOrFail();
+        $trip = Trip::findOrFail($id);
+
+        $this->authorize('view', $trip);
 
         return new TripResource($trip);
     }
 
     /**
-     * Update the specified resource in storage.
+     * ✏️ Mettre à jour un trajet (propriétaire uniquement).
      */
     public function update(UpdateTripRequest $request, $id)
     {
-        $trip = Trip::where('id', $id)
-            ->where('user_id', auth()->id())
-            ->firstOrFail();
+        $trip = Trip::findOrFail($id);
+
+        $this->authorize('update', $trip);
 
         $trip->update($request->validated());
 
@@ -71,18 +73,18 @@ class TripController
     }
 
     /**
-     * Remove the specified resource from storage.
+     * ❌ Supprimer un trajet (propriétaire uniquement).
      */
     public function destroy($id)
     {
-        $trip = Trip::where('id', $id)
-            ->where('user_id', auth()->id())
-            ->firstOrFail();
+        $trip = Trip::findOrFail($id);
 
-        $trip->delete();    // soft delete automatique pas une suppreddion total
+        $this->authorize('delete', $trip);
+
+        $trip->delete();
 
         return response()->json([
             'message' => 'Trajet supprimé avec succès.'
-        ], 200);
+        ]);
     }
 }

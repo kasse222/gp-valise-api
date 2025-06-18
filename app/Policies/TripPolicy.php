@@ -4,63 +4,30 @@ namespace App\Policies;
 
 use App\Models\Trip;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
 class TripPolicy
 {
     /**
-     * Determine whether the user can view any models.
-     */
-    public function viewAny(User $user): bool
-    {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can view the model.
+     * Afficher le trip si l'utilisateur en est le propriétaire.
      */
     public function view(User $user, Trip $trip): bool
     {
-        return false;
+        return $user->id === $trip->user_id;
     }
 
     /**
-     * Determine whether the user can create models.
-     */
-    public function create(User $user): bool
-    {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can update the model.
+     * Modifier uniquement si propriétaire.
      */
     public function update(User $user, Trip $trip): bool
     {
-        return false;
+        return $user->id === $trip->user_id;
     }
 
     /**
-     * Determine whether the user can delete the model.
+     * Supprimer uniquement si propriétaire (et potentiellement : pas de bookings confirmés).
      */
     public function delete(User $user, Trip $trip): bool
     {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can restore the model.
-     */
-    public function restore(User $user, Trip $trip): bool
-    {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can permanently delete the model.
-     */
-    public function forceDelete(User $user, Trip $trip): bool
-    {
-        return false;
+        return $user->id === $trip->user_id;
     }
 }

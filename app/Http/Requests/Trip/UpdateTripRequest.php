@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Trip;
 
+use App\Status\TripTypeEnum;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateTripRequest extends FormRequest
 {
@@ -27,7 +29,8 @@ class UpdateTripRequest extends FormRequest
             'date'           => ['sometimes', 'date', 'after:now'],
             'capacity'       => ['sometimes', 'integer', 'min:1'],
             'flight_number'  => ['nullable', 'string', 'max:50'],
-            'status'         => ['in:open,closed', 'nullable'],
+            'status'         => ['nullable', Rule::in(['actif', 'complet', 'annule'])],
+            'type_trip'      => ['sometimes', Rule::in(TripTypeEnum::values())],
         ];
     }
 }

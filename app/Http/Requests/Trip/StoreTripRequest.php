@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Trip;
 
+use App\Status\TripTypeEnum;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreTripRequest extends FormRequest
 {
@@ -19,7 +21,8 @@ class StoreTripRequest extends FormRequest
             'date'           => ['required', 'date', 'after:now'],
             'capacity'       => ['required', 'integer', 'min:1'],
             'flight_number'  => ['nullable', 'string', 'max:50'],
-            'status'         => ['in:open,closed', 'nullable'], // si tu veux gérer les trajets archivé/actif
+            'status'         => ['nullable', Rule::in(['actif', 'complet', 'annule'])],
+            'type_trip'      => ['nullable', Rule::in(TripTypeEnum::values())],
         ];
     }
 }
