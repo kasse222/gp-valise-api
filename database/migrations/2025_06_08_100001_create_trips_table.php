@@ -26,7 +26,6 @@ return new class extends Migration
             $table->string('type_trip')->default('standard'); // 🆕 Type de trajet
             $table->string('flight_number')->nullable();
 
-            $table->softDeletes(); // 🗑️ Active le soft delete
             $table->timestamps();
         });
     }
