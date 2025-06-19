@@ -52,7 +52,7 @@
 > **Nouveauté** :
 >
 > -   `Trip` intègre le champ `type_trip` (enum : `standard`, `express`, `sur_devis`, etc.)
-> -   Le README, les tests et factories prennent en compte la gestion de futurs types de réservation.
+> -   Luggage sécurisé par LuggagePolicy et enum LuggageStatus
 
 ---
 
@@ -71,17 +71,37 @@
 
 ### Endpoints REST
 
--   `GET /api/v1/bookings`
--   `POST /api/v1/bookings`
--   `GET /api/v1/bookings/{id}`
--   `PUT /api/v1/bookings/{id}`
--   `DELETE /api/v1/bookings/{id}`
+| Méthode | Route                            | Description               |
+| ------- | -------------------------------- | ------------------------- |
+| GET     | `/api/v1/bookings`               | Liste des réservations    |
+| POST    | `/api/v1/bookings`               | Créer une réservation     |
+| GET     | `/api/v1/bookings/{id}`          | Voir une réservation      |
+| PUT     | `/api/v1/bookings/{id}`          | Modifier une réservation  |
+| DELETE  | `/api/v1/bookings/{id}`          | Supprimer une réservation |
+| POST    | `/api/v1/bookings/{id}/confirm`  | Confirmer une réservation |
+| POST    | `/api/v1/bookings/{id}/cancel`   | Annuler une réservation   |
+| POST    | `/api/v1/bookings/{id}/complete` | Marquer comme livrée      |
 
 ### Actions métier
 
 -   `POST /api/v1/bookings/{id}/confirm`
 -   `POST /api/v1/bookings/{id}/cancel`
 -   `POST /api/v1/bookings/{id}/complete`
+
+🎒 Valises (Luggage)
+
+| Méthode | Route                   | Description                         |
+| ------- | ----------------------- | ----------------------------------- |
+| GET     | `/api/v1/luggages`      | Lister les valises de l’utilisateur |
+| POST    | `/api/v1/luggages`      | Créer une valise                    |
+| GET     | `/api/v1/luggages/{id}` | Voir une valise                     |
+| PUT     | `/api/v1/luggages/{id}` | Modifier une valise                 |
+| DELETE  | `/api/v1/luggages/{id}` | Supprimer une valise                |
+
+Enum LuggageStatus :
+.EN_ATTENTE, RESERVE, LIVRE, ANNULE
+Policy :
+Validation : StoreLuggageRequest, UpdateLuggageRequest
 
 ### Services utilisés
 
@@ -111,7 +131,6 @@
 -   Enum `BookingStatusEnum` / `TripTypeEnum`
 -   Validation des rôles, statuts, types, poids, capacité
 -   Plans à venir :
-    -   Policies, Gates
     -   Gestion des rôles avec `spatie/laravel-permission`
     -   KYC simplifié
     -   OWASP API Checklist
@@ -160,6 +179,7 @@ make seed
 | Booking CRUD + logique métier | ✅ Terminé |
 | Trip CRUD (avec type) | ✅ Terminé |
 | Documentation Swagger | ✅ En place |
+Luggage CRUD + Policy ✅ Terminé
 | Dockerisation (Laravel + MySQL + NGINX) | 🔄 En cours |
 | CI/CD GitHub Actions | 🔄 En cours |
 | Sécurité avancée (Policies, rôles, etc.) | 🔜 À venir |
