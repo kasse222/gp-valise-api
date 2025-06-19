@@ -116,6 +116,12 @@ class Booking extends Model
         };
     }
 
+    public function calculateAmount(): float
+    {
+        return $this->bookingItems->sum(fn($item) => $item->price);
+    }
+
+
     // ✅ Transition métier avec historique
     public function transitionTo(BookingStatus $newStatus, User $user, ?string $reason = null): bool
     {
