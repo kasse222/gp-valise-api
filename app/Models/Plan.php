@@ -17,4 +17,11 @@ class Plan extends Model
     protected $casts = [
         'features' => 'array',
     ];
+
+    public function getCommissionPercent(): float
+    {
+        return $this->discount_expires_at?->isFuture()
+            ? $this->discount_percent ?? 0
+            : 0;
+    }
 }

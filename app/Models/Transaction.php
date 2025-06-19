@@ -25,8 +25,24 @@ class Transaction extends Model
         return $this->belongsTo(User::class);
     }
 
+
     public function booking()
     {
         return $this->belongsTo(Booking::class);
+    }
+
+
+    public static function createFromBooking(Booking $booking): self
+    {
+        $amount = $booking->calculateAmount();
+        $commission = $booking->user->plan?->getCommissionPercent() ?? 0;
+
+        return self::create([
+            'booking_id'         => $booking->id,
+            'user_id'            => $booking->user_id,
+            'amount'             => $amount,
+            'commission_percent' => $commission,
+            'status'             => 'payee',
+        ]);
     }
 }
