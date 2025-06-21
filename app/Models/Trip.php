@@ -54,12 +54,30 @@ class Trip extends Model
     /**
      * 🛰️ Liste des coordonnées GPS liées à ce trajet
      */
+
     public function locations()
     {
         return $this->hasMany(Location::class);
     }
+
     public function scopeActive($query)
     {
         return $query->where('status', 'actif');
+    }
+    public function isClosed(): bool
+    {
+        return $this->date->isPast();
+    }
+
+    public function canAcceptKg(float $kg): bool
+    {
+        $reserved = $this->bookings()
+            ->where('status', 'confirmee') // ou BookingStatus::CONFIRMEE
+            ->with('bookingItems')
+            ->get()
+            ->flatMap->bookingItems
+            ->sum('kg_reserved');
+
+        return ($reserved + $kg) <= $this->capacity;
     }
 }
