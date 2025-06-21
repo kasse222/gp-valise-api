@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentMethodEnum;
+use App\Enums\PaymentStatusEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,8 +22,10 @@ class Payment extends Model
     ];
 
     protected $casts = [
+        'status' => PaymentStatusEnum::class,
         'paid_at' => 'datetime',
         'amount'  => 'float',
+        'method' => PaymentMethodEnum::class,
     ];
 
     /**

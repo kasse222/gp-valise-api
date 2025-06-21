@@ -2,13 +2,12 @@
 
 namespace App\Models;
 
-use App\Status\LuggageStatus;
-use Illuminate\Database\Eloquent\Model;
+use App\Enums\LuggageStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 class Luggage extends Model
 {
@@ -18,59 +17,54 @@ class Luggage extends Model
         'user_id',
         'description',
         'weight_kg',
-        'dimensions',
+        'length_cm',
+        'width_cm',
+        'height_cm',
         'pickup_city',
         'delivery_city',
         'pickup_date',
         'delivery_date',
         'status',
+        'tracking_id',
     ];
 
     protected $casts = [
         'pickup_date'   => 'datetime',
         'delivery_date' => 'datetime',
         'status'        => LuggageStatus::class,
-        'weight_kg'     => 'float',
     ];
 
-    /**
-     * 🔗 L’expéditeur (propriétaire de la valise)
-     */
+    // 🚀 Boot pour générer un tracking UUID unique si vide
+    protected static function booted(): void
+    {
+        static::creating(function (self $luggage) {
+            if (!$luggage->tracking_id) {
+                $luggage->tracking_id = Str::uuid();
+            }
+        });
+    }
+
+    // 🔗 Relations
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * 🔗 Liaisons multiples via BookingItems (si la valise est partagée)
-     */
-    public function bookingItems(): HasMany
+    // 🔎 Accesseur : volume en cm³La méthode getVolumeCm3Attribute()
+    // est un accessor Laravel que tu peux appeler avec $luggage->volume_cm3.
+    public function getVolumeCm3Attribute(): ?float
     {
-        return $this->hasMany(BookingItem::class);
+        if ($this->length_cm && $this->width_cm && $this->height_cm) {
+            return $this->length_cm * $this->width_cm * $this->height_cm;
+        }
+
+        return null;
     }
 
-    /**
-     * 🎯 Scope pour filtrer les valises disponibles
-     */
-    public function scopeDisponibles(Builder $query): Builder
+    // ✅ Statut final ?
+    public function isFinal(): bool
     {
-        return $query->where('status', LuggageStatus::EN_ATTENTE);
-    }
-
-    /**
-     * ✅ Cette valise peut-elle être réservée ?
-     */
-    public function canBeReserved(): bool
-    {
-        return $this->status->isReservable(); // Enum LuggageStatus doit avoir cette méthode
-    }
-
-    /**
-     * 📦 Est-ce que la valise est prête à être livrée ?
-     */
-    public function isDeliverable(): bool
-    {
-        return $this->delivery_date instanceof Carbon
-            && $this->delivery_date->isTodayOrPast();
+        return $this->status->isFinal();
     }
 }

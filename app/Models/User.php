@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\PlanTypeEnum;
+use App\Enums\UserRoleEnum;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -33,6 +34,8 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'kyc_passed_at' => 'datetime',
         'plan_expires_at' => 'datetime',
+        'role' => UserRoleEnum::class,
+
     ];
 
     public function plan(): BelongsTo
