@@ -13,14 +13,16 @@ return new class extends Migration
     {
         Schema::create('locations', function (Blueprint $table) {
             $table->id();
+
             $table->foreignId('trip_id')
-                ->constrained()
-                ->cascadeOnDelete();
-            $table->foreignId('user_id')->constrained()
-                ->cascadeOnDelete();
-            $table->decimal('latitude', 10, 7);
-            $table->decimal('longitude', 10, 7);
-            $table->timestamp('recorded_at');
+                ->constrained('trips')
+                ->onDelete('cascade');
+
+            $table->decimal('latitude', 10, 6);
+            $table->decimal('longitude', 10, 6);
+            $table->string('city')->nullable();
+            $table->unsignedInteger('order_index')->default(0);
+
             $table->timestamps();
         });
     }

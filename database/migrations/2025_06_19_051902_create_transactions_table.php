@@ -13,13 +13,23 @@ return new class extends Migration
     {
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('booking_id')->nullable()->constrained()->nullOnDelete();
-            $table->enum('type', ['reservation', 'commission', 'abonnement']);
-            $table->unsignedInteger('amount'); // en centimes
-            $table->enum('status', ['en_attente', 'paye', 'rembourse'])->default('en_attente');
-            $table->string('currency')->default('EUR');
-            $table->json('snapshot')->nullable(); // infos au moment du paiement
+
+            $table->foreignId('user_id')
+                ->constrained('users')
+                ->onDelete('cascade');
+
+            $table->foreignId('booking_id')
+                ->nullable()
+                ->constrained('bookings')
+                ->onDelete('set null');
+
+            $table->decimal('amount', 10, 2);
+            $table->string('currency', 10)->default('EUR');        // 🌍 Prévoir EnumCurrency si besoin
+            $table->string('status', 50)->default('pending');      // ✅ Enum plus tard
+            $table->string('method', 50)->nullable();              // Ex: stripe, espèce, virement
+
+            $table->timestamp('processed_at')->nullable();
+
             $table->timestamps();
         });
     }

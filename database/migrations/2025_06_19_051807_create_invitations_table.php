@@ -13,13 +13,15 @@ return new class extends Migration
     {
         Schema::create('invitations', function (Blueprint $table) {
             $table->id();
-            $table->string('code')->unique(); // ex: GP2025-A1B2
-            $table->foreignId('plan_id')->constrained()->cascadeOnDelete(); // plan associé
-            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamp('expires_at')->nullable();
-            $table->unsignedInteger('max_usage')->default(1);
-            $table->unsignedInteger('used_count')->default(0);
-            $table->json('metadata')->nullable(); // tracking
+
+            $table->foreignId('sender_id')
+                ->constrained('users')
+                ->onDelete('cascade');
+
+            $table->string('recipient_email')->index();
+            $table->string('token')->unique();
+            $table->timestamp('used_at')->nullable();
+
             $table->timestamps();
         });
     }

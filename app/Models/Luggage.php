@@ -3,8 +3,12 @@
 namespace App\Models;
 
 use App\Status\LuggageStatus;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 
 class Luggage extends Model
 {
@@ -23,16 +27,16 @@ class Luggage extends Model
     ];
 
     protected $casts = [
-        'pickup_date'   => 'date',
-        'delivery_date' => 'date',
-        'status'         => LuggageStatus::class,
-
+        'pickup_date'   => 'datetime',
+        'delivery_date' => 'datetime',
+        'status'        => LuggageStatus::class,
+        'weight_kg'     => 'float',
     ];
 
     /**
      * 🔗 L’expéditeur (propriétaire de la valise)
      */
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
@@ -40,7 +44,7 @@ class Luggage extends Model
     /**
      * 🔗 Liaisons multiples via BookingItems (si la valise est partagée)
      */
-    public function bookingItems()
+    public function bookingItems(): HasMany
     {
         return $this->hasMany(BookingItem::class);
     }
@@ -48,13 +52,25 @@ class Luggage extends Model
     /**
      * 🎯 Scope pour filtrer les valises disponibles
      */
-    public function scopeDisponibles($query)
+    public function scopeDisponibles(Builder $query): Builder
     {
-        return $query->where('status', 'en_attente');
+        return $query->where('status', LuggageStatus::EN_ATTENTE);
     }
 
+    /**
+     * ✅ Cette valise peut-elle être réservée ?
+     */
     public function canBeReserved(): bool
     {
-        return $this->status->isReservable();
+        return $this->status->isReservable(); // Enum LuggageStatus doit avoir cette méthode
+    }
+
+    /**
+     * 📦 Est-ce que la valise est prête à être livrée ?
+     */
+    public function isDeliverable(): bool
+    {
+        return $this->delivery_date instanceof Carbon
+            && $this->delivery_date->isTodayOrPast();
     }
 }

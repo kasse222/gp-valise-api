@@ -3,31 +3,37 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Invitation extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
-        'code',
-        'plan_id',
-        'created_by',
-        'expires_at',
-        'max_usage',
-        'used_count',
-        'metadata'
+        'sender_id',
+        'recipient_email',
+        'token',
+        'used_at',
     ];
 
     protected $casts = [
-        'expires_at' => 'datetime',
-        'metadata' => 'array',
+        'used_at' => 'datetime',
     ];
 
-    public function plan()
+    /**
+     * 🔗 L’utilisateur qui a envoyé l’invitation
+     */
+    public function sender(): BelongsTo
     {
-        return $this->belongsTo(Plan::class);
+        return $this->belongsTo(User::class, 'sender_id');
     }
 
-    public function creator()
+    /**
+     * ✅ L’invitation a-t-elle été utilisée ?
+     */
+    public function isUsed(): bool
     {
-        return $this->belongsTo(User::class, 'created_by');
+        return !is_null($this->used_at);
     }
 }

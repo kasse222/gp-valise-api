@@ -14,29 +14,28 @@ return new class extends Migration
         Schema::create('booking_items', function (Blueprint $table) {
             $table->id();
 
-            //  Clé étrangère vers bookings
             $table->foreignId('booking_id')
-                ->constrained('bookings') // 🔧 explicite
+                ->constrained('bookings')
                 ->onDelete('cascade');
 
-            // Clé étrangère vers luggages
             $table->foreignId('luggage_id')
-                ->constrained('luggages') // ✅ corrigé (évite l'erreur SQL)
+                ->constrained('luggages')
                 ->onDelete('cascade');
 
-            // Clé étrangère vers trips
             $table->foreignId('trip_id')
-                ->constrained('trips') // ✅ idem
+                ->constrained('trips')
                 ->onDelete('cascade');
 
-            //  Données métier
-            $table->float('kg_reserved')->nullable();         // 🧳 Quantité réservée
-            $table->decimal('price', 8, 2)->nullable();        // 💶 Prix associé
+            $table->float('kg_reserved')->nullable();
+            $table->decimal('price', 8, 2)->nullable();
 
             $table->timestamps();
 
-            // ✅ Unicité pour éviter les doublons valise + réservation
             $table->unique(['booking_id', 'luggage_id']);
+
+            // ✅ Contraintes SQL – seulement si MySQL 8.0+ ou PostgreSQL
+            $table->check('kg_reserved IS NULL OR kg_reserved >= 0');
+            $table->check('price IS NULL OR price >= 0');
         });
     }
 

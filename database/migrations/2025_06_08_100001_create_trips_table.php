@@ -14,18 +14,20 @@ return new class extends Migration
         Schema::create('trips', function (Blueprint $table) {
             $table->id();
 
-            $table->foreignId('user_id')
-                ->constrained()
-                ->cascadeOnDelete();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
 
             $table->string('departure');
             $table->string('destination');
-            $table->date('date');
-            $table->integer('capacity');
-            $table->string('status')->default('actif');
-            $table->string('type_trip')->default('standard'); // 🆕 Type de trajet
+
+            $table->dateTime('date');
+            $table->float('capacity');
+
+            $table->enum('status', ['actif', 'complet', 'annule'])->default('actif'); // 🧠 à adapter selon enum
+            $table->enum('type_trip', TripTypeEnum::values())->default(TripTypeEnum::STANDARD->value);
+
             $table->string('flight_number')->nullable();
 
+            $table->softDeletes();
             $table->timestamps();
         });
     }

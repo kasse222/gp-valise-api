@@ -14,13 +14,19 @@ return new class extends Migration
         Schema::create('booking_status_histories', function (Blueprint $table) {
             $table->id();
 
-            $table->foreignId('booking_id')->constrained()->onDelete('cascade');
-            $table->foreignId('changed_by')->constrained('users');
+            $table->foreignId('booking_id')
+                ->constrained('bookings')
+                ->onDelete('cascade');
 
-            $table->string('old_status');
-            $table->string('new_status');
+            $table->string('old_status', 50);
+            $table->string('new_status', 50);
 
-            $table->string('reason')->nullable();
+            $table->foreignId('changed_by')
+                ->constrained('users')
+                ->onDelete('set null')
+                ->nullable();
+
+            $table->text('reason')->nullable();
 
             $table->timestamps();
         });

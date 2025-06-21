@@ -13,11 +13,19 @@ return new class extends Migration
     {
         Schema::create('plans', function (Blueprint $table) {
             $table->id();
-            $table->string('name'); // ex: "Premium Mensuel"
-            $table->unsignedInteger('price'); // en centimes (ex: 999 = 9.99€)
-            $table->json('features')->nullable(); // JSON dynamique ex: {"priority_booking":true}
-            $table->unsignedInteger('duration_days')->default(30); // durée en jours
-            $table->boolean('is_active')->default(true); // visibilité publique
+
+            $table->string('name');
+            $table->enum('type', PlanTypeEnum::values())->default(PlanTypeEnum::FREE->value);
+
+            $table->unsignedFloat('price')->default(0);
+            $table->json('features')->nullable(); // 🧠 penser à valider format JSON
+
+            $table->unsignedInteger('duration_days')->nullable(); // null = illimité ?
+            $table->unsignedFloat('discount_percent')->nullable();
+            $table->timestamp('discount_expires_at')->nullable();
+
+            $table->boolean('is_active')->default(true);
+
             $table->timestamps();
         });
     }

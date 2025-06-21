@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BookingItem extends Model
 {
@@ -14,17 +15,22 @@ class BookingItem extends Model
         'price',
     ];
 
-    public function booking()
+    protected $casts = [
+        'kg_reserved' => 'float',
+        'price'       => 'float',
+    ];
+
+    public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
     }
 
-    public function luggage()
+    public function luggage(): BelongsTo
     {
         return $this->belongsTo(Luggage::class);
     }
 
-    public function trip()
+    public function trip(): BelongsTo
     {
         return $this->belongsTo(Trip::class);
     }

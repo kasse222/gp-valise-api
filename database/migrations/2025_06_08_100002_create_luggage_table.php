@@ -11,20 +11,20 @@ return new class extends Migration
         Schema::create('luggages', function (Blueprint $table) {
             $table->id();
 
-            $table->foreignId('user_id')
-                ->constrained()
-                ->cascadeOnDelete(); // 🧍 Expéditeur supprimé = valises supprimées
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
 
             $table->string('description')->nullable();
-            $table->decimal('weight_kg', 5, 2); // max 999.99 kg
-            $table->string('dimensions')->nullable(); // ex: "55x40x20"
+            $table->float('weight_kg')->default(0);
+            $table->string('dimensions')->nullable();
 
             $table->string('pickup_city');
             $table->string('delivery_city');
+
             $table->date('pickup_date');
             $table->date('delivery_date');
 
-            $table->string('status')->default('en_attente'); // enum possible
+            $table->enum('status', LuggageStatus::values())->default(LuggageStatus::EN_ATTENTE->value);
+
             $table->timestamps();
         });
     }

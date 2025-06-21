@@ -2,29 +2,41 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Location extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-
-        'user_id',        // 🔗 Trajet concerné
         'trip_id',
-        'latitude',       // 🌍 Coordonnée Y
-        'longitude',      // 🌍 Coordonnée X
-        'recorded_at',    // ⏱️ Date/heure de la position
+        'latitude',
+        'longitude',
+        'city',
+        'order_index',
+    ];
+
+    protected $casts = [
+        'latitude'     => 'float',
+        'longitude'    => 'float',
+        'order_index'  => 'integer',
     ];
 
     /**
-     * 🔗 Le trajet auquel appartient cette position
+     * 🔗 Trajet auquel cette étape appartient
      */
-    public function trip()
+    public function trip(): BelongsTo
     {
         return $this->belongsTo(Trip::class);
     }
 
-    // 🛑 PAS BESOIN de user_id sauf si plusieurs users peuvent tracer des coords
+    /**
+     * 🔁 Scope : ordonné par position dans le trajet
+     */
+    public function scopeOrdered($query)
+    {
+        return $query->orderBy('order_index');
+    }
 }

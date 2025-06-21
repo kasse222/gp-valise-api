@@ -14,13 +14,20 @@ return new class extends Migration
     {
         Schema::create('bookings', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('trip_id')->constrained()->onDelete('cascade');
-            $table->decimal('total_weight_kg', 6, 1)->nullable();
 
-            $table->text('notes')->nullable();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->foreignId('trip_id')->constrained()->onDelete('cascade');
+
+            $table->enum('status', BookingStatusEnum::values())->default(BookingStatusEnum::PENDING->value);
+
+            $table->timestamp('confirmed_at')->nullable();
+            $table->timestamp('completed_at')->nullable();
+            $table->timestamp('cancelled_at')->nullable();
+
+            $table->text('comment')->nullable();
+
+            $table->softDeletes();
             $table->timestamps();
-            $table->enum('status', array_column(BookingStatus::cases(), 'value'))
-                ->default(BookingStatus::EN_ATTENTE->value);
         });
     }
 

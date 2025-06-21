@@ -2,51 +2,49 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Payment extends Model
 {
-    /** @use HasFactory<\Database\Factories\PaymentFactory> */
     use HasFactory;
 
-    use HasFactory;
-
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
+        'user_id',
         'booking_id',
         'amount',
-        'status',
-        'provider',
-        'reference',
+        'method',     // Ex: card, stripe, cash
+        'status',     // Ex: pending, paid, failed
         'paid_at',
     ];
 
+    protected $casts = [
+        'paid_at' => 'datetime',
+        'amount'  => 'float',
+    ];
+
     /**
-     * Get the booking related to this payment.
+     * 🔗 Utilisateur ayant payé
      */
-    public function booking()
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * 🔗 Réservation liée au paiement
+     */
+    public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
     }
 
     /**
-     * Scope for paid payments.
+     * 💳 Paiement finalisé ?
      */
-    public function scopePayes($query)
+    public function isPaid(): bool
     {
-        return $query->where('status', 'paye');
-    }
-
-    /**
-     * Scope for pending payments.
-     */
-    public function scopeEnAttente($query)
-    {
-        return $query->where('status', 'en_attente');
+        return $this->status === 'paid';
     }
 }

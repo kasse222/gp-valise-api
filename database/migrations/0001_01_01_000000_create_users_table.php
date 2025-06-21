@@ -13,16 +13,23 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
+
             $table->string('first_name');
             $table->string('last_name');
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
+
             $table->string('password');
             $table->enum('role', ['admin', 'voyageur', 'expediteur'])->default('expediteur');
             $table->boolean('verified_user')->default(false);
+
             $table->string('phone')->nullable();
             $table->string('country')->nullable();
             $table->timestamp('kyc_passed_at')->nullable();
+
+            $table->foreignId('plan_id')->nullable()->constrained('plans')->nullOnDelete();
+            $table->timestamp('plan_expires_at')->nullable();
+
             $table->rememberToken();
             $table->timestamps();
         });
@@ -48,8 +55,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
+        Schema::dropIfExists('password_reset_tokens');
+        Schema::dropIfExists('users');
     }
 };

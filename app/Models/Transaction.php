@@ -3,46 +3,57 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Transaction extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'user_id',
         'booking_id',
-        'type',
         'amount',
-        'status',
         'currency',
-        'snapshot'
+        'status',     // ✅ Prévoir EnumTransactionStatus
+        'method',     // ✅ Prévoir EnumPaymentMethod
+        'processed_at',
     ];
 
     protected $casts = [
-        'snapshot' => 'array',
+        'processed_at' => 'datetime',
+        'amount'       => 'float',
     ];
 
-    public function user()
+    /**
+     * 🔗 Utilisateur ayant effectué le paiement
+     */
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-
-    public function booking()
+    /**
+     * 🔗 Réservation concernée (optionnelle)
+     */
+    public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
     }
 
-
-    public static function createFromBooking(Booking $booking): self
+    /**
+     * ✅ La transaction a-t-elle été traitée ?
+     */
+    public function isProcessed(): bool
     {
-        $amount = $booking->calculateAmount();
-        $commission = $booking->user->plan?->getCommissionPercent() ?? 0;
+        return $this->processed_at !== null;
+    }
 
-        return self::create([
-            'booking_id'         => $booking->id,
-            'user_id'            => $booking->user_id,
-            'amount'             => $amount,
-            'commission_percent' => $commission,
-            'status'             => 'payee',
-        ]);
+    /**
+     * 💡 Prévoir une méthode d’état si Enums en place
+     */
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
     }
 }

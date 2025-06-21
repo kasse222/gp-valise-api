@@ -2,83 +2,53 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\PlanTypeEnum;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use Plan;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasApiTokens, HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'first_name',
         'last_name',
         'email',
         'password',
         'role',
-        'verified_user',       // ✅ Validation KYC
-        'phone',               // ✅ Pour contact & vérif
-        'country',             // ✅ Pays d’origine (diaspora)
-        'kyc_passed_at',       // ✅ Date de vérif
+        'verified_user',
+        'phone',
+        'country',
+        'kyc_passed_at',
+        'plan_id',
+        'plan_expires_at',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
-    protected $hidden = [
-        'password',
-        'remember_token',
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'kyc_passed_at' => 'datetime',
+        'plan_expires_at' => 'datetime',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
+    public function plan(): BelongsTo
     {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-            'role' => \App\Status\UserRole::class,
-        ];
+        return $this->belongsTo(Plan::class);
     }
 
-    // Relations existantes
-    public function trips()
+    public function isPremium(): bool
     {
-        return $this->hasMany(Trip::class);
-    }
-    public function luggages()
-    {
-        return $this->hasMany(Luggage::class);
-    }
-    public function reports()
-    {
-        return $this->hasMany(Report::class);
+        return $this->plan?->type === PlanTypeEnum::PREMIUM
+            && $this->plan_expires_at?->isFuture();
     }
 
-    // Scopes pratiques
-    public function scopeVoyageurs($query)
+    public function hasPlan(PlanTypeEnum $type): bool
     {
-        return $query->where('role', 'voyageur');
-    }
-    public function scopeExpediteurs($query)
-    {
-        return $query->where('role', 'expediteur');
-    }
-    public function scopeAdmins($query)
-    {
-        return $query->where('role', 'admin');
+        return $this->plan?->type === $type
+            && $this->plan_expires_at?->isFuture();
     }
 }

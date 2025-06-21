@@ -2,29 +2,37 @@
 
 namespace App\Models;
 
-use App\Status\BookingStatus;
-use Illuminate\Database\Eloquent\Model;
+use App\Enums\BookingStatusEnum;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 class Booking extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'user_id',
         'trip_id',
         'status',
-        'notes',
+        'confirmed_at',
+        'completed_at',
+        'cancelled_at',
+        'comment',
     ];
 
     protected $casts = [
-        'status' => BookingStatus::class,
+        'status' => BookingStatusEnum::class,
+        'confirmed_at' => 'datetime',
+        'completed_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
-    // 📌 Relations
+    // Relations
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -40,109 +48,47 @@ class Booking extends Model
         return $this->hasMany(BookingItem::class);
     }
 
-    public function payment()
-    {
-        return $this->hasOne(Payment::class);
-    }
-
     public function statusHistories(): HasMany
     {
         return $this->hasMany(BookingStatusHistory::class);
     }
 
-    // 📌 Scopes pratiques
-    public function scopeEnAttente($query)
+    // Méthodes métier
+
+    public function isConfirmed(): bool
     {
-        return $query->where('status', BookingStatus::EN_ATTENTE->value);
+        return $this->status === BookingStatusEnum::CONFIRMED;
     }
 
-    public function scopeAccepte($query)
+    public function isCancelled(): bool
     {
-        return $query->where('status', BookingStatus::ACCEPTE->value);
+        return $this->status === BookingStatusEnum::CANCELLED;
     }
 
-    public function scopeRefuse($query)
+    public function canBeCancelled(): bool
     {
-        return $query->where('status', BookingStatus::REFUSE->value);
+        return !in_array($this->status, [
+            BookingStatusEnum::COMPLETED,
+            BookingStatusEnum::CANCELLED,
+        ], true);
     }
 
-    // 📌 Règle spécifique : confirmation
-    public function canBeConfirmed(): bool
+    public function transitionTo(BookingStatusEnum $newStatus): void
     {
-        return $this->status === BookingStatus::EN_ATTENTE
-            && $this->trip
-            && $this->trip->user_id === auth()->id();
-    }
+        // On vérifie que la transition est valide (à implémenter dans Enum ou Validator)
 
-    // ✅ Règles métier de transition de statut
-    public function canBeUpdatedTo(BookingStatus $newStatus, User $user): bool
-    {
-        return match ($newStatus) {
-            BookingStatus::ACCEPTE, BookingStatus::REFUSE =>
-            $this->status === BookingStatus::EN_ATTENTE && $user->id === $this->trip->user_id,
-
-            BookingStatus::ANNULE =>
-            in_array($this->status, [BookingStatus::EN_ATTENTE, BookingStatus::ACCEPTE])
-                && $user->id === $this->user_id,
-
-            BookingStatus::TERMINE =>
-            $this->status === BookingStatus::ACCEPTE && $user->id === $this->trip->user_id,
-
-            BookingStatus::EN_PAIEMENT =>
-            $this->status === BookingStatus::EN_ATTENTE && $user->id === $this->user_id,
-
-            BookingStatus::CONFIRMEE =>
-            $this->status === BookingStatus::EN_PAIEMENT, // système ou paiement auto
-
-            BookingStatus::LIVREE =>
-            $this->status === BookingStatus::CONFIRMEE && $user->id === $this->trip->user_id,
-
-            BookingStatus::EN_LITIGE =>
-            in_array($this->status, [BookingStatus::CONFIRMEE, BookingStatus::LIVREE]),
-
-            BookingStatus::PAIEMENT_ECHOUE =>
-            $this->status === BookingStatus::EN_PAIEMENT,
-
-            BookingStatus::REMBOURSEE =>
-            in_array($this->status, [BookingStatus::ANNULE, BookingStatus::EN_LITIGE]),
-
-            BookingStatus::EXPIREE =>
-            in_array($this->status, [BookingStatus::EN_ATTENTE, BookingStatus::EN_PAIEMENT]),
-
-            BookingStatus::SUSPENDUE =>
-            true, // admin / système
-
-            default => false,
+        $this->status = $newStatus;
+        match ($newStatus) {
+            BookingStatusEnum::CONFIRMED => $this->confirmed_at = now(),
+            BookingStatusEnum::COMPLETED => $this->completed_at = now(),
+            BookingStatusEnum::CANCELLED => $this->cancelled_at = now(),
+            default => null,
         };
-    }
 
-    public function calculateAmount(): float
-    {
-        return $this->bookingItems->sum(fn($item) => $item->price);
-    }
+        $this->save();
 
-
-    // ✅ Transition métier avec historique
-    public function transitionTo(BookingStatus $newStatus, User $user, ?string $reason = null): bool
-    {
-        if (! $this->canBeUpdatedTo($newStatus, $user)) {
-            return false;
-        }
-
-        return DB::transaction(function () use ($newStatus, $user, $reason) {
-            // 🧾 Log d’historique
-            BookingStatusHistory::log(
-                booking: $this,
-                old: $this->status,
-                new: $newStatus,
-                user: $user,
-                reason: $reason,
-            );
-
-            // 🔁 Mise à jour réelle
-            $this->update(['status' => $newStatus]);
-
-            return true;
-        });
+        $this->statusHistories()->create([
+            'status' => $newStatus,
+        ]);
     }
 }

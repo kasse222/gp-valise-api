@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
-use App\Status\TripTypeEnum;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Enums\TripTypeEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 
 class Trip extends Model
 {
@@ -19,65 +23,88 @@ class Trip extends Model
         'capacity',
         'status',
         'type_trip',
-        'flight_number', // ✈️ Pour les trajets aériens
+        'flight_number',
     ];
 
     protected $casts = [
-        'date' => 'date',
-        'type_trip' => TripTypeEnum::class, // 🆕 cast enum
+        'date' => 'datetime',
+        'type_trip' => TripTypeEnum::class,
+        'capacity' => 'float',
     ];
 
     /**
-     * 🔗 Lien vers l'utilisateur (voyageur) propriétaire du trajet
+     * Voyageur ayant proposé ce trajet
      */
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
     /**
-     * 🔗 Toutes les réservations (bookings) sur ce trajet
+     * Réservations liées à ce trajet
      */
-    public function bookings()
+    public function bookings(): HasMany
     {
         return $this->hasMany(Booking::class);
     }
 
     /**
-     * 🔗 Toutes les Ajouter les relations inverses sur ce trajet
+     * Colis associés via BookingItem
      */
-    public function bookingItems()
+    public function bookingItems(): HasMany
     {
         return $this->hasMany(BookingItem::class);
     }
 
     /**
-     * 🛰️ Liste des coordonnées GPS liées à ce trajet
+     * Coordonnées GPS ou étapes liées au trajet
      */
-
-    public function locations()
+    public function locations(): HasMany
     {
         return $this->hasMany(Location::class);
     }
 
-    public function scopeActive($query)
+    /**
+     * Scope pour les trajets actifs
+     */
+    public function scopeActive(Builder $query): Builder
     {
         return $query->where('status', 'actif');
     }
+
+    /**
+     * Le trajet est-il expiré ?
+     */
     public function isClosed(): bool
     {
-        return $this->date->isPast();
+        return $this->date instanceof Carbon && $this->date->isPast();
     }
 
+    /**
+     * Peut-on ajouter un certain poids à ce trajet ?
+     */
     public function canAcceptKg(float $kg): bool
     {
-        $reserved = $this->bookings()
-            ->where('status', 'confirmee') // ou BookingStatus::CONFIRMEE
+        $reservedKg = $this->bookings()
+            ->where('status', 'confirmee') // ✅ prévoir constante si BookingStatusEnum dispo
             ->with('bookingItems')
             ->get()
             ->flatMap->bookingItems
             ->sum('kg_reserved');
 
-        return ($reserved + $kg) <= $this->capacity;
+        return ($reservedKg + $kg) <= $this->capacity;
+    }
+
+    /**
+     * Retourne le poids total déjà réservé
+     */
+    public function totalKgReserved(): float
+    {
+        return $this->bookings()
+            ->where('status', 'confirmee')
+            ->with('bookingItems')
+            ->get()
+            ->flatMap->bookingItems
+            ->sum('kg_reserved');
     }
 }

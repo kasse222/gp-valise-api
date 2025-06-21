@@ -4,10 +4,13 @@ namespace App\Models;
 
 use App\Status\BookingStatus;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BookingStatusHistory extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'booking_id',
         'old_status',
@@ -22,7 +25,7 @@ class BookingStatusHistory extends Model
     ];
 
     /**
-     * Réservation concernée
+     * 🔗 Réservation concernée
      */
     public function booking(): BelongsTo
     {
@@ -30,24 +33,24 @@ class BookingStatusHistory extends Model
     }
 
     /**
-     * Utilisateur ayant effectué le changement  statut
+     * 🔗 Utilisateur ayant effectué le changement de statut
      */
-    public function user(): BelongsTo
+    public function changedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'changed_by');
     }
 
     /**
-     * Logger un changement de statut
+     * 🧾 Logger un changement de statut
      */
     public static function log(Booking $booking, BookingStatus $old, BookingStatus $new, User $user, ?string $reason = null): void
     {
         self::create([
             'booking_id' => $booking->id,
-            'old_status' => $old,
-            'new_status' => $new,
+            'old_status' => $old->value,
+            'new_status' => $new->value,
             'changed_by' => $user->id,
-            'reason' => $reason,
+            'reason'     => $reason,
         ]);
     }
 }
