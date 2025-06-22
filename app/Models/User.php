@@ -4,13 +4,14 @@ namespace App\Models;
 
 use App\Enums\PlanTypeEnum;
 use App\Enums\UserRoleEnum;
+use App\Models\Plan;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Casts\Attribute;
-use Plan;
+
 
 class User extends Authenticatable
 {
@@ -40,7 +41,7 @@ class User extends Authenticatable
 
     public function plan(): BelongsTo
     {
-        return $this->belongsTo(Plan::class);
+        return $this->belongsTo(plan::class);
     }
 
     public function isPremium(): bool
