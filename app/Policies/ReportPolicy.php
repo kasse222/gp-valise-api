@@ -4,63 +4,47 @@ namespace App\Policies;
 
 use App\Models\Report;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
 class ReportPolicy
 {
     /**
-     * Determine whether the user can view any models.
-     */
-    public function viewAny(User $user): bool
-    {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can view the model.
+     * Seul l'auteur ou un admin peut voir un report.
      */
     public function view(User $user, Report $report): bool
     {
-        return false;
+        return $user->id === $report->user_id || $user->isAdmin();
     }
 
     /**
-     * Determine whether the user can create models.
-     */
-    public function create(User $user): bool
-    {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can update the model.
-     */
-    public function update(User $user, Report $report): bool
-    {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can delete the model.
+     * Seul l’auteur peut supprimer un report.
+     * Optionnel : un modérateur peut aussi ?
      */
     public function delete(User $user, Report $report): bool
     {
-        return false;
+        return $user->id === $report->user_id || $user->isAdmin();
     }
 
     /**
-     * Determine whether the user can restore the model.
+     * Tout utilisateur connecté peut créer un report.
      */
-    public function restore(User $user, Report $report): bool
+    public function create(User $user): bool
     {
-        return false;
+        return $user->exists(); // Authentifié
     }
 
     /**
-     * Determine whether the user can permanently delete the model.
+     * Seul un admin/modérateur peut valider ou traiter un report.
      */
-    public function forceDelete(User $user, Report $report): bool
+    public function moderate(User $user): bool
     {
-        return false;
+        return $user->isAdmin() || $user->isModerator();
+    }
+
+    /**
+     * Règle d’or : l’admin peut tout.
+     */
+    public function before(User $user, string $ability): ?bool
+    {
+        return $user->isAdmin() ? true : null;
     }
 }

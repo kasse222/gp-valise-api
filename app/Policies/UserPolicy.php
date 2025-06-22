@@ -3,64 +3,46 @@
 namespace App\Policies;
 
 use App\Models\User;
-use App\Status\UserRole;
-use Illuminate\Auth\Access\Response;
 
 class UserPolicy
 {
     /**
-     * Determine whether the user can view any models.
+     * Autorise l'accès à son propre profil.
      */
-    public function viewAny(User $user): bool
+    public function view(User $user, User $target): bool
     {
-        return false;
+        return $user->id === $target->id || $user->isAdmin();
     }
 
     /**
-     * Determine whether the user can view the model.
+     * Seul l'utilisateur concerné peut modifier son profil (ou admin).
      */
-    public function view(User $user, User $model): bool
+    public function update(User $user, User $target): bool
     {
-        return false;
+        return $user->id === $target->id || $user->isAdmin();
     }
 
     /**
-     * Determine whether the user can create models.
+     * Seul un admin peut supprimer un autre utilisateur.
      */
-    public function create(User $authUser): bool
+    public function delete(User $user, User $target): bool
     {
-        return $authUser->role === UserRole::ADMIN;
+        return $user->isAdmin() && $user->id !== $target->id;
     }
 
     /**
-     * Determine whether the user can update the model.
+     * Accès à la vérification KYC ?
      */
-    public function update(User $user, User $model): bool
+    public function viewKyc(User $user, User $target): bool
     {
-        return false;
+        return $user->id === $target->id || $user->isAdmin();
     }
 
     /**
-     * Determine whether the user can delete the model.
+     * Accès accordé à tous les admins pour tout.
      */
-    public function delete(User $user, User $model): bool
+    public function before(User $user, string $ability): ?bool
     {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can restore the model.
-     */
-    public function restore(User $user, User $model): bool
-    {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can permanently delete the model.
-     */
-    public function forceDelete(User $user, User $model): bool
-    {
-        return false;
+        return $user->isAdmin() ? true : null;
     }
 }

@@ -4,25 +4,35 @@ namespace App\Policies;
 
 use App\Models\Luggage;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
 class LuggagePolicy
 {
-    /**
-     * L’utilisateur peut voir ou modifier ses propres valises
-     */
     public function view(User $user, Luggage $luggage): bool
     {
-        return $user->id === $luggage->user_id;
+        return $user->id === $luggage->user_id || $user->isAdmin();
     }
 
     public function update(User $user, Luggage $luggage): bool
     {
-        return $user->id === $luggage->user_id && $luggage->status->isModifiable();
+        return $user->id === $luggage->user_id;
     }
 
     public function delete(User $user, Luggage $luggage): bool
     {
-        return $user->id === $luggage->user_id && $luggage->status->isReservable();
+        return $user->id === $luggage->user_id;
+    }
+
+    public function cancel(User $user, Luggage $luggage): bool
+    {
+        return $user->id === $luggage->user_id;
+    }
+
+    public function load(User $user, Luggage $luggage): bool
+    {
+        return $luggage->booking && $user->id === $luggage->booking->trip->user_id;
+    }
+    public function before(User $user, string $ability): ?bool
+    {
+        return $user->isAdmin() ? true : null;
     }
 }

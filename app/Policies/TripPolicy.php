@@ -7,27 +7,13 @@ use App\Models\User;
 
 class TripPolicy
 {
-    /**
-     * Afficher le trip si l'utilisateur en est le propriétaire.
-     */
-    public function view(User $user, Trip $trip): bool
+    public function manage(User $user, Trip $trip): bool
     {
         return $user->id === $trip->user_id;
     }
 
-    /**
-     * Modifier uniquement si propriétaire.
-     */
-    public function update(User $user, Trip $trip): bool
+    public function before(User $user, string $ability): ?bool
     {
-        return $user->id === $trip->user_id;
-    }
-
-    /**
-     * Supprimer uniquement si propriétaire (et potentiellement : pas de bookings confirmés).
-     */
-    public function delete(User $user, Trip $trip): bool
-    {
-        return $user->id === $trip->user_id;
+        return $user->isAdmin() ? true : null;
     }
 }
