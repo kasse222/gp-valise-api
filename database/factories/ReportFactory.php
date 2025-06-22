@@ -2,27 +2,41 @@
 
 namespace Database\Factories;
 
+use App\Models\Report;
 use App\Models\User;
+use App\Models\Booking;
+use App\Models\Trip;
+use App\Models\Luggage;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Report>
- */
 class ReportFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
+    protected $model = Report::class;
+
     public function definition(): array
     {
+        // Liste des modèles possibles à "reporter"
+        $reportables = [
+            Booking::class,
+            Trip::class,
+            Luggage::class,
+        ];
+
+        // Choix aléatoire d’un modèle cible
+        $reportableType = $this->faker->randomElement($reportables);
+        $reportable = $reportableType::factory()->create(); // Génère une instance
+
         return [
-            'user_id' => User::factory(),
-            'target_type' => $this->faker->randomElement(['trip', 'booking', 'user']),
-            'target_id' => $this->faker->numberBetween(1, 50),
-            'reason' => $this->faker->randomElement(['contenu illicite', 'arnaque', 'propos déplacés']),
-            'comment' => $this->faker->sentence(12),
+            'user_id'         => User::factory(),
+            'reportable_id'   => $reportable->id,
+            'reportable_type' => $reportableType,
+            'reason'          => $this->faker->randomElement([
+                'contenu inapproprié',
+                'arnaque suspectée',
+                'informations fausses',
+                'communication agressive',
+            ]),
+            'details'         => $this->faker->paragraph(),
         ];
     }
 }

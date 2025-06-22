@@ -2,29 +2,29 @@
 
 namespace Database\Factories;
 
-use App\Models\Luggage;
+use App\Models\Booking;
 use App\Models\Trip;
 use App\Models\User;
-use App\Status\BookingStatus;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
+use App\Enums\BookingStatusEnum;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Booking>
- */
 class BookingFactory extends Factory
 {
+    protected $model = Booking::class;
 
     public function definition(): array
     {
+        $status = $this->faker->randomElement(BookingStatusEnum::cases());
 
         return [
-            'user_id' => User::factory(),
-            'trip_id' => Trip::factory(),
-            'luggage_id' => null,
-            'status' => BookingStatus::EN_ATTENTE->value,
-            'total_weight_kg' => $this->faker->randomFloat(1, 1, 100),
-            'notes' => $this->faker->sentence(),
-
+            'user_id'        => User::factory()->state(['role' => 'expeditor']),
+            'trip_id'        => Trip::factory(),
+            'status'         => $status,
+            'comment'        => $this->faker->optional()->sentence(),
+            'confirmed_at'   => in_array($status, [BookingStatusEnum::CONFIRMEE, BookingStatusEnum::LIVREE, BookingStatusEnum::TERMINE]) ? now() : null,
+            'completed_at'   => in_array($status, [BookingStatusEnum::TERMINE]) ? now()->addDays(3) : null,
+            'cancelled_at'   => in_array($status, [BookingStatusEnum::ANNULE, BookingStatusEnum::REMBOURSEE]) ? now()->subDays(2) : null,
         ];
     }
 }

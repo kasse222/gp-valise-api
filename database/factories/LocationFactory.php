@@ -4,27 +4,20 @@ namespace Database\Factories;
 
 use App\Models\Location;
 use App\Models\Trip;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Location>
- */
 class LocationFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
+    protected $model = Location::class;
+
     public function definition(): array
     {
         return [
-            'user_id' => User::inRandomOrder()->first()?->id ?? User::factory(),
-            'trip_id' => Trip::inRandomOrder()->first()?->id ?? Trip::factory(),
-            'latitude' => $this->faker->latitude(35, 50),     // Ex. : Europe/Afrique du Nord
-            'longitude' => $this->faker->longitude(-10, 10),  // Ex. : Europe/Afrique de l’Ouest
-            'recorded_at' => now()->subMinutes(rand(1, 120)), // Timestamp récent
+            'trip_id'     => Trip::factory(),
+            'latitude'    => $this->faker->latitude,     // Ex: 48.8566
+            'longitude'   => $this->faker->longitude,    // Ex: 2.3522
+            'city'        => $this->faker->city,
+            'order_index' => $this->faker->numberBetween(1, 5), // Ordre des étapes (1 = départ, N = arrivée)
         ];
     }
 }

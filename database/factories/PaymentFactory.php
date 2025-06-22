@@ -2,28 +2,28 @@
 
 namespace Database\Factories;
 
+use App\Models\Payment;
+use App\Models\User;
 use App\Models\Booking;
+use App\Enums\PaymentMethodEnum;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Payment>
- */
 class PaymentFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
+    protected $model = Payment::class;
+
     public function definition(): array
     {
+        $methods = PaymentMethodEnum::values();
+        $statuses = ['pending', 'paid', 'failed']; // à remplacer par Enum si dispo
+
         return [
+            'user_id'    => User::factory(),
             'booking_id' => Booking::factory(),
-            'amount' => fake()->randomFloat(2, 10, 200), // entre 10 et 200 €
-            'status' => fake()->randomElement(['en_attente', 'paye']),
-            'provider' => fake()->randomElement(['Stripe', 'PayPal', 'Virement']),
-            'reference' => strtoupper(fake()->bothify('REF###??')),
-            'paid_at' => now(),
+            'amount'     => $this->faker->randomFloat(2, 10, 500),
+            'method'     => $this->faker->randomElement($methods),
+            'status'     => $this->faker->randomElement($statuses),
+            'paid_at'    => $this->faker->optional()->dateTimeBetween('-2 months', 'now'),
         ];
     }
 }
