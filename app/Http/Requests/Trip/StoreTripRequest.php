@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Trip;
 
-use App\Status\TripTypeEnum;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -10,7 +9,7 @@ class StoreTripRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // ✔️ Accessible via auth:sanctum
+        return auth()->check() && auth()->user()->isTraveler();
     }
 
     public function rules(): array
@@ -18,11 +17,11 @@ class StoreTripRequest extends FormRequest
         return [
             'departure'      => ['required', 'string', 'max:255'],
             'destination'    => ['required', 'string', 'max:255'],
-            'date'           => ['required', 'date', 'after:now'],
-            'capacity'       => ['required', 'integer', 'min:1'],
-            'flight_number'  => ['nullable', 'string', 'max:50'],
-            'status'         => ['nullable', Rule::in(['actif', 'complet', 'annule'])],
-            'type_trip'      => ['nullable', Rule::in(TripTypeEnum::values())],
+            'date'           => ['required', 'date', 'after_or_equal:today'],
+            'capacity'       => ['required', 'numeric', 'min:0.1'],
+            'status'         => ['nullable', 'string'], // facultatif à la création, parfois forcé via enum
+            'type_trip'      => ['required', 'string'], // 📝 Enum TripTypeEnum à prévoir
+            'flight_number'  => ['nullable', 'string', 'max:100'],
         ];
     }
 }
