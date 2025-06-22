@@ -3,23 +3,21 @@
 namespace App\Http\Requests\Booking;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreBookingRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // Seul un utilisateur connecté peut réserver
-        return auth()->check();
+        // L'utilisateur doit être connecté, et de rôle "expéditeur"
+        return auth()->check() && auth()->user()->isExpeditor();
     }
 
     public function rules(): array
     {
         return [
-            'trip_id'    => ['required', 'exists:trips,id'],
-            'items'      => ['required', 'array', 'min:1'],
-            'items.*.luggage_id'  => ['required', 'exists:luggages,id'],
-            'items.*.kg_reserved' => ['required', 'numeric', 'min:1'],
-            'items.*.price'       => ['required', 'numeric', 'min:0'],
+            'trip_id' => ['required', 'exists:trips,id'],
+            'comment' => ['nullable', 'string', 'max:1000'],
         ];
     }
 }
