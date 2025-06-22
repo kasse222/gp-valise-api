@@ -8,7 +8,7 @@ class LoginRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // Accessible sans token
+        return true;
     }
 
     public function rules(): array
@@ -16,15 +16,6 @@ class LoginRequest extends FormRequest
         return [
             'email'    => ['required', 'email'],
             'password' => ['required', 'string'],
-        ];
-    }
-
-    public function messages(): array
-    {
-        return [
-            'email.required'    => 'L’email est requis.',
-            'email.email'       => 'Le format de l’email est invalide.',
-            'password.required' => 'Le mot de passe est requis.',
         ];
     }
 }

@@ -13,7 +13,7 @@ class UpdateBookingRequest extends FormRequest
         $booking = $this->route('booking');
         $user = $this->user();
 
-        // L’utilisateur doit être propriétaire OU voyageur du trip associé
+        // ✅ Vérifie que l’utilisateur est propriétaire du booking OU du trip associé
         return $booking && $user && (
             $booking->user_id === $user->id ||
             $booking->trip?->user_id === $user->id
@@ -25,7 +25,7 @@ class UpdateBookingRequest extends FormRequest
         return [
             'status' => [
                 'required',
-                Rule::in(BookingStatusEnum::values()),
+                Rule::in(BookingStatusEnum::values()), // ✅ Règle métier propre via Enum centralisée
             ],
             'comment' => ['nullable', 'string', 'max:1000'],
         ];
@@ -37,8 +37,19 @@ class UpdateBookingRequest extends FormRequest
             $booking = $this->route('booking');
             $newStatus = BookingStatusEnum::tryFrom($this->input('status'));
 
-            if ($booking && $newStatus && ! $booking->canTransitionTo($newStatus)) {
-                $validator->errors()->add('status', 'Changement de statut non autorisé.');
+            // ✅ Double sécurité métier via Enum
+            if (! $booking || ! $newStatus) {
+                return; // Cas anormal ou données manquantes
+            }
+
+            // ❌ Ne pas autoriser les transitions interdites
+            if (! $booking->status->canTransitionTo($newStatus)) {
+                $validator->errors()->add('status', 'Transition de statut non autorisée.');
+            }
+
+            // (optionnel) Empêcher de repasser sur le même statut
+            if ($booking->status === $newStatus) {
+                $validator->errors()->add('status', 'Le nouveau statut est identique à l’actuel.');
             }
         });
     }

@@ -4,7 +4,7 @@ namespace App\Enums;
 
 enum BookingStatusEnum: string
 {
-    // 🔹 Phase initiale (côté expéditeur)
+    // 🔹 Phase initiale (expéditeur)
     case EN_ATTENTE       = 'en_attente';
     case EN_PAIEMENT      = 'en_paiement';
 
@@ -12,12 +12,12 @@ enum BookingStatusEnum: string
     case ACCEPTE          = 'accepte';
     case REFUSE           = 'refuse';
 
-        // 🔹 Validation et livraison
+        // 🔹 Livraison
     case CONFIRMEE        = 'confirmee';
     case LIVREE           = 'livree';
     case TERMINE          = 'termine';
 
-        // 🔹 Annulation et exceptions
+        // 🔹 Exceptions & erreurs
     case ANNULE           = 'annule';
     case REMBOURSEE       = 'remboursee';
     case EXPIREE          = 'expiree';
@@ -25,48 +25,66 @@ enum BookingStatusEnum: string
     case PAIEMENT_ECHOUE  = 'paiement_echoue';
     case SUSPENDUE        = 'suspendue';
 
+    // ✅ Transitions centralisées
+    private const TRANSITIONS = [
+        self::EN_ATTENTE       => [self::EN_PAIEMENT, self::ACCEPTE, self::REFUSE, self::ANNULE],
+        self::EN_PAIEMENT      => [self::PAIEMENT_ECHOUE, self::CONFIRMEE, self::ANNULE],
+        self::PAIEMENT_ECHOUE  => [self::EN_PAIEMENT, self::ANNULE],
+        self::ACCEPTE          => [self::CONFIRMEE, self::ANNULE],
+        self::CONFIRMEE        => [self::LIVREE, self::EN_LITIGE, self::TERMINE],
+        self::LIVREE           => [self::TERMINE, self::EN_LITIGE],
+        self::EN_LITIGE        => [self::REMBOURSEE],
+        self::SUSPENDUE        => [self::EN_ATTENTE],
+        // Les autres (finales) => aucune transition
+    ];
 
     public function label(): string
     {
         return match ($this) {
-            self::EN_ATTENTE       => 'En attente',
-            self::EN_PAIEMENT      => 'En paiement',
-            self::PAIEMENT_ECHOUE  => 'Paiement échoué',
-            self::ACCEPTE          => 'Acceptée',
-            self::REFUSE           => 'Refusée',
-            self::CONFIRMEE        => 'Confirmée',
-            self::LIVREE           => 'Livrée',
-            self::TERMINE          => 'Terminée',
-            self::ANNULE           => 'Annulée',
-            self::REMBOURSEE       => 'Remboursée',
-            self::EXPIREE          => 'Expirée',
-            self::EN_LITIGE        => 'En litige',
-            self::SUSPENDUE        => 'Suspendue',
+            self::EN_ATTENTE      => 'En attente',
+            self::EN_PAIEMENT     => 'En paiement',
+            self::PAIEMENT_ECHOUE => 'Paiement échoué',
+            self::ACCEPTE         => 'Acceptée',
+            self::REFUSE          => 'Refusée',
+            self::CONFIRMEE       => 'Confirmée',
+            self::LIVREE          => 'Livrée',
+            self::TERMINE         => 'Terminée',
+            self::ANNULE          => 'Annulée',
+            self::REMBOURSEE      => 'Remboursée',
+            self::EXPIREE         => 'Expirée',
+            self::EN_LITIGE       => 'En litige',
+            self::SUSPENDUE       => 'Suspendue',
         };
     }
 
     public function color(): string
     {
         return match ($this) {
-            self::EN_ATTENTE       => 'gray',
-            self::EN_PAIEMENT      => 'blue',
-            self::PAIEMENT_ECHOUE  => 'red',
-            self::ACCEPTE          => 'cyan',
-            self::REFUSE           => 'red',
-            self::CONFIRMEE        => 'indigo',
-            self::LIVREE           => 'green',
-            self::TERMINE          => 'green',
-            self::ANNULE           => 'red',
-            self::REMBOURSEE       => 'orange',
-            self::EXPIREE          => 'gray',
-            self::EN_LITIGE        => 'yellow',
-            self::SUSPENDUE        => 'black',
+            self::EN_ATTENTE      => 'gray',
+            self::EN_PAIEMENT     => 'blue',
+            self::PAIEMENT_ECHOUE => 'red',
+            self::ACCEPTE         => 'cyan',
+            self::REFUSE          => 'red',
+            self::CONFIRMEE       => 'indigo',
+            self::LIVREE,
+            self::TERMINE         => 'green',
+            self::ANNULE,
+            self::REFUSE          => 'red',
+            self::REMBOURSEE      => 'orange',
+            self::EXPIREE         => 'gray',
+            self::EN_LITIGE       => 'yellow',
+            self::SUSPENDUE       => 'black',
         };
     }
 
-    /**
-     * Retourne true si le statut est considéré comme un état final (plus d’action possible).
-     */
+    public function badge(): array
+    {
+        return [
+            'label' => $this->label(),
+            'color' => $this->color(),
+        ];
+    }
+
     public function isFinal(): bool
     {
         return in_array($this, [
@@ -78,9 +96,6 @@ enum BookingStatusEnum: string
         ], true);
     }
 
-    /**
-     * Retourne true si une réservation peut encore être modifiée ou annulée.
-     */
     public function isReservable(): bool
     {
         return in_array($this, [
@@ -90,8 +105,18 @@ enum BookingStatusEnum: string
         ], true);
     }
 
-    // 🎯 Méthodes métier
+    // 🎯 Transitions
+    public function canTransitionTo(self $to): bool
+    {
+        return in_array($to, self::TRANSITIONS[$this] ?? [], true);
+    }
 
+    public function isTransitionValidFrom(self $from): bool
+    {
+        return $from->canTransitionTo($this);
+    }
+
+    // 🎯 Méthodes métier spécifiques
     public function canBeCancelled(): bool
     {
         return !in_array($this, [
@@ -133,59 +158,13 @@ enum BookingStatusEnum: string
         ], true);
     }
 
-    public function canTransitionTo(self $to): bool
-    {
-        $transitions = [
-            self::EN_ATTENTE => [
-                self::EN_PAIEMENT,
-                self::ACCEPTE,
-                self::REFUSE,
-                self::ANNULE,
-            ],
-            self::EN_PAIEMENT => [
-                self::PAIEMENT_ECHOUE,
-                self::CONFIRMEE,
-                self::ANNULE,
-            ],
-            self::PAIEMENT_ECHOUE => [
-                self::EN_PAIEMENT,
-                self::ANNULE,
-            ],
-            self::ACCEPTE => [
-                self::CONFIRMEE,
-                self::ANNULE,
-            ],
-            self::REFUSE => [],
-            self::CONFIRMEE => [
-                self::LIVREE,
-                self::EN_LITIGE,
-                self::TERMINE,
-            ],
-            self::LIVREE => [
-                self::TERMINE,
-                self::EN_LITIGE,
-            ],
-            self::TERMINE => [],
-            self::EN_LITIGE => [
-                self::REMBOURSEE,
-            ],
-            self::SUSPENDUE => [
-                self::EN_ATTENTE,
-            ],
-            self::REMBOURSEE => [],
-            self::ANNULE => [],
-            self::EXPIREE => [],
-        ];
-
-        return in_array($to, $transitions[$this] ?? [], true);
-    }
-
-
-    /**
-     * Retourne tous les statuts possibles (utile pour des validations).
-     */
     public static function values(): array
     {
         return array_column(self::cases(), 'value');
+    }
+
+    public function nextAllowedStatuses(): array
+    {
+        return self::TRANSITIONS[$this] ?? [];
     }
 }
