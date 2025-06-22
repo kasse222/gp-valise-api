@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TripTypeEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -27,7 +28,7 @@ return new class extends Migration
 
             $table->string('flight_number')->nullable();
 
-            $table->softDeletes();
+            $table->softDeletes(); // ✅ propre, Laravel gère deleted_at
             $table->timestamps();
         });
     }

@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Enums\BookingStatusEnum;
-use App\Validators\BookingStatusValidator;
+use App\Models\BookingStatusHistory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -31,7 +31,29 @@ class Booking extends Model
         'cancelled_at'   => 'datetime',
     ];
 
-    // 🔗 Relations
+    /*
+    |--------------------------------------------------------------------------
+    | Booted: création auto de l'historique initial
+    |--------------------------------------------------------------------------
+    */
+    protected static function booted(): void
+    {
+        static::created(function (Booking $booking) {
+            // Enregistre le statut initial dès la création
+            $booking->statusHistories()->create([
+                'old_status' => null,
+                'new_status' => $booking->status,
+                'changed_by' => $booking->user_id,
+                'reason'     => 'Statut initial à la création',
+            ]);
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relations
+    |--------------------------------------------------------------------------
+    */
 
     public function user(): BelongsTo
     {
@@ -53,7 +75,11 @@ class Booking extends Model
         return $this->hasMany(BookingStatusHistory::class);
     }
 
-    // 🧠 Logique métier
+    /*
+    |--------------------------------------------------------------------------
+    | Logique métier : états
+    |--------------------------------------------------------------------------
+    */
 
     public function isConfirmed(): bool
     {
@@ -103,7 +129,6 @@ class Booking extends Model
         return $this->status->canTransitionTo($to);
     }
 
-
     /**
      * 🚀 Applique une transition de statut (si autorisée)
      */
@@ -120,11 +145,15 @@ class Booking extends Model
             default                      => null,
         };
 
+        $oldStatus = $this->status;
         $this->status = $newStatus;
         $this->save();
 
         $this->statusHistories()->create([
-            'status' => $newStatus,
+            'old_status' => $oldStatus,
+            'new_status' => $newStatus,
+            'changed_by' => $this->user_id, // à adapter si admin/modo
+            'reason'     => 'Changement via transitionTo()',
         ]);
     }
 }

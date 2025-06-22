@@ -25,17 +25,18 @@ enum BookingStatusEnum: string
     case PAIEMENT_ECHOUE  = 'paiement_echoue';
     case SUSPENDUE        = 'suspendue';
 
-    // ✅ Transitions centralisées
+    /**
+     * 🔄 Transitions autorisées (définies par valeurs string, pas d'objet enum !)
+     */
     private const TRANSITIONS = [
-        self::EN_ATTENTE       => [self::EN_PAIEMENT, self::ACCEPTE, self::REFUSE, self::ANNULE],
-        self::EN_PAIEMENT      => [self::PAIEMENT_ECHOUE, self::CONFIRMEE, self::ANNULE],
-        self::PAIEMENT_ECHOUE  => [self::EN_PAIEMENT, self::ANNULE],
-        self::ACCEPTE          => [self::CONFIRMEE, self::ANNULE],
-        self::CONFIRMEE        => [self::LIVREE, self::EN_LITIGE, self::TERMINE],
-        self::LIVREE           => [self::TERMINE, self::EN_LITIGE],
-        self::EN_LITIGE        => [self::REMBOURSEE],
-        self::SUSPENDUE        => [self::EN_ATTENTE],
-        // Les autres (finales) => aucune transition
+        'en_attente'      => ['en_paiement', 'accepte', 'refuse', 'annule'],
+        'en_paiement'     => ['paiement_echoue', 'confirmee', 'annule'],
+        'paiement_echoue' => ['en_paiement', 'annule'],
+        'accepte'         => ['confirmee', 'annule'],
+        'confirmee'       => ['livree', 'en_litige', 'termine'],
+        'livree'          => ['termine', 'en_litige'],
+        'en_litige'       => ['remboursee'],
+        'suspendue'       => ['en_attente'],
     ];
 
     public function label(): string
@@ -64,12 +65,11 @@ enum BookingStatusEnum: string
             self::EN_PAIEMENT     => 'blue',
             self::PAIEMENT_ECHOUE => 'red',
             self::ACCEPTE         => 'cyan',
-            self::REFUSE          => 'red',
+            self::REFUSE,
+            self::ANNULE          => 'red',
             self::CONFIRMEE       => 'indigo',
             self::LIVREE,
             self::TERMINE         => 'green',
-            self::ANNULE,
-            self::REFUSE          => 'red',
             self::REMBOURSEE      => 'orange',
             self::EXPIREE         => 'gray',
             self::EN_LITIGE       => 'yellow',
@@ -105,10 +105,9 @@ enum BookingStatusEnum: string
         ], true);
     }
 
-    // 🎯 Transitions
     public function canTransitionTo(self $to): bool
     {
-        return in_array($to, self::TRANSITIONS[$this] ?? [], true);
+        return in_array($to->value, self::TRANSITIONS[$this->value] ?? [], true);
     }
 
     public function isTransitionValidFrom(self $from): bool
@@ -116,7 +115,6 @@ enum BookingStatusEnum: string
         return $from->canTransitionTo($this);
     }
 
-    // 🎯 Méthodes métier spécifiques
     public function canBeCancelled(): bool
     {
         return !in_array($this, [
@@ -158,13 +156,13 @@ enum BookingStatusEnum: string
         ], true);
     }
 
+    public function nextAllowedStatuses(): array
+    {
+        return self::TRANSITIONS[$this->value] ?? [];
+    }
+
     public static function values(): array
     {
         return array_column(self::cases(), 'value');
-    }
-
-    public function nextAllowedStatuses(): array
-    {
-        return self::TRANSITIONS[$this] ?? [];
     }
 }

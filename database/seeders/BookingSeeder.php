@@ -2,57 +2,37 @@
 
 namespace Database\Seeders;
 
-
-use App\Models\Trip;
-use App\Models\Luggage;
 use App\Models\Booking;
-use App\Models\BookingItem;
+use App\Models\Trip;
+use App\Models\User;
+use App\Enums\BookingStatusEnum;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Carbon;
 
 class BookingSeeder extends Seeder
 {
     public function run(): void
     {
-        $trips = Trip::where('status', 'actif')->get();
+        $senders = User::where('role', 3)->get(); // SENDER
+        $trips   = Trip::all();
 
-        foreach ($trips as $trip) {
-            $remainingCapacity = $trip->capacity;
 
-            $luggages = Luggage::where('status', 'en_attente')
-                ->where('pickup_city', $trip->departure)
-                ->where('delivery_city', $trip->destination)
-                ->inRandomOrder()
-                ->get();
 
-            // On initie une réservation vide
-            $booking = Booking::factory()->create([
-                'trip_id' => $trip->id,
-                'status'  => 'en_attente',
-            ]);
+        foreach ($senders as $sender) {
+            for ($i = 0; $i < 2; $i++) {
+                $trip = $trips->random();
 
-            foreach ($luggages as $luggage) {
-                $weight = $luggage->weight;
+                $status = fake()->randomElement(BookingStatusEnum::cases());
 
-                if ($remainingCapacity >= $weight) {
-                    BookingItem::create([
-                        'booking_id'  => $booking->id,
-                        'trip_id'     => $trip->id,
-                        'luggage_id'  => $luggage->id,
-                        'kg_reserved' => $weight,
-                        'price'       => rand(50, 200),
-                    ]);
-
-                    // Marquer la valise comme réservée
-                    $luggage->update(['status' => 'reservee']);
-
-                    // Déduire du reste de capacité
-                    $remainingCapacity -= $weight;
-                }
-            }
-
-            // Si aucune valise liée, on supprime la réservation vide
-            if ($booking->bookingItems()->count() === 0) {
-                $booking->delete();
+                Booking::create([
+                    'user_id'       => $sender->id,
+                    'trip_id'       => $trip->id,
+                    'status'       => $status,
+                    'comment'       => fake()->optional()->sentence,
+                    'confirmed_at'  => $status === BookingStatusEnum::CONFIRMEE ? now() : null,
+                    'completed_at'  => $status === BookingStatusEnum::TERMINE ? now()->addDays(2) : null,
+                    'cancelled_at'  => $status === BookingStatusEnum::ANNULE ? now()->subDay() : null,
+                ]);
             }
         }
     }

@@ -2,7 +2,7 @@
 
 namespace App\Enums;
 
-enum LuggageStatus: string
+enum LuggageStatusEnum: string
 {
     // 🔹 Cycle standard
     case EN_ATTENTE  = 'en_attente';     // Créée, non affectée

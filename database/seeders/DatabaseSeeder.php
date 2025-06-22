@@ -2,27 +2,32 @@
 
 namespace Database\Seeders;
 
-
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
+        // Ordre important : respecter les dépendances entre tables
 
-        // Ordre important pour respecter les dépendances
         $this->call([
+            PlanSeeder::class,
             UserSeeder::class,
+
             TripSeeder::class,
             LuggageSeeder::class,
+
             BookingSeeder::class,
+            BookingItemSeeder::class,
+
             PaymentSeeder::class,
-            ReportSeeder::class,
+            TransactionSeeder::class,
+
             LocationSeeder::class,
+            BookingStatusHistorySeeder::class,
+
+            ReportSeeder::class,
+            InvitationSeeder::class,
         ]);
     }
 }

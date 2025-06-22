@@ -10,18 +10,24 @@ class LocationSeeder extends Seeder
 {
     public function run(): void
     {
-        // 📍 Pour chaque trip, on enregistre des points GPS
         $trips = Trip::all();
 
         foreach ($trips as $trip) {
-            // Génère entre 3 et 7 points GPS simulés pour chaque trajet
-            Location::factory()
-                ->count(rand(3, 7))
-                ->state([
-                    'trip_id' => $trip->id,
-                    'user_id' => $trip->user_id,
-                ])
-                ->create();
+            Location::create([
+                'trip_id'     => $trip->id,
+                'latitude'    => fake()->latitude,
+                'longitude'   => fake()->longitude,
+                'city'        => fake()->city,
+                'order_index' => 1,
+            ]);
+
+            Location::create([
+                'trip_id'     => $trip->id,
+                'latitude'    => fake()->latitude,
+                'longitude'   => fake()->longitude,
+                'city'        => fake()->city,
+                'order_index' => 2,
+            ]);
         }
     }
 }

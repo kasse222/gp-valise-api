@@ -1,6 +1,6 @@
 <?php
 
-use App\Status\BookingStatus;
+use App\Enums\BookingStatusEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -18,7 +18,9 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('trip_id')->constrained()->onDelete('cascade');
 
-            $table->enum('status', BookingStatusEnum::values())->default(BookingStatusEnum::PENDING->value);
+            $table->enum('status', BookingStatusEnum::values())->default(
+                BookingStatusEnum::EN_ATTENTE->value
+            );
 
             $table->timestamp('confirmed_at')->nullable();
             $table->timestamp('completed_at')->nullable();

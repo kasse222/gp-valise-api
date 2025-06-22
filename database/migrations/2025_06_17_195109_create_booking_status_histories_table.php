@@ -18,13 +18,13 @@ return new class extends Migration
                 ->constrained('bookings')
                 ->onDelete('cascade');
 
-            $table->string('old_status', 50);
-            $table->string('new_status', 50);
+            $table->string('old_status', 50)->nullable();;
+            $table->string('new_status', 50)->nullable();;
 
             $table->foreignId('changed_by')
+                ->nullable()
                 ->constrained('users')
-                ->onDelete('set null')
-                ->nullable();
+                ->nullOnDelete();
 
             $table->text('reason')->nullable();
 

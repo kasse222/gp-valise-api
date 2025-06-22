@@ -1,7 +1,7 @@
 <?php
 
 
-use App\Enums\LuggageStatus;
+use App\Enums\LuggageStatusEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -31,8 +31,8 @@ return new class extends Migration {
             $table->dateTime('delivery_date');
 
             // 🚦 Statut de la valise
-            $table->enum('status', LuggageStatus::values())
-                ->default(LuggageStatus::EN_ATTENTE->value);
+            $table->enum('status', LuggageStatusEnum::values())
+                ->default(LuggageStatusEnum::EN_ATTENTE->value);
 
             // 🛰️ Optionnel : identifiant de suivi unique
             $table->uuid('tracking_id')->unique()->nullable();

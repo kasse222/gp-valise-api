@@ -2,16 +2,18 @@
 
 namespace App\Models;
 
-use App\Enums\LuggageStatus;
+use App\Enums\LuggageStatusEnum;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
 class Luggage extends Model
 {
     use HasFactory;
+
+    protected $table = 'luggages';
+
 
     protected $fillable = [
         'user_id',
@@ -31,7 +33,7 @@ class Luggage extends Model
     protected $casts = [
         'pickup_date'   => 'datetime',
         'delivery_date' => 'datetime',
-        'status'        => LuggageStatus::class,
+        'status'        => LuggageStatusEnum::class,
     ];
 
     // 🚀 Boot pour générer un tracking UUID unique si vide

@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Status\BookingStatus;
+use App\Enums\BookingStatusEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,16 +12,16 @@ class BookingStatusHistory extends Model
     use HasFactory;
 
     protected $fillable = [
-        'booking_id',
-        'old_status',
-        'new_status',
-        'changed_by',
-        'reason',
+        'booking_id',     // Référence à la réservation concernée
+        'old_status',     // Enum BookingStatusEnum
+        'new_status',     // Enum BookingStatusEnum
+        'changed_by',     // User ID (admin ou acteur du changement)
+        'reason',         // Texte libre : "annulation utilisateur", "confirmation", etc.
     ];
 
     protected $casts = [
-        'old_status' => BookingStatus::class,
-        'new_status' => BookingStatus::class,
+        'old_status' => BookingStatusEnum::class,
+        'new_status' => BookingStatusEnum::class,
     ];
 
     /**
@@ -43,12 +43,12 @@ class BookingStatusHistory extends Model
     /**
      * 🧾 Logger un changement de statut
      */
-    public static function log(Booking $booking, BookingStatus $old, BookingStatus $new, User $user, ?string $reason = null): void
+    public static function log(Booking $booking, BookingStatusEnum $old, BookingStatusEnum $new, User $user, ?string $reason = null): void
     {
         self::create([
             'booking_id' => $booking->id,
-            'old_status' => $old->value,
-            'new_status' => $new->value,
+            'old_status' => $old, // 👈 ENUM directement
+            'new_status' => $new, // 👈 ENUM directement
             'changed_by' => $user->id,
             'reason'     => $reason,
         ]);

@@ -19,28 +19,28 @@ class UserFactory extends Factory
             'last_name'       => $this->faker->lastName,
             'email'           => $this->faker->unique()->safeEmail,
             'password'        => Hash::make('password'),
-            'role'            => $this->faker->randomElement(['admin', 'expeditor', 'traveler']),
+            'role'            => $this->faker->randomElement(UserRoleEnum::cases()),
             'verified_user'   => $this->faker->boolean(80),
             'phone'           => $this->faker->phoneNumber,
             'country'         => $this->faker->country,
             'kyc_passed_at'   => $this->faker->optional()->dateTimeBetween('-6 months'),
-            'plan_id'         => null, // ou Plan::factory() si tu veux les relier
+            'plan_id'         => null,
             'plan_expires_at' => null,
         ];
     }
 
     public function admin(): static
     {
-        return $this->state(fn() => ['role' => 'admin']);
+        return $this->state(fn() => ['role' => UserRoleEnum::ADMIN]);
     }
 
     public function expeditor(): static
     {
-        return $this->state(fn() => ['role' => 'expeditor']);
+        return $this->state(fn() => ['role' => UserRoleEnum::SENDER]);
     }
 
     public function traveler(): static
     {
-        return $this->state(fn() => ['role' => 'traveler']);
+        return $this->state(fn() => ['role' => UserRoleEnum::TRAVELER]);
     }
 }

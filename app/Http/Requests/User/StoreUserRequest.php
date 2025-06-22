@@ -3,6 +3,7 @@
 namespace App\Http\Requests\User;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules\Password;
 
 class StoreUserRequest extends FormRequest
@@ -10,7 +11,7 @@ class StoreUserRequest extends FormRequest
     public function authorize(): bool
     {
         // Seul un administrateur peut créer un nouvel utilisateur
-        return auth()->check() && auth()->user()->isAdmin();
+        return Auth::check() && auth()->user()->isAdmin();
     }
 
     public function rules(): array

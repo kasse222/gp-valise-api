@@ -15,28 +15,29 @@ return new class extends Migration
             $table->id();
 
             $table->foreignId('booking_id')
-                ->constrained('bookings')
-                ->onDelete('cascade');
+                ->constrained()
+                ->cascadeOnDelete();
 
             $table->foreignId('luggage_id')
                 ->constrained('luggages')
-                ->onDelete('cascade');
+                ->cascadeOnDelete();
 
             $table->foreignId('trip_id')
-                ->constrained('trips')
-                ->onDelete('cascade');
+                ->constrained()
+                ->cascadeOnDelete();
 
-            $table->float('kg_reserved')->nullable();
+            $table->float('kg_reserved')->nullable(); // ✅ validation métier côté FormRequest
             $table->decimal('price', 8, 2)->nullable();
 
             $table->timestamps();
 
+            // ✅ Unicité logique (une valise unique par réservation)
             $table->unique(['booking_id', 'luggage_id']);
-
-            // ✅ Contraintes SQL – seulement si MySQL 8.0+ ou PostgreSQL
-            $table->check('kg_reserved IS NULL OR kg_reserved >= 0');
-            $table->check('price IS NULL OR price >= 0');
         });
+
+        // 🧠 (Optionnel) Ajout manuel de contraintes SQL si tu veux quand même les check()
+        // DB::statement('ALTER TABLE booking_items ADD CONSTRAINT chk_kg_reserved CHECK (kg_reserved >= 0)');
+        // DB::statement('ALTER TABLE booking_items ADD CONSTRAINT chk_price CHECK (price >= 0)');
     }
 
     /**

@@ -2,33 +2,31 @@
 
 namespace Database\Seeders;
 
-use App\Models\Booking;
 use App\Models\Payment;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\Booking;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Carbon;
+use App\Enums\PaymentMethodEnum;
+use App\Enums\PaymentStatusEnum;
 
 class PaymentSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        // On cible les bookings déjà créés (réservations valides)
-        $bookings = Booking::all();
+        $bookings = Booking::inRandomOrder()->take(20)->get();
 
         foreach ($bookings as $booking) {
-            // 80% des bookings ont un paiement associé
-            if (rand(1, 100) <= 80) {
-                Payment::factory()->create([
-                    'booking_id' => $booking->id,
-                    'amount'     => rand(20, 100), // montant fictif
-                    'status'     => rand(0, 1) ? 'paye' : 'en_attente',
-                    'provider'   => fake()->randomElement(['stripe', 'paypal', 'cash']),
-                    'reference'  => fake()->uuid(),
-                    'paid_at'    => now()->subDays(rand(0, 10)),
-                ]);
-            }
+            $status = fake()->randomElement(PaymentStatusEnum::cases());
+            $method = fake()->randomElement(PaymentMethodEnum::cases());
+
+            Payment::create([
+                'user_id'     => $booking->user_id,
+                'booking_id'  => $booking->id,
+                'amount'      => fake()->randomFloat(2, 20, 500),
+                'method'      => $method->value,
+                'status'      => $status->value,
+                'paid_at'     => $status->isSuccess() ? Carbon::now()->subDays(rand(0, 15)) : null,
+            ]);
         }
     }
 }
