@@ -27,6 +27,32 @@ enum TripTypeEnum: string
             self::SUR_DEVIS => 'Sur devis',
         };
     }
+    public function color(): string
+    {
+        return match ($this) {
+            self::STANDARD  => 'gray',
+            self::EXPRESS   => 'blue',
+            self::SUR_DEVIS => 'orange',
+        };
+    }
+    public function badge(): array
+    {
+        return [
+            'label' => $this->label(),
+            'color' => $this->color(),
+        ];
+    }
+    public function description(): string
+    {
+        return match ($this) {
+            self::STANDARD  => 'Livraison normale sous 2–5 jours.',
+            self::EXPRESS   => 'Livraison rapide avec priorité.',
+            self::SUR_DEVIS => 'Trajet personnalisé à convenir.',
+        };
+    }
+
+
+
 
     /**
      * Ce trajet est-il un express ?
