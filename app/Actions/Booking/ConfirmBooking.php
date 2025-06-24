@@ -2,6 +2,7 @@
 
 namespace App\Actions\Booking;
 
+use App\Enums\BookingStatusEnum;
 use App\Models\Booking;
 use App\Status\BookingStatus;
 use Illuminate\Support\Facades\Auth;
@@ -15,7 +16,7 @@ class ConfirmBooking
         $booking = Booking::with(['trip', 'bookingItems'])->findOrFail($bookingId);
 
         // 🔐 Vérifie l'autorisation métier
-        if (! $booking->canBeUpdatedTo(BookingStatus::CONFIRMEE, $user)) {
+        if (! $booking->canBeUpdatedTo(BookingStatusEnum::CONFIRMEE, $user)) {
             throw ValidationException::withMessages([
                 'booking' => 'Confirmation non autorisée ou transition invalide.',
             ]);
@@ -23,7 +24,7 @@ class ConfirmBooking
 
         // 📦 Vérifie la capacité du trajet
         $totalKgReserved = $booking->trip->bookings()
-            ->where('status', BookingStatus::CONFIRMEE)
+            ->where('status', BookingStatusEnum::CONFIRMEE)
             ->with('bookingItems')
             ->get()
             ->flatMap->bookingItems
@@ -39,7 +40,7 @@ class ConfirmBooking
         }
 
         // ✅ Transition vers 'confirmée'
-        $success = $booking->transitionTo(BookingStatus::CONFIRMEE, $user, 'Confirmation par le voyageur');
+        $success = $booking->transitionTo(BookingStatusEnum::CONFIRMEE, $user, 'Confirmation par le voyageur');
 
         if (! $success) {
             throw ValidationException::withMessages([

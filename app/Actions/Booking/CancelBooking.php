@@ -2,6 +2,7 @@
 
 namespace App\Actions\Booking;
 
+use App\Enums\BookingStatusEnum;
 use App\Models\Booking;
 use App\Status\BookingStatus;
 use Illuminate\Support\Facades\Auth;
@@ -15,14 +16,14 @@ class CancelBooking
         $booking = Booking::with(['bookingItems.luggage', 'trip'])->findOrFail($bookingId);
 
         // 🔐 Autorisation métier via Booking::canBeUpdatedTo
-        if (! $booking->canBeUpdatedTo(BookingStatus::ANNULE, $user)) {
+        if (! $booking->canBeUpdatedTo(BookingStatusEnum::ANNULE, $user)) {
             throw ValidationException::withMessages([
                 'booking' => 'Annulation non autorisée ou statut invalide.',
             ]);
         }
 
         // ✅ Transition métier centralisée
-        $success = $booking->transitionTo(BookingStatus::ANNULE, $user, 'Annulation par l’utilisateur');
+        $success = $booking->transitionTo(BookingStatusEnum::ANNULE, $user, 'Annulation par l’utilisateur');
 
         if (! $success) {
             throw ValidationException::withMessages([

@@ -44,6 +44,11 @@ class TripResource extends JsonResource
             'user'           => new UserResource($this->whenLoaded('user')),
             'bookings'       => BookingResource::collection($this->whenLoaded('bookings')),
             'locations'      => LocationResource::collection($this->whenLoaded('locations')),
+            // App\Http\Resources\TripResource.php
+
+            'is_reservable' => $this->isReservable(),
+            'kg_disponible' => $this->kgDisponible(),
+
 
             // 🕓 Dates
             'created_at'     => $this->created_at->toDateTimeString(),
