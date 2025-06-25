@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use Illuminate\Routing\Controller;
-use App\Http\Requests\StatusHistory\StoreBookingStatusHistoryRequest;
+use App\Http\Requests\BookingStatusHistory\StoreBookingStatusHistoryRequest;
 use App\Http\Resources\BookingStatusHistoryResource;
 use App\Models\Booking;
 use App\Models\BookingStatusHistory;

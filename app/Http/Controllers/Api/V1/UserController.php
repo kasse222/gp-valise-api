@@ -3,11 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use Illuminate\Routing\Controller;
-use App\Http\Requests\User\UpdateUserRequest;
+use App\Http\Requests\Plan\UpgradePlanRequest;
 use App\Http\Requests\User\ChangePasswordRequest;
 use App\Http\Requests\User\VerifyPhoneRequest;
 use App\Http\Requests\User\VerifyEmailRequest;
-use App\Http\Requests\User\UpgradePlanRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\PlanService;
@@ -28,7 +27,7 @@ class UserController extends Controller
     /**
      * ✏️ Modifier ses infos personnelles
      */
-    public function update(UpdateUserRequest $request, User $user)
+    public function update(UpgradePlanRequest $request, User $user)
     {
         $this->authorize('update', $user);
 

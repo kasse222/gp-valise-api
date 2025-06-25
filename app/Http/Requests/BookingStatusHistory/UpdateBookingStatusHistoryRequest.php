@@ -5,12 +5,13 @@ namespace App\Http\Requests\BookingStatusHistory;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use App\Enums\BookingStatusEnum;
+use Illuminate\Support\Facades\Auth;
 
 class UpdateBookingStatusHistoryRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return auth()->check(); // à spécialiser si nécessaire
+        return Auth::check();
     }
 
     public function rules(): array
