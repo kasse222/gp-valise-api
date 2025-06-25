@@ -151,6 +151,17 @@
 
 ---
 
+## 🛠️ Roadmap fonctionnelle (v0.4 → v0.5)
+
+| Étape   | Description                                                           |
+| ------- | --------------------------------------------------------------------- |
+| ✅ v0.4 | Tous les modèles, controllers, policies terminés                      |
+| 🧪 v0.5 | Couverture des tests Pest sur tous les modules critiques              |
+| 🔐 v0.6 | Implémentation de Spatie Roles & Permissions + sécurisation API OWASP |
+| 🚀 v0.7 | Déploiement Docker (staging), CI/CD avec prod.yml                     |
+| 📤 v0.8 | Intégration upload fichiers KYC (carte ID, passeport, etc.)           |
+| 📡 v1.0 | Version publique, hébergement + monitoring + dashboard admin          |
+
 ## ⚙️ Installation locale (Docker)
 
 ```bash
