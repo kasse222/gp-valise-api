@@ -2,47 +2,40 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use Illuminate\Routing\Controller;
+use App\Http\Requests\Report\StoreReportRequest;
+use App\Http\Resources\ReportResource;
+use App\Models\Report;
 use Illuminate\Http\Request;
 
-class ReportController
+class ReportController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * 🗂️ Liste des signalements faits par l’utilisateur
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $reports = $request->user()->reports()->latest()->paginate(10);
+        return ReportResource::collection($reports);
     }
 
     /**
-     * Store a newly created resource in storage.
+     * 🔍 Voir un signalement
      */
-    public function store(Request $request)
+    public function show(Report $report)
     {
-        //
+        $this->authorize('view', $report);
+
+        return new ReportResource($report);
     }
 
     /**
-     * Display the specified resource.
+     * 🆕 Créer un nouveau signalement
      */
-    public function show(string $id)
+    public function store(StoreReportRequest $request)
     {
-        //
-    }
+        $report = $request->user()->reports()->create($request->validated());
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return response()->json(new ReportResource($report), 201);
     }
 }
