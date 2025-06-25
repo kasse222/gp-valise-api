@@ -2,47 +2,39 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
+use App\Http\Requests\BookingItem\StoreBookingItemRequest;
+use App\Http\Requests\BookingItem\UpdateBookingItemRequest;
+use App\Http\Resources\BookingItemResource;
+use App\Models\Booking;
+use App\Models\BookingItem;
 
-class BookingItemController
+class BookingItemController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(Booking $booking)
     {
-        //
+        $this->authorize('view', $booking);
+        return BookingItemResource::collection($booking->bookingItems()->get());
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function store(StoreBookingItemRequest $request, Booking $booking)
     {
-        //
+        $this->authorize('update', $booking);
+        $item = $booking->bookingItems()->create($request->validated());
+        return new BookingItemResource($item);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function update(UpdateBookingItemRequest $request, BookingItem $item)
     {
-        //
+        $this->authorize('update', $item);
+        $item->update($request->validated());
+        return new BookingItemResource($item);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function destroy(BookingItem $item)
     {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $this->authorize('delete', $item);
+        $item->delete();
+        return response()->json(['message' => 'Élément supprimé.']);
     }
 }

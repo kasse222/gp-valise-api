@@ -2,47 +2,28 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use Illuminate\Routing\Controller;
+use App\Http\Requests\Location\StoreLocationRequest;
+use App\Http\Resources\LocationResource;
+use App\Models\Location;
 use Illuminate\Http\Request;
 
-class LocationController
+class LocationController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        //
+        return LocationResource::collection(Location::all());
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function show(Location $location)
     {
-        //
+        return new LocationResource($location);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function store(StoreLocationRequest $request)
     {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $this->authorize('create', Location::class);
+        $location = Location::create($request->validated());
+        return new LocationResource($location);
     }
 }

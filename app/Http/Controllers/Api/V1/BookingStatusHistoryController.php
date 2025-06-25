@@ -2,47 +2,24 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
+use App\Http\Requests\StatusHistory\StoreBookingStatusHistoryRequest;
+use App\Http\Resources\BookingStatusHistoryResource;
+use App\Models\Booking;
+use App\Models\BookingStatusHistory;
 
-class BookingStatusHistoryController
+class BookingStatusHistoryController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(Booking $booking)
     {
-        //
+        $this->authorize('view', $booking);
+        return BookingStatusHistoryResource::collection($booking->statusHistories()->latest()->get());
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function store(StoreBookingStatusHistoryRequest $request, Booking $booking)
     {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $this->authorize('update', $booking);
+        $history = $booking->statusHistories()->create($request->validated());
+        return new BookingStatusHistoryResource($history);
     }
 }
