@@ -7,22 +7,32 @@ use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\LuggageController;
 use App\Http\Middleware\EnsureRole;
 
-// 🔓 Authentification publique
+/*
+|--------------------------------------------------------------------------
+| 🔓 Authentification publique
+|--------------------------------------------------------------------------
+*/
+
 Route::prefix('v1')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login',    [AuthController::class, 'login']);
 });
 
-// 🔐 Routes protégées (auth:sanctum)
+/*
+|--------------------------------------------------------------------------
+| 🔐 Routes protégées (auth:sanctum)
+|--------------------------------------------------------------------------
+*/
+
 Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
 
-    // 👤 Infos utilisateur connecté
+    // 👤 Utilisateur connecté
     Route::get('/me',     [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     /*
     |--------------------------------------------------------------------------
-    | ✈️ TripController
+    | ✈️ TripController — Gestion des trajets
     |--------------------------------------------------------------------------
     */
 
@@ -39,11 +49,11 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | 📦 BookingController
+    | 📦 BookingController — Réservations
     |--------------------------------------------------------------------------
     */
 
-    // ➕ Création / édition / suppression → réservé aux expéditeurs
+    // ➕ Création / modification / suppression → expéditeur uniquement
     Route::middleware([EnsureRole::class . ':expediteur'])->group(function () {
         Route::post('/bookings',               [BookingController::class, 'store']);
         Route::put('/bookings/{booking}',      [BookingController::class, 'update']);
@@ -54,7 +64,7 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     Route::get('/bookings',               [BookingController::class, 'index']);
     Route::get('/bookings/{booking}',     [BookingController::class, 'show']);
 
-    // 🛠️ Actions métier : transitions de statut
+    // 🔁 Transitions métier → selon les rôles
     Route::post('/bookings/{booking}/confirm',  [BookingController::class, 'confirm'])
         ->middleware(EnsureRole::class . ':voyageur');
 
@@ -66,11 +76,11 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | 🎒 LuggageController
+    | 🎒 LuggageController — Gestion des valises
     |--------------------------------------------------------------------------
     */
 
-    // ➕ Création, édition, suppression → expéditeur uniquement
+    // ➕ Création / édition / suppression → expéditeur uniquement
     Route::middleware([EnsureRole::class . ':expediteur'])->group(function () {
         Route::post('/luggages',              [LuggageController::class, 'store']);
         Route::put('/luggages/{luggage}',     [LuggageController::class, 'update']);

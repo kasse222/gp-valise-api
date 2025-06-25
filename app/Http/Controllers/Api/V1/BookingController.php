@@ -2,32 +2,32 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Booking\CompleteBooking;
 use App\Actions\Booking\CancelBooking;
 use App\Actions\Booking\ConfirmBooking;
+use App\Actions\Booking\DeleteBooking;
+use App\Actions\Booking\GetBookingDetails;
+use App\Actions\Booking\GetUserBookings;
 use App\Actions\Booking\ReserveBooking;
-use App\Actions\Booking\CompleteBooking;
+use App\Enums\BookingStatusEnum;
 use App\Http\Requests\Booking\StoreBookingRequest;
 use App\Http\Requests\Booking\UpdateBookingRequest;
+use App\Http\Resources\BookingResource;
 use App\Models\Booking;
-use App\Models\Trip;
-use App\Status\BookingStatus;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Request;
 
 class BookingController extends Controller
 {
     /**
-     * 📦 Lister les réservations de l'utilisateur (propriétaire du trajet)
+     * 📦 Lister les réservations de l'utilisateur (voyageur)
      */
-    public function index()
+    public function index(Request $request)
     {
-        $user = Auth::user();
 
-        $bookings = Booking::with(['bookingItems.luggage', 'trip'])
-            ->whereHas('trip', fn($q) => $q->where('user_id', $user->id))
-            ->get();
+        $bookings = GetUserBookings::execute($request->user());
 
-        return response()->json($bookings);
+        return BookingResource::collection($bookings);
     }
 
     /**
@@ -35,15 +35,11 @@ class BookingController extends Controller
      */
     public function store(StoreBookingRequest $request, ReserveBooking $action)
     {
-        // Optionnel : autorisation explicite si besoin de logique complexe
-        // $this->authorize('create', Booking::class);
-
         $booking = $action->execute($request->validated());
 
-        return response()->json([
-            'message' => 'Réservation créée.',
-            'booking' => $booking->load('bookingItems.luggage'),
-        ], 201);
+        return (new BookingResource($booking->load('bookingItems.luggage')))
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
@@ -51,12 +47,10 @@ class BookingController extends Controller
      */
     public function show(string $id)
     {
-        $booking = Booking::with(['bookingItems.luggage', 'trip'])->findOrFail($id);
+        $booking = GetBookingDetails::execute($id);
 
-        // Optionnel : vérifier accès via policy
-        // $this->authorize('view', $booking);
-
-        return response()->json($booking);
+        // Optionnel : $this->authorize('view', $booking);
+        return new BookingResource($booking);
     }
 
     /**
@@ -68,35 +62,28 @@ class BookingController extends Controller
 
         $this->authorize('update', $booking);
 
-        $newStatus = BookingStatus::from($request->validated('status'));
+        $newStatus = BookingStatusEnum::from($request->validated('status'));
 
-        if (! $booking->canBeUpdatedTo($newStatus, auth()->user())) {
+        if (! $booking->canBeUpdatedTo($newStatus, $request->user())) {
             abort(403, 'Transition de statut non autorisée.');
         }
 
         $booking->update(['status' => $newStatus]);
 
-        return response()->json([
-            'message' => 'Statut mis à jour.',
-            'booking' => $booking,
-        ]);
+        return new BookingResource($booking);
     }
+
 
     /**
      * ❌ Supprimer une réservation
      */
     public function destroy(string $id)
     {
-        $booking = Booking::with('bookingItems')->findOrFail($id);
+        $booking = Booking::with('bookingItems.luggage')->findOrFail($id);
 
         $this->authorize('delete', $booking);
 
-        foreach ($booking->bookingItems as $item) {
-            $item->luggage->update(['status' => 'en_attente']);
-            $item->delete();
-        }
-
-        $booking->delete();
+        DeleteBooking::execute($booking);
 
         return response()->json(['message' => 'Réservation supprimée.']);
     }
@@ -112,10 +99,7 @@ class BookingController extends Controller
 
         $booking = $action->execute((int) $id);
 
-        return response()->json([
-            'message' => 'Réservation confirmée.',
-            'booking' => $booking,
-        ]);
+        return new BookingResource($booking);
     }
 
     /**
@@ -129,26 +113,27 @@ class BookingController extends Controller
 
         $booking = $action->execute((int) $id);
 
-        return response()->json([
-            'message' => 'Réservation annulée.',
-            'booking' => $booking,
-        ]);
+        return new BookingResource($booking);
     }
 
     /**
      * 📦 Marquer comme livrée
      */
-    public function complete(string $id, App\Http\Controllers\Api\V1\CompleteBooking $action)
+    public function complete(string $id, CompleteBooking $action)
     {
-        $booking = Booking::with('trip')->findOrFail($id);
+        // 1. Récupération de la réservation
+        $booking = Booking::findOrFail($id);
 
+        // 2. Vérification d'autorisation via Policy
         $this->authorize('complete', $booking);
 
-        $booking = $action->execute((int) $id);
+        // 3. Exécution de la logique métier dans l'action
+        $booking = $action->execute($booking);
 
+        // 4. Réponse avec Resource + message clair
         return response()->json([
             'message' => 'Réservation livrée avec succès.',
-            'booking' => $booking,
+            'booking' => new BookingResource($booking),
         ]);
     }
 }

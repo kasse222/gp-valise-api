@@ -156,4 +156,26 @@ class Booking extends Model
             'reason'     => 'Changement via transitionTo()',
         ]);
     }
+
+    public function canBeUpdatedTo(BookingStatusEnum $newStatus, ?User $user = null): bool
+    {
+        if (! $user) {
+            $user = auth()->user();
+        }
+
+        $current = $this->status;
+
+        return match (true) {
+            // L’expéditeur peut annuler une réservation en attente
+            $current === BookingStatusEnum::EN_ATTENTE && $newStatus === BookingStatusEnum::ANNULE && $user->id === $this->user_id => true,
+
+            // Le voyageur peut confirmer une réservation en attente
+            $current === BookingStatusEnum::EN_ATTENTE && $newStatus === BookingStatusEnum::CONFIRMEE && $user->id === $this->trip->user_id => true,
+
+            // Le voyageur peut marquer comme livrée
+            $current === BookingStatusEnum::CONFIRMEE && $newStatus === BookingStatusEnum::LIVREE && $user->id === $this->trip->user_id => true,
+
+            default => false,
+        };
+    }
 }

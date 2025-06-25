@@ -2,11 +2,11 @@
 
 namespace App\Actions\Booking;
 
+use App\Enums\BookingStatusEnum;
 use App\Models\Booking;
 use App\Models\BookingItem;
 use App\Models\Luggage;
 use App\Models\Trip;
-use App\Status\BookingStatus;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -15,16 +15,18 @@ class ReserveBooking
 {
     /**
      * Exécute la réservation d'un trajet avec valises.
+     *
+     * @param array $data
      */
-    public function execute(array $validated): Booking
+    public function execute(array $data): Booking
     {
-        return DB::transaction(function () use ($validated) {
+        return DB::transaction(function () use ($data) {
             $user = Auth::user();
-            $trip = Trip::findOrFail($validated['trip_id']);
+            $trip = Trip::findOrFail($data['trip_id']);
 
-            // On s'assure que chaque valise est disponible
-            foreach ($validated['items'] as $item) {
+            foreach ($data['items'] as $item) {
                 $luggage = Luggage::findOrFail($item['luggage_id']);
+
                 if ($luggage->status !== 'en_attente') {
                     throw ValidationException::withMessages([
                         'items' => ["La valise #{$luggage->id} n'est pas disponible."],
@@ -32,20 +34,17 @@ class ReserveBooking
                 }
             }
 
-            // Création du booking
             $booking = Booking::create([
                 'user_id' => $user->id,
                 'trip_id' => $trip->id,
-                'status'  => BookingStatus::EN_ATTENTE,
+                'status'  => BookingStatusEnum::EN_ATTENTE,
             ]);
 
-            // Création des items + mise à jour des valises
-            foreach ($validated['items'] as $item) {
+            foreach ($data['items'] as $item) {
                 $luggage = Luggage::findOrFail($item['luggage_id']);
 
                 BookingItem::create([
                     'booking_id'  => $booking->id,
-                    'trip_id'     => $trip->id,
                     'luggage_id'  => $luggage->id,
                     'kg_reserved' => $item['kg_reserved'],
                     'price'       => $item['price'],
@@ -54,10 +53,9 @@ class ReserveBooking
                 $luggage->update(['status' => 'reservee']);
             }
 
-            // Historisation du statut initial
             $booking->statusHistories()->create([
                 'old_status' => null,
-                'new_status' => BookingStatus::EN_ATTENTE,
+                'new_status' => BookingStatusEnum::EN_ATTENTE,
                 'user_id'    => $user->id,
                 'reason'     => 'Réservation initiale',
             ]);
