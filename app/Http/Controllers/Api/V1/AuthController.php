@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-
+use App\Enums\UserRoleEnum;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class AuthController extends Controller
 {
@@ -17,30 +20,35 @@ class AuthController extends Controller
      */
     public function register(RegisterRequest $request)
     {
-        // 🔐 Vérifie que l'utilisateur courant a le droit de créer un autre utilisateur
-        $this->authorize('create', User::class);
+        $this->authorize('create', User::class); // seulement si c’est une route protégée
 
-        $user = User::create([
-            'first_name'      => $request->first_name,
-            'last_name'       => $request->last_name,
-            'email'           => $request->email,
-            'password'        => Hash::make($request->password),
-            'role'            => $request->role,
-            'phone'           => $request->phone,
-            'country'         => $request->country,
-            'verified_user'   => false,
-            'kyc_passed_at'   => null,
-        ]);
+        try {
+            $user = User::create([
+                'first_name'      => $request->first_name,
+                'last_name'       => $request->last_name,
+                'email'           => $request->email,
+                'password'        => Hash::make($request->password),
+                'role'            => UserRoleEnum::from($request->role), // Enum 💡
+                'phone'           => $request->phone,
+                'country'         => $request->country,
+                'verified_user'   => false,
+                'kyc_passed_at'   => null,
+            ]);
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+            $token = $user->createToken('auth_token')->plainTextToken;
 
-        return response()->json([
-            'message' => 'Inscription réussie.',
-            'user'    => $user,
-            'token'   => $token,
-        ], 201);
+            return response()->json([
+                'message' => 'Inscription réussie.',
+                'user'    => new UserResource($user),
+                'token'   => $token,
+            ], 201);
+        } catch (Throwable $e) {
+            return response()->json([
+                'message' => 'Une erreur est survenue lors de l’inscription.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
     }
-
 
     /**
      * Connexion d’un utilisateur
@@ -50,18 +58,18 @@ class AuthController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'message' => 'Identifiants invalides.',
-            ], 401);
+            throw ValidationException::withMessages([
+                'email' => ['Les identifiants sont invalides.'],
+            ]);
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Connexion réussie.',
-            'user'    => $user,
-            'token'   => $token,
-            'token_type' => 'Bearer',
+            'message'     => 'Connexion réussie.',
+            'user'        => new UserResource($user),
+            'token'       => $token,
+            'token_type'  => 'Bearer',
         ]);
     }
 
@@ -70,7 +78,7 @@ class AuthController extends Controller
      */
     public function me(Request $request)
     {
-        return response()->json($request->user());
+        return new UserResource($request->user());
     }
 
     /**

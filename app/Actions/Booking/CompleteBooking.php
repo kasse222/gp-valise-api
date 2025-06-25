@@ -4,63 +4,34 @@ namespace App\Actions\Booking;
 
 use App\Enums\BookingStatusEnum;
 use App\Models\Booking;
-use App\Models\BookingItem;
-use App\Models\Luggage;
-use App\Models\Trip;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
-class ReserveBooking
+class CompleteBooking
 {
     /**
-     * Exécute la réservation d'un trajet avec valises.
-     *
-     * @param array $data
+     * Marquer une réservation comme livrée.
      */
-    public function execute(array $data): Booking
+    public function execute(Booking $booking): Booking
     {
-        return DB::transaction(function () use ($data) {
-            $user = Auth::user();
-            $trip = Trip::findOrFail($data['trip_id']);
-
-            foreach ($data['items'] as $item) {
-                $luggage = Luggage::findOrFail($item['luggage_id']);
-
-                if ($luggage->status !== 'en_attente') {
-                    throw ValidationException::withMessages([
-                        'items' => ["La valise #{$luggage->id} n'est pas disponible."],
-                    ]);
-                }
+        return DB::transaction(function () use ($booking) {
+            // Vérification du statut actuel
+            if (! $booking->status->canTransitionTo(BookingStatusEnum::LIVREE)) {
+                abort(400, 'La réservation ne peut pas être marquée comme livrée.');
             }
 
-            $booking = Booking::create([
-                'user_id' => $user->id,
-                'trip_id' => $trip->id,
-                'status'  => BookingStatusEnum::EN_ATTENTE,
-            ]);
+            // Mise à jour du statut
+            $booking->update(['status' => BookingStatusEnum::LIVREE]);
 
-            foreach ($data['items'] as $item) {
-                $luggage = Luggage::findOrFail($item['luggage_id']);
-
-                BookingItem::create([
-                    'booking_id'  => $booking->id,
-                    'luggage_id'  => $luggage->id,
-                    'kg_reserved' => $item['kg_reserved'],
-                    'price'       => $item['price'],
-                ]);
-
-                $luggage->update(['status' => 'reservee']);
-            }
-
+            // Historisation
             $booking->statusHistories()->create([
-                'old_status' => null,
-                'new_status' => BookingStatusEnum::EN_ATTENTE,
-                'user_id'    => $user->id,
-                'reason'     => 'Réservation initiale',
+                'old_status' => $booking->status,
+                'new_status' => BookingStatusEnum::LIVREE,
+                'user_id'    => Auth::id(),
+                'reason'     => 'Réservation livrée par le voyageur.',
             ]);
 
-            return $booking->load('bookingItems.luggage');
+            return $booking->fresh(['bookingItems.luggage', 'trip']);
         });
     }
 }

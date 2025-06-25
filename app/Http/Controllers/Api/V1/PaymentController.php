@@ -2,47 +2,69 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use Illuminate\Routing\Controller;
+use App\Http\Requests\Payment\StorePaymentRequest;
+use App\Http\Requests\Payment\UpdatePaymentRequest;
+use App\Http\Resources\PaymentResource;
+use App\Models\Payment;
 use Illuminate\Http\Request;
 
-class PaymentController
+class PaymentController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * 💳 Lister les paiements de l’utilisateur
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $payments = $request->user()->payments()->latest()->paginate(10);
+
+        return PaymentResource::collection($payments);
     }
 
     /**
-     * Store a newly created resource in storage.
+     * 💰 Créer un paiement
      */
-    public function store(Request $request)
+    public function store(StorePaymentRequest $request)
     {
-        //
+        $payment = $request->user()->payments()->create([
+            ...$request->validated(),
+            'status' => 'en_attente', // ou PaymentStatusEnum::EN_ATTENTE
+        ]);
+
+        return response()->json(new PaymentResource($payment), 201);
     }
 
     /**
-     * Display the specified resource.
+     * 🔍 Afficher un paiement précis
      */
-    public function show(string $id)
+    public function show(Payment $payment)
     {
-        //
+        $this->authorize('view', $payment);
+
+        return new PaymentResource($payment);
     }
 
     /**
-     * Update the specified resource in storage.
+     * ✏️ Modifier un paiement (ex: méthode, statut...)
      */
-    public function update(Request $request, string $id)
+    public function update(UpdatePaymentRequest $request, Payment $payment)
     {
-        //
+        $this->authorize('update', $payment);
+
+        $payment->update($request->validated());
+
+        return new PaymentResource($payment);
     }
 
     /**
-     * Remove the specified resource from storage.
+     * ❌ Supprimer un paiement (ex: erreur, annulation...)
      */
-    public function destroy(string $id)
+    public function destroy(Payment $payment)
     {
-        //
+        $this->authorize('delete', $payment);
+
+        $payment->delete();
+
+        return response()->json(['message' => 'Paiement supprimé.']);
     }
 }
