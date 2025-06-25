@@ -96,8 +96,16 @@ class Trip extends Model
 
     public function scopeReservable(Builder $query): Builder
     {
-        return $query
-            ->open()
-            ->whereDate('date', '>=', now());
+        return $query->where('status', 'open')
+            ->whereDate('date', '>=', now())
+            ->whereRaw('
+            (
+                SELECT COALESCE(SUM(booking_items.kg_reserved), 0)
+                FROM bookings
+                JOIN booking_items ON booking_items.booking_id = bookings.id
+                WHERE bookings.trip_id = trips.id
+                AND bookings.status = ?
+            ) < trips.capacity
+        ', ['confirmee']);
     }
 }

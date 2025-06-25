@@ -31,7 +31,10 @@ class TripResource extends JsonResource
 
             // 📦 Disponibilité & état métier
             'is_reservable'  => $this->isReservable(),
-            'kg_disponible'  => $this->kgDisponible(),
+            // ⚖️ Disponibilité
+            'kg_disponible' => $this->whenLoaded('bookings', function () {
+                return $this->capacity - $this->bookings->flatMap->bookingItems->sum('kg_reserved');
+            }, $this->kgDisponible()),
 
             // 🔗 Relations
             'user'           => new UserResource($this->whenLoaded('user')),

@@ -26,7 +26,7 @@ enum BookingStatusEnum: string
     case SUSPENDUE        = 'suspendue';
 
     /**
-     * 🔄 Transitions autorisées (définies par valeurs string, pas d'objet enum !)
+     * 🔄 Transitions autorisées
      */
     private const TRANSITIONS = [
         'en_attente'      => ['en_paiement', 'accepte', 'refuse', 'annule'],
@@ -39,6 +39,7 @@ enum BookingStatusEnum: string
         'suspendue'       => ['en_attente'],
     ];
 
+    // 🏷️ UI/UX
     public function label(): string
     {
         return match ($this) {
@@ -85,6 +86,7 @@ enum BookingStatusEnum: string
         ];
     }
 
+    // 🔐 Logique métier
     public function isFinal(): bool
     {
         return in_array($this, [
@@ -103,16 +105,6 @@ enum BookingStatusEnum: string
             self::EN_PAIEMENT,
             self::ACCEPTE,
         ], true);
-    }
-
-    public function canTransitionTo(self $to): bool
-    {
-        return in_array($to->value, self::TRANSITIONS[$this->value] ?? [], true);
-    }
-
-    public function isTransitionValidFrom(self $from): bool
-    {
-        return $from->canTransitionTo($this);
     }
 
     public function canBeCancelled(): bool
@@ -156,13 +148,39 @@ enum BookingStatusEnum: string
         ], true);
     }
 
+    public function canTransitionTo(self $to): bool
+    {
+        return in_array($to->value, self::TRANSITIONS[$this->value] ?? [], true);
+    }
+
+    public function isTransitionValidFrom(self $from): bool
+    {
+        return $from->canTransitionTo($this);
+    }
+
     public function nextAllowedStatuses(): array
     {
         return self::TRANSITIONS[$this->value] ?? [];
     }
 
+    // 🛠️ Utilitaires
     public static function values(): array
     {
         return array_column(self::cases(), 'value');
+    }
+
+    // 👁 Pour usage explicite dans les scopes ou tests
+    public static function confirmed(): string
+    {
+        return self::CONFIRMEE->value;
+    }
+
+    public static function reservableStatuses(): array
+    {
+        return [
+            self::EN_ATTENTE->value,
+            self::EN_PAIEMENT->value,
+            self::ACCEPTE->value,
+        ];
     }
 }
