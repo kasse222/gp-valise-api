@@ -2,47 +2,40 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use Illuminate\Routing\Controller;
+use App\Http\Requests\Transaction\StoreTransactionRequest;
+use App\Http\Resources\TransactionResource;
+use App\Models\Transaction;
 use Illuminate\Http\Request;
 
-class TransactionController
+class TransactionController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * 📄 Lister les transactions de l’utilisateur
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $transactions = $request->user()->transactions()->latest()->paginate(10);
+        return TransactionResource::collection($transactions);
     }
 
     /**
-     * Store a newly created resource in storage.
+     * 🔍 Détails d’une transaction
      */
-    public function store(Request $request)
+    public function show(Transaction $transaction)
     {
-        //
+        $this->authorize('view', $transaction);
+
+        return new TransactionResource($transaction);
     }
 
     /**
-     * Display the specified resource.
+     * ➕ Créer une transaction (ex : dépôt ou paiement)
      */
-    public function show(string $id)
+    public function store(StoreTransactionRequest $request)
     {
-        //
-    }
+        $transaction = $request->user()->transactions()->create($request->validated());
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return response()->json(new TransactionResource($transaction), 201);
     }
 }
