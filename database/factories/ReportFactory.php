@@ -8,6 +8,7 @@ use App\Models\Booking;
 use App\Models\Trip;
 use App\Models\Luggage;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Model;
 
 class ReportFactory extends Factory
 {
@@ -15,20 +16,21 @@ class ReportFactory extends Factory
 
     public function definition(): array
     {
-        // Liste des modèles possibles à "reporter"
         $reportables = [
             Booking::class,
             Trip::class,
             Luggage::class,
         ];
 
-        // Choix aléatoire d’un modèle cible
+        /** @var class-string<Model> $reportableType */
         $reportableType = $this->faker->randomElement($reportables);
-        $reportable = $reportableType::factory()->create(); // Génère une instance
+
+        /** @var Model $reportable */
+        $reportable = $reportableType::factory()->create();
 
         return [
             'user_id'         => User::factory(),
-            'reportable_id'   => $reportable->id,
+            'reportable_id'   => $reportable->getKey(),
             'reportable_type' => $reportableType,
             'reason'          => $this->faker->randomElement([
                 'contenu inapproprié',
@@ -36,7 +38,46 @@ class ReportFactory extends Factory
                 'informations fausses',
                 'communication agressive',
             ]),
-            'details'         => $this->faker->paragraph(),
+            'details'         => $this->faker->realText(150),
         ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | États spécialisés : BookingReport, LuggageReport, etc.
+    |--------------------------------------------------------------------------
+    */
+
+    public function forBooking(): static
+    {
+        return $this->state(function () {
+            $booking = Booking::factory()->create();
+            return [
+                'reportable_id'   => $booking->getKey(),
+                'reportable_type' => Booking::class,
+            ];
+        });
+    }
+
+    public function forTrip(): static
+    {
+        return $this->state(function () {
+            $trip = Trip::factory()->create();
+            return [
+                'reportable_id'   => $trip->getKey(),
+                'reportable_type' => Trip::class,
+            ];
+        });
+    }
+
+    public function forLuggage(): static
+    {
+        return $this->state(function () {
+            $luggage = Luggage::factory()->create();
+            return [
+                'reportable_id'   => $luggage->getKey(),
+                'reportable_type' => Luggage::class,
+            ];
+        });
     }
 }

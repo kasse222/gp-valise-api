@@ -5,9 +5,8 @@ namespace Database\Factories;
 use App\Models\Booking;
 use App\Models\Trip;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Str;
 use App\Enums\BookingStatusEnum;
+use Illuminate\Database\Eloquent\Factories\Factory;
 
 class BookingFactory extends Factory
 {
@@ -17,14 +16,41 @@ class BookingFactory extends Factory
     {
         $status = $this->faker->randomElement(BookingStatusEnum::cases());
 
-        return [
-            'user_id'        => User::factory()->state(['role' => 'expeditor']),
-            'trip_id'        => Trip::factory(),
-            'status'         => $status,
-            'comment'        => $this->faker->optional()->sentence(),
-            'confirmed_at'   => in_array($status, [BookingStatusEnum::CONFIRMEE, BookingStatusEnum::LIVREE, BookingStatusEnum::TERMINE]) ? now() : null,
-            'completed_at'   => in_array($status, [BookingStatusEnum::TERMINE]) ? now()->addDays(3) : null,
-            'cancelled_at'   => in_array($status, [BookingStatusEnum::ANNULE, BookingStatusEnum::REMBOURSEE]) ? now()->subDays(2) : null,
+        $timestamps = [
+            'confirmed_at' => null,
+            'completed_at' => null,
+            'cancelled_at' => null,
         ];
+
+        match ($status) {
+            BookingStatusEnum::CONFIRMEE => $timestamps['confirmed_at'] = now(),
+            BookingStatusEnum::LIVREE,
+            BookingStatusEnum::TERMINE => [
+                $timestamps['confirmed_at'] = now()->subDays(2),
+                $timestamps['completed_at'] = now()
+            ],
+            BookingStatusEnum::ANNULE,
+            BookingStatusEnum::REMBOURSEE => $timestamps['cancelled_at'] = now()->subDays(1),
+            default => null
+        };
+
+        return [
+            'user_id'      => User::factory()->state(['role' => 'expeditor']),
+            'trip_id'      => Trip::factory(),
+            'status'       => $status,
+            'comment'      => $this->faker->optional()->sentence(),
+            ...$timestamps,
+        ];
+    }
+
+    /**
+     * 📦 État helper pour booking confirmé
+     */
+    public function confirmed(): static
+    {
+        return $this->state(fn() => [
+            'status' => BookingStatusEnum::CONFIRMEE,
+            'confirmed_at' => now(),
+        ]);
     }
 }

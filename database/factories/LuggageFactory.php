@@ -14,7 +14,7 @@ class LuggageFactory extends Factory
 
     public function definition(): array
     {
-        $pickupDate = $this->faker->dateTimeBetween('+1 day', '+1 week');
+        $pickupDate   = $this->faker->dateTimeBetween('+1 day', '+1 week');
         $deliveryDate = $this->faker->dateTimeBetween($pickupDate, '+2 weeks');
 
         return [
@@ -28,38 +28,56 @@ class LuggageFactory extends Factory
             'delivery_city'  => $this->faker->city,
             'pickup_date'    => $pickupDate,
             'delivery_date'  => $deliveryDate,
-            'status'         => LuggageStatusEnum::EN_ATTENTE, // conforme à ton enum
+            'status'         => $this->faker->randomElement(LuggageStatusEnum::cases()),
             'tracking_id'    => (string) Str::uuid(),
         ];
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | États spécifiques (facilitent tests ciblés)
+    |--------------------------------------------------------------------------
+    */
+
     public function reservee(): static
     {
-        return $this->state(fn() => ['status' => LuggageStatusEnum::RESERVEE]);
+        return $this->state(fn() => [
+            'status' => LuggageStatusEnum::RESERVEE,
+        ]);
     }
 
     public function enTransit(): static
     {
-        return $this->state(fn() => ['status' => LuggageStatusEnum::EN_TRANSIT]);
+        return $this->state(fn() => [
+            'status' => LuggageStatusEnum::EN_TRANSIT,
+        ]);
     }
 
     public function livree(): static
     {
-        return $this->state(fn() => ['status' => LuggageStatusEnum::LIVREE]);
+        return $this->state(fn() => [
+            'status' => LuggageStatusEnum::LIVREE,
+        ]);
     }
 
     public function retour(): static
     {
-        return $this->state(fn() => ['status' => LuggageStatusEnum::RETOUR]);
+        return $this->state(fn() => [
+            'status' => LuggageStatusEnum::RETOUR,
+        ]);
     }
 
     public function annulee(): static
     {
-        return $this->state(fn() => ['status' => LuggageStatusEnum::ANNULEE]);
+        return $this->state(fn() => [
+            'status' => LuggageStatusEnum::ANNULEE,
+        ]);
     }
 
     public function perdue(): static
     {
-        return $this->state(fn() => ['status' => LuggageStatusEnum::PERDUE]);
+        return $this->state(fn() => [
+            'status' => LuggageStatusEnum::PERDUE,
+        ]);
     }
 }

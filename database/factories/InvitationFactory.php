@@ -13,11 +13,33 @@ class InvitationFactory extends Factory
 
     public function definition(): array
     {
+        $used = $this->faker->boolean(20); // 20% des invitations utilisées
+
         return [
             'sender_id'        => User::factory(),
             'recipient_email'  => $this->faker->unique()->safeEmail,
-            'token'            => Str::uuid(), // ou token aléatoire sécurisé
-            'used_at'          => $this->faker->boolean(20) ? now() : null, // 20% des invitations sont "utilisées"
+            'token'            => Str::uuid(), // UUID = traçable et sécurisé
+            'used_at'          => $used ? now() : null,
         ];
+    }
+
+    /**
+     * Invitation déjà utilisée
+     */
+    public function used(): static
+    {
+        return $this->state(fn() => [
+            'used_at' => now(),
+        ]);
+    }
+
+    /**
+     * Invitation encore valide
+     */
+    public function unused(): static
+    {
+        return $this->state(fn() => [
+            'used_at' => null,
+        ]);
     }
 }

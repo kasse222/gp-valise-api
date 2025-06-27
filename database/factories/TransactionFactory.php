@@ -19,13 +19,43 @@ class TransactionFactory extends Factory
         $method = $this->faker->randomElement(PaymentMethodEnum::cases());
 
         return [
-            'user_id'       => User::factory(),
-            'booking_id'    => Booking::factory(),
-            'amount'        => $this->faker->randomFloat(2, 10, 500),
-            'currency'      => $this->faker->randomElement(['EUR', 'USD', 'XOF']),
-            'status'        => $status->value,
-            'method'        => $method->value,
-            'processed_at'  => $status === TransactionStatusEnum::PENDING ? null : now(),
+            'user_id'      => User::factory(),
+            'booking_id'   => Booking::factory(),
+            'amount'       => $this->faker->randomFloat(2, 10, 500),
+            'currency'     => $this->faker->randomElement(['EUR', 'USD', 'XOF']),
+            'status'       => $status,
+            'method'       => $method,
+            'processed_at' => $status === TransactionStatusEnum::PENDING ? null : now(),
         ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | États nommés (fixtures ciblées)
+    |--------------------------------------------------------------------------
+    */
+
+    public function pending(): static
+    {
+        return $this->state(fn() => [
+            'status'       => TransactionStatusEnum::PENDING,
+            'processed_at' => null,
+        ]);
+    }
+
+    public function success(): static
+    {
+        return $this->state(fn() => [
+            'status'       => TransactionStatusEnum::COMPLETED,
+            'processed_at' => now(),
+        ]);
+    }
+
+    public function failed(): static
+    {
+        return $this->state(fn() => [
+            'status'       => TransactionStatusEnum::FAILED,
+            'processed_at' => now()->subHours(2),
+        ]);
     }
 }

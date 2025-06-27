@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 use App\Enums\TripTypeEnum;
+use App\Enums\TripStatusEnum;
 
 class TripFactory extends Factory
 {
@@ -17,24 +18,36 @@ class TripFactory extends Factory
         $departureDate = $this->faker->dateTimeBetween('+1 day', '+1 month');
 
         return [
-            'user_id'      => User::factory()->traveler(),
-            'departure'    => $this->faker->city,
-            'destination'  => $this->faker->city,
-            'date'         => $departureDate,
-            'capacity'     => $this->faker->numberBetween(5, 40), // en kg
-            'status'       => 'actif', // ou null si par défaut
-            'type_trip'    => $this->faker->randomElement(['standard', 'express', 'sur_devis']),
+            'user_id'       => User::factory()->traveler(), // 👈 Assure-toi que traveler() existe bien
+            'departure'     => $this->faker->city,
+            'destination'   => $this->faker->city,
+            'date'          => $departureDate,
+            'capacity'      => $this->faker->randomFloat(1, 10, 50), // en kg, plus précis
+            'status'        => TripStatusEnum::ACTIVE, // 👈 Enum si présent
+            'type_trip'     => $this->faker->randomElement(TripTypeEnum::cases()),
             'flight_number' => strtoupper(Str::random(2)) . $this->faker->numberBetween(100, 9999),
         ];
     }
 
     public function standard(): static
     {
-        return $this->state(fn() => ['type_trip' => 'standard']);
+        return $this->state(fn() => ['type_trip' => TripTypeEnum::STANDARD]);
     }
 
     public function express(): static
     {
-        return $this->state(fn() => ['type_trip' => 'express']);
+        return $this->state(fn() => ['type_trip' => TripTypeEnum::EXPRESS]);
+    }
+
+    public function surDevis(): static
+    {
+        return $this->state(fn() => ['type_trip' => TripTypeEnum::SUR_DEVIS]);
+    }
+
+    public function passé(): static
+    {
+        return $this->state(fn() => [
+            'date' => $this->faker->dateTimeBetween('-2 months', 'now'),
+        ]);
     }
 }
