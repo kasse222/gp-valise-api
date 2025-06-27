@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\TripTypeEnum;
 use App\Enums\BookingStatusEnum;
 use App\Actions\Booking\CanBeReserved;
+use App\Enums\TripStatusEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -29,6 +30,8 @@ class Trip extends Model
 
     protected $casts = [
         'date' => 'datetime',
+        'status'    => TripStatusEnum::class,
+
         'type_trip' => TripTypeEnum::class,
         'capacity' => 'float',
     ];
