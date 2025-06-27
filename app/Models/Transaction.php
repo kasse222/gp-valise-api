@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CurrencyEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\PaymentMethodEnum;
 use Illuminate\Database\Eloquent\Model;
@@ -24,6 +25,7 @@ class Transaction extends Model
 
     protected $casts = [
         'amount'       => 'float',
+        'currency' => CurrencyEnum::class,
         'processed_at' => 'datetime',
         'status'       => TransactionStatusEnum::class,
         'method'       => PaymentMethodEnum::class,

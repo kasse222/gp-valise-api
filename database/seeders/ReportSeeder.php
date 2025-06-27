@@ -14,9 +14,15 @@ class ReportSeeder extends Seeder
     public function run(): void
     {
         $users = User::inRandomOrder()->take(10)->get();
+
         $reportables = collect()
-            ->merge(Booking::inRandomOrder()->take(5)->get())
-            ->merge(Luggage::inRandomOrder()->take(5)->get());
+            ->merge(Booking::inRandomOrder()->take(5)->all())
+            ->merge(Luggage::inRandomOrder()->take(5)->all());
+
+        if ($reportables->isEmpty() || $users->isEmpty()) {
+            $this->command->warn('Aucune donnée disponible pour générer des rapports.');
+            return;
+        }
 
         foreach ($reportables as $reportable) {
             Report::create([
@@ -29,8 +35,10 @@ class ReportSeeder extends Seeder
                     'communication inappropriée',
                     'escroquerie suspectée',
                 ]),
-                'details'         => fake()->sentence(12),
+                'details'         => fake()->realText(100),
             ]);
         }
+
+        $this->command->info('✔ ReportSeeder terminé.');
     }
 }

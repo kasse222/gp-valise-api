@@ -6,26 +6,21 @@ use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
+    /**
+     * Exécution de tous les seeders de manière ordonnée.
+     */
     public function run(): void
     {
-        // Ordre important : respecter les dépendances entre tables
-
+        // 🧭 Ordre logique : Plans > Utilisateurs > Modules liés
         $this->call([
             PlanSeeder::class,
             UserSeeder::class,
-
             TripSeeder::class,
-            LuggageSeeder::class,
-
             BookingSeeder::class,
-            BookingItemSeeder::class,
-
+            LuggageSeeder::class,
+            LocationSeeder::class,
             PaymentSeeder::class,
             TransactionSeeder::class,
-
-            LocationSeeder::class,
-            BookingStatusHistorySeeder::class,
-
             ReportSeeder::class,
             InvitationSeeder::class,
         ]);

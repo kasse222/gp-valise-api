@@ -30,6 +30,8 @@ class LuggageFactory extends Factory
             'delivery_date'  => $deliveryDate,
             'status'         => $this->faker->randomElement(LuggageStatusEnum::cases()),
             'tracking_id'    => (string) Str::uuid(),
+            'is_fragile'          => $this->faker->boolean(30), // 30% sont fragiles
+            'insurance_requested' => $this->faker->boolean(20),
         ];
     }
 

@@ -24,7 +24,9 @@ return new class extends Migration
 
             $table->decimal('amount', 10, 2);
 
-            $table->string('currency', 3)->default('EUR'); // 💡 tu peux personnaliser
+            $table->enum('currency', ['EUR', 'USD', 'XOF', 'GBP', 'MAD'])
+                ->default('EUR')
+                ->after('amount');
             $table->string('method', 50)
                 ->default(PaymentMethodEnum::CARTE_BANCAIRE->value); // 🟢 Enum Laravel >= 9.19
 

@@ -30,13 +30,15 @@ class Luggage extends Model
     ];
 
     protected $casts = [
-        'pickup_date'   => 'datetime',
-        'delivery_date' => 'datetime',
-        'status'        => LuggageStatusEnum::class,
-        'weight_kg'     => 'float',
-        'length_cm'     => 'float',
-        'width_cm'      => 'float',
-        'height_cm'     => 'float',
+        'pickup_date'         => 'datetime',
+        'delivery_date'       => 'datetime',
+        'status'              => LuggageStatusEnum::class,
+        'weight_kg'           => 'float',
+        'length_cm'           => 'float',
+        'width_cm'            => 'float',
+        'height_cm'           => 'float',
+        'is_fragile'          => 'boolean',
+        'insurance_requested' => 'boolean',
     ];
 
     /*
@@ -50,6 +52,13 @@ class Luggage extends Model
             if (empty($luggage->tracking_id)) {
                 $luggage->tracking_id = Str::uuid()->toString();
             }
+        });
+    }
+
+    protected static function save_booted(): void
+    {
+        static::saving(function ($luggage) {
+            $luggage->volume_cm3 = $luggage->length_cm * $luggage->width_cm * $luggage->height_cm;
         });
     }
 

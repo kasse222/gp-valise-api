@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\CurrencyEnum;
 use App\Models\Payment;
 use App\Models\User;
 use App\Models\Booking;
@@ -15,18 +16,18 @@ class PaymentFactory extends Factory
 
     public function definition(): array
     {
+        $method = $this->faker->randomElement(PaymentMethodEnum::cases());
         $status = $this->faker->randomElement(PaymentStatusEnum::cases());
-        $paidAt = $status === PaymentStatusEnum::SUCCES
-            ? $this->faker->dateTimeBetween('-2 months', 'now')
-            : null;
 
         return [
-            'user_id'    => User::factory(),
-            'booking_id' => Booking::factory(),
-            'amount'     => $this->faker->randomFloat(2, 10, 500),
-            'method'     => $this->faker->randomElement(PaymentMethodEnum::cases()),
-            'status'     => $status,
-            'paid_at'    => $paidAt,
+            'user_id'           => User::factory(),
+            'booking_id'        => Booking::factory(),
+            'amount'            => $this->faker->randomFloat(2, 10, 500),
+            'method'            => $method->value,
+            'status'            => $status->value,
+            'currency'          => fake()->randomElement(CurrencyEnum::values()),
+            'payment_reference' => $this->faker->uuid(),
+            'paid_at'           => $status->isSuccess() ? $this->faker->dateTimeBetween('-2 months', 'now') : null,
         ];
     }
 

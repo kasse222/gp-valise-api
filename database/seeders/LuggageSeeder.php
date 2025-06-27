@@ -6,38 +6,55 @@ use App\Models\Luggage;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use App\Enums\LuggageStatusEnum;
+use App\Enums\UserRoleEnum;
 
 class LuggageSeeder extends Seeder
 {
     public function run(): void
     {
-        $senders = User::where('role', \App\Enums\UserRoleEnum::SENDER->value)->get();
+        $senders = User::where('role', UserRoleEnum::SENDER->value)->get();
+
+        if ($senders->isEmpty()) {
+            $this->command->warn('⚠ Aucun expéditeur trouvé. LuggageSeeder ignoré.');
+            return;
+        }
 
         foreach ($senders as $sender) {
-            $nb = rand(1, 3); // Chaque expéditeur peut avoir 1 à 3 valises
-            for ($i = 0; $i < $nb; $i++) {
-                $pickupDate = Carbon::now()->addDays(rand(1, 10));
-                $deliveryDate = (clone $pickupDate)->addDays(rand(1, 5));
+            $count = rand(1, 4); // chaque expéditeur peut avoir 1 à 4 valises
+
+            for ($i = 0; $i < $count; $i++) {
+                $pickupDate = now()->addDays(rand(1, 10));
+                $deliveryDate = (clone $pickupDate)->addDays(rand(2, 5));
+
+                $length = fake()->numberBetween(30, 80);
+                $width  = fake()->numberBetween(20, 60);
+                $height = fake()->numberBetween(10, 40);
+                $volume = $length * $width * $height;
+
                 $status = fake()->randomElement(LuggageStatusEnum::cases());
 
-
-
                 Luggage::create([
-                    'user_id'       => $sender->id,
-                    'description'   => fake()->sentence(),
-                    'weight_kg'     => fake()->randomFloat(1, 1, 20),
-                    'length_cm'     => fake()->numberBetween(30, 100),
-                    'width_cm'      => fake()->numberBetween(20, 60),
-                    'height_cm'     => fake()->numberBetween(10, 50),
-                    'pickup_city'   => fake()->city(),
-                    'delivery_city' => fake()->city(),
-                    'pickup_date'   => $pickupDate,
-                    'delivery_date' => $deliveryDate,
-                    'status'        => $status->value,
-                    'tracking_id'   => fake()->uuid(),
+                    'user_id'             => $sender->id,
+                    'description'         => fake()->words(3, true),
+                    'weight_kg'           => fake()->randomFloat(1, 2, 25),
+                    'length_cm'           => $length,
+                    'width_cm'            => $width,
+                    'height_cm'           => $height,
+                    'volume_cm3'          => $volume,
+                    'pickup_city'         => fake()->city(),
+                    'delivery_city'       => fake()->city(),
+                    'pickup_date'         => $pickupDate,
+                    'delivery_date'       => $deliveryDate,
+                    'status'              => $status->value,
+                    'tracking_id'         => (string) Str::uuid(),
+                    'is_fragile'          => fake()->boolean(30),         // 30% fragile
+                    'insurance_requested' => fake()->boolean(20),         // 20% demandent assurance
                 ]);
             }
         }
+
+        $this->command->info('✔ LuggageSeeder terminé avec succès.');
     }
 }

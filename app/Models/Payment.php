@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CurrencyEnum;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\PaymentStatusEnum;
 use Illuminate\Database\Eloquent\Model;
@@ -18,12 +19,15 @@ class Payment extends Model
         'amount',
         'method',
         'status',
+        'currency',
+        'payment_reference',
         'paid_at',
     ];
 
     protected $casts = [
         'amount'   => 'float',
         'paid_at'  => 'datetime',
+        'currency' => CurrencyEnum::class,
         'status'   => PaymentStatusEnum::class,
         'method'   => PaymentMethodEnum::class,
     ];

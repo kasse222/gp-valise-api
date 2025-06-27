@@ -4,18 +4,32 @@ namespace App\Enums;
 
 enum LuggageStatusEnum: string
 {
-    // 🔹 Cycle standard
-    case EN_ATTENTE  = 'en_attente';     // Créée, non affectée
-    case RESERVEE    = 'reservee';       // Affectée à un trajet
-    case EN_TRANSIT  = 'en_transit';     // En cours d’acheminement
-    case LIVREE      = 'livree';         // Livrée au destinataire
+    /*
+    |--------------------------------------------------------------------------
+    | 🔄 Cycle de vie standard
+    |--------------------------------------------------------------------------
+    */
 
-        // 🔹 Anomalies ou cas terminaux
-    case ANNULEE     = 'annulee';        // Annulée avant transport
-    case PERDUE      = 'perdue';         // Perte ou litige grave
-    case RETOUR      = 'retour';         // Renvoyée à l’expéditeur
+    case EN_ATTENTE  = 'en_attente';   // En attente de réservation
+    case RESERVEE    = 'reservee';     // Réservée pour un trajet
+    case EN_TRANSIT  = 'en_transit';   // En cours de transport
+    case LIVREE      = 'livree';       // Livrée au destinataire
 
-    // === Méthodes pour affichage ===
+        /*
+    |--------------------------------------------------------------------------
+    | 🛑 États terminaux ou exceptionnels
+    |--------------------------------------------------------------------------
+    */
+
+    case ANNULEE     = 'annulee';      // Annulée avant départ
+    case PERDUE      = 'perdue';       // Perdue ou litige
+    case RETOUR      = 'retour';       // Renvoyée à l’expéditeur
+
+    /*
+    |--------------------------------------------------------------------------
+    | 🎨 UI helpers (label + couleur)
+    |--------------------------------------------------------------------------
+    */
 
     public function label(): string
     {
@@ -26,7 +40,7 @@ enum LuggageStatusEnum: string
             self::LIVREE     => 'Livrée',
             self::ANNULEE    => 'Annulée',
             self::PERDUE     => 'Perdue',
-            self::RETOUR     => 'En retour',
+            self::RETOUR     => 'Retour',
         };
     }
 
@@ -43,7 +57,11 @@ enum LuggageStatusEnum: string
         };
     }
 
-    // === Méthodes métier ===
+    /*
+    |--------------------------------------------------------------------------
+    | ⚙️ Logique métier
+    |--------------------------------------------------------------------------
+    */
 
     public function isReservable(): bool
     {
@@ -55,7 +73,7 @@ enum LuggageStatusEnum: string
         return in_array($this, [
             self::RESERVEE,
             self::EN_TRANSIT,
-        ]);
+        ], true);
     }
 
     public function isFinal(): bool
@@ -73,7 +91,7 @@ enum LuggageStatusEnum: string
         return in_array($this, [
             self::EN_ATTENTE,
             self::RESERVEE,
-        ]);
+        ], true);
     }
 
     public function canBeDelivered(): bool
@@ -86,8 +104,22 @@ enum LuggageStatusEnum: string
         return $this === self::LIVREE;
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | 🔁 Utilitaires divers
+    |--------------------------------------------------------------------------
+    */
+
     public static function values(): array
     {
         return array_column(self::cases(), 'value');
+    }
+
+    public static function labels(): array
+    {
+        return array_combine(
+            self::values(),
+            array_map(fn(self $case) => $case->label(), self::cases())
+        );
     }
 }

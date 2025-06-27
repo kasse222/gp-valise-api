@@ -11,8 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('locations', function (Blueprint $table) {
-            $table->string('type')->default('etape'); // Enum à caster
+        Schema::table('payments', function (Blueprint $table) {
+            $table->string('currency', 3)
+                ->default('EUR')
+                ->after('amount'); // ou après 'status', selon ta structure
         });
     }
 
@@ -21,8 +23,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('locations', function (Blueprint $table) {
-            $table->dropColumn('type');
+        Schema::table('payments', function (Blueprint $table) {
+            $table->dropColumn('currency');
         });
     }
 };

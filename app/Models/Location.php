@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\LocationPositionEnum;
 use App\Enums\LocationTypeEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,7 +17,8 @@ class Location extends Model
         'trip_id',       // 🔗 ID du trajet auquel appartient ce point
         'latitude',      // 🌍 Coordonnée latitude
         'longitude',     // 🌍 Coordonnée longitude
-        'city',          // 🏙️ Ville (optionnelle ou normalisée)
+        'city',
+        'position',         // 🏙️ Ville (optionnelle ou normalisée)
         'order_index',   // 🧭 Position dans le trajet (0 = départ, n = arrivée)
     ];
 
@@ -24,6 +26,7 @@ class Location extends Model
         'latitude'     => 'float',
         'longitude'    => 'float',
         'order_index'  => 'integer',
+        'position'     => LocationPositionEnum::class,
         'type'         => LocationTypeEnum::class,
 
     ];

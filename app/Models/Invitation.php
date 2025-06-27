@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 
 class Invitation extends Model
 {
@@ -14,12 +15,15 @@ class Invitation extends Model
     protected $fillable = [
         'sender_id',         // L’utilisateur qui invite
         'recipient_email',   // Email de l’invité
-        'token',             // Jeton d’invitation
+        'token',             // Jeton d’invitation unique
         'used_at',           // Date d’utilisation
+        'expires_at',        // Date d’expiration (facultative)
+        'message',           // Message personnalisé (facultatif)
     ];
 
     protected $casts = [
-        'used_at' => 'datetime',
+        'used_at'    => 'datetime',
+        'expires_at' => 'datetime',
     ];
 
     /*
@@ -28,9 +32,6 @@ class Invitation extends Model
     |--------------------------------------------------------------------------
     */
 
-    /**
-     * 🔗 L’utilisateur ayant envoyé l’invitation
-     */
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sender_id');
@@ -42,12 +43,13 @@ class Invitation extends Model
     |--------------------------------------------------------------------------
     */
 
-    /**
-     * 🔍 Invitations non encore utilisées
-     */
     public function scopeAvailable(Builder $query): Builder
     {
-        return $query->whereNull('used_at');
+        return $query->whereNull('used_at')
+            ->where(function ($q) {
+                $q->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            });
     }
 
     /*
@@ -57,7 +59,7 @@ class Invitation extends Model
     */
 
     /**
-     * ✅ Invitation déjà utilisée ?
+     * ✅ L’invitation a-t-elle été utilisée ?
      */
     public function isUsed(): bool
     {
@@ -65,10 +67,34 @@ class Invitation extends Model
     }
 
     /**
-     * ⏱ Marque l’invitation comme utilisée maintenant
+     * ✅ L’invitation est-elle expirée ?
+     */
+    public function isExpired(): bool
+    {
+        return $this->expires_at && $this->expires_at->isPast();
+    }
+
+    /**
+     * ✅ L’invitation peut-elle encore être acceptée ?
+     */
+    public function canBeAccepted(): bool
+    {
+        return !$this->isUsed() && !$this->isExpired();
+    }
+
+    /**
+     * ⏱ Marque comme utilisée
      */
     public function markAsUsed(): void
     {
         $this->update(['used_at' => now()]);
+    }
+
+    /**
+     * 🕒 Durée restante en secondes avant expiration
+     */
+    public function timeLeft(): ?int
+    {
+        return $this->expires_at ? now()->diffInSeconds($this->expires_at, false) : null;
     }
 }

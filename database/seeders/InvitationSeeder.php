@@ -11,15 +11,30 @@ class InvitationSeeder extends Seeder
 {
     public function run(): void
     {
-        $senders = User::all()->where('role', 3); // SENDER
+        $senders = User::where('role', \App\Enums\UserRoleEnum::SENDER->value)->get();
 
         foreach ($senders as $sender) {
-            Invitation::create([
-                'sender_id'       => $sender->id,
-                'recipient_email' => fake()->unique()->safeEmail,
-                'token'           => Str::uuid(),
-                'used_at'         => null,
-            ]);
+            // ✅ 1 à 3 invitations par expéditeur
+            $count = rand(1, 3);
+
+            Invitation::factory()
+                ->count($count)
+                ->state(fn() => [
+                    'sender_id' => $sender->id,
+                ])
+                ->create();
         }
+
+        // 🔁 Générer quelques invitations expirées
+        Invitation::factory()
+            ->count(5)
+            ->expired()
+            ->create();
+
+        // 🔁 Générer quelques invitations déjà utilisées
+        Invitation::factory()
+            ->count(5)
+            ->used()
+            ->create();
     }
 }

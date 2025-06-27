@@ -6,6 +6,7 @@ use App\Models\Invitation;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
+use Illuminate\Support\Carbon;
 
 class InvitationFactory extends Factory
 {
@@ -13,18 +14,21 @@ class InvitationFactory extends Factory
 
     public function definition(): array
     {
-        $used = $this->faker->boolean(20); // 20% des invitations utilisées
+        $used      = $this->faker->boolean(20); // 20% utilisées
+        $expiresAt = Carbon::now()->addDays($this->faker->numberBetween(1, 30));
 
         return [
             'sender_id'        => User::factory(),
             'recipient_email'  => $this->faker->unique()->safeEmail,
-            'token'            => Str::uuid(), // UUID = traçable et sécurisé
+            'token'            => (string) Str::uuid(), // UUID = traçable et sécurisé
             'used_at'          => $used ? now() : null,
+            'expires_at'       => $expiresAt,
+            'message'          => $this->faker->optional()->sentence(10),
         ];
     }
 
     /**
-     * Invitation déjà utilisée
+     * 📍 Invitation déjà utilisée
      */
     public function used(): static
     {
@@ -34,12 +38,32 @@ class InvitationFactory extends Factory
     }
 
     /**
-     * Invitation encore valide
+     * ✅ Invitation non encore utilisée
      */
     public function unused(): static
     {
         return $this->state(fn() => [
             'used_at' => null,
+        ]);
+    }
+
+    /**
+     * ⛔️ Invitation expirée
+     */
+    public function expired(): static
+    {
+        return $this->state(fn() => [
+            'expires_at' => now()->subDays(1),
+        ]);
+    }
+
+    /**
+     * ⏳ Invitation valide (non utilisée, non expirée)
+     */
+    public function active(): static
+    {
+        return $this->unused()->state(fn() => [
+            'expires_at' => now()->addDays(7),
         ]);
     }
 }

@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('locations', function (Blueprint $table) {
-            $table->string('type')->default('etape'); // Enum à caster
+        Schema::table('invitations', function (Blueprint $table) {
+            $table->string('message')->nullable()->after('recipient_email');
         });
     }
 
@@ -21,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('locations', function (Blueprint $table) {
-            $table->dropColumn('type');
+        Schema::table('invitations', function (Blueprint $table) {
+            //
         });
     }
 };
