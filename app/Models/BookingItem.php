@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * BookingItem = lien entre un Booking (réservation) et un Luggage (valise),
- * pour un Trip (trajet) donné, avec une quantité de kg réservée.
+ * BookingItem = sous-composant d’une réservation (Booking),
+ * représentant une valise (Luggage) réservée sur un trajet (Trip),
+ * avec poids et prix associés.
  */
 class BookingItem extends Model
 {
@@ -29,12 +30,12 @@ class BookingItem extends Model
 
     /*
     |--------------------------------------------------------------------------
-    | Relations
+    | 🔗 Relations
     |--------------------------------------------------------------------------
     */
 
     /**
-     * Le booking (réservation) auquel cet item est lié
+     * 🔗 Réservation globale à laquelle appartient ce segment
      */
     public function booking(): BelongsTo
     {
@@ -42,7 +43,7 @@ class BookingItem extends Model
     }
 
     /**
-     * La valise réservée dans cette sous-réservation
+     * 🔗 Valise concernée par cette réservation partielle
      */
     public function luggage(): BelongsTo
     {
@@ -50,7 +51,7 @@ class BookingItem extends Model
     }
 
     /**
-     * Le trajet associé à cette réservation
+     * 🔗 Trajet sur lequel cette valise est réservée
      */
     public function trip(): BelongsTo
     {
@@ -59,25 +60,35 @@ class BookingItem extends Model
 
     /*
     |--------------------------------------------------------------------------
-    | Méthodes métier potentielles (💡 si besoin)
+    | ⚙️ Helpers Métier
     |--------------------------------------------------------------------------
     */
 
     /**
-     * Détermine si la réservation est dépassée par rapport au poids
+     * 📦 Est-ce que le poids réservé dépasse la valise ?
      */
     public function isOverweight(): bool
     {
-        return $this->kg_reserved > $this->luggage?->weight_kg;
+        return $this->luggage && $this->kg_reserved > $this->luggage->weight_kg;
     }
 
     /**
-     * Calcule le tarif par kg (utile pour affichage ou contrôle)
+     * 💰 Calcule le tarif par kg (2 décimales)
      */
     public function pricePerKg(): float
     {
         return $this->kg_reserved > 0
             ? round($this->price / $this->kg_reserved, 2)
             : 0.0;
+    }
+
+    /**
+     * 🧪 Helper : est valide au niveau poids et cohérence
+     */
+    public function isValidBooking(): bool
+    {
+        return $this->luggage
+            && $this->kg_reserved > 0
+            && $this->kg_reserved <= $this->luggage->weight_kg;
     }
 }

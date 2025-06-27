@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
-use App\Enums\TripTypeEnum;
-use App\Enums\BookingStatusEnum;
 use App\Actions\Booking\CanBeReserved;
+use App\Enums\BookingStatusEnum;
 use App\Enums\TripStatusEnum;
+use App\Enums\TripTypeEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -29,14 +29,17 @@ class Trip extends Model
     ];
 
     protected $casts = [
-        'date' => 'datetime',
-        'status'    => TripStatusEnum::class,
-
-        'type_trip' => TripTypeEnum::class,
-        'capacity' => 'float',
+        'date'        => 'datetime',
+        'status'      => TripStatusEnum::class,
+        'type_trip'   => TripTypeEnum::class,
+        'capacity'    => 'float',
     ];
 
-    // 🔗 Relations
+    /*
+    |--------------------------------------------------------------------------
+    | 🔗 Relations
+    |--------------------------------------------------------------------------
+    */
 
     public function user(): BelongsTo
     {
@@ -55,14 +58,18 @@ class Trip extends Model
 
     public function locations(): HasMany
     {
-        return $this->hasMany(Location::class);
+        return $this->hasMany(Location::class)->orderBy('order_index');
     }
 
-    // 📦 Logique métier
+    /*
+    |--------------------------------------------------------------------------
+    | ⚙️ Logique métier
+    |--------------------------------------------------------------------------
+    */
 
     public function isPast(): bool
     {
-        return $this->date instanceof Carbon && $this->date->isPast();
+        return $this->date?->isPast() ?? false;
     }
 
     public function isReservable(): bool
@@ -72,43 +79,47 @@ class Trip extends Model
 
     public function canAcceptKg(float $kg): bool
     {
-        return ($this->totalKgReserved() + $kg) <= $this->capacity;
+        return ($this->kgReserved() + $kg) <= $this->capacity;
     }
 
-    public function totalKgReserved(): float
+    public function kgReserved(): float
     {
+        // Évite un `get()` coûteux
         return $this->bookings()
-            ->where('status', BookingStatusEnum::CONFIRMEE->value)
-            ->with('bookingItems')
+            ->where('status', BookingStatusEnum::CONFIRMEE)
+            ->withSum('bookingItems as total_reserved', 'kg_reserved')
             ->get()
-            ->flatMap->bookingItems
-            ->sum('kg_reserved');
+            ->sum('total_reserved');
     }
 
     public function kgDisponible(): float
     {
-        return max(0, $this->capacity - $this->totalKgReserved());
+        return max(0, $this->capacity - $this->kgReserved());
     }
 
-    // 🔍 Scopes
+    /*
+    |--------------------------------------------------------------------------
+    | 🔍 Scopes
+    |--------------------------------------------------------------------------
+    */
 
     public function scopeOpen(Builder $query): Builder
     {
-        return $query->where('status', 'open');
+        return $query->where('status', TripStatusEnum::ACTIVE);
     }
 
     public function scopeReservable(Builder $query): Builder
     {
-        return $query->where('status', 'open')
+        return $query->where('status', TripStatusEnum::ACTIVE)
             ->whereDate('date', '>=', now())
             ->whereRaw('
-            (
-                SELECT COALESCE(SUM(booking_items.kg_reserved), 0)
-                FROM bookings
-                JOIN booking_items ON booking_items.booking_id = bookings.id
-                WHERE bookings.trip_id = trips.id
-                AND bookings.status = ?
-            ) < trips.capacity
-        ', ['confirmee']);
+                (
+                    SELECT COALESCE(SUM(booking_items.kg_reserved), 0)
+                    FROM bookings
+                    JOIN booking_items ON booking_items.booking_id = bookings.id
+                    WHERE bookings.trip_id = trips.id
+                    AND bookings.status = ?
+                ) < trips.capacity
+            ', [BookingStatusEnum::CONFIRMEE->value]);
     }
 }

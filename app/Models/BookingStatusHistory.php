@@ -12,17 +12,23 @@ class BookingStatusHistory extends Model
     use HasFactory;
 
     protected $fillable = [
-        'booking_id',     // Référence à la réservation concernée
-        'old_status',     // Enum BookingStatusEnum
-        'new_status',     // Enum BookingStatusEnum
-        'changed_by',     // User ID (admin ou acteur du changement)
-        'reason',         // Texte libre : "annulation utilisateur", "confirmation", etc.
+        'booking_id',
+        'old_status',
+        'new_status',
+        'changed_by',
+        'reason',
     ];
 
     protected $casts = [
         'old_status' => BookingStatusEnum::class,
         'new_status' => BookingStatusEnum::class,
     ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | 🔗 Relations
+    |--------------------------------------------------------------------------
+    */
 
     /**
      * 🔗 Réservation concernée
@@ -33,24 +39,52 @@ class BookingStatusHistory extends Model
     }
 
     /**
-     * 🔗 Utilisateur ayant effectué le changement de statut
+     * 🔗 Utilisateur ayant effectué le changement
      */
     public function changedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'changed_by');
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | ⚙️ Méthodes Métier
+    |--------------------------------------------------------------------------
+    */
+
     /**
      * 🧾 Logger un changement de statut
      */
-    public static function log(Booking $booking, BookingStatusEnum $old, BookingStatusEnum $new, User $user, ?string $reason = null): void
+    public static function log(Booking $booking, BookingStatusEnum $from, BookingStatusEnum $to, User $user, ?string $reason = null): void
     {
         self::create([
             'booking_id' => $booking->id,
-            'old_status' => $old, // 👈 ENUM directement
-            'new_status' => $new, // 👈 ENUM directement
+            'old_status' => $from,
+            'new_status' => $to,
             'changed_by' => $user->id,
             'reason'     => $reason,
         ]);
+    }
+
+    /**
+     * ✅ Transition manuelle ?
+     */
+    public function isManual(): bool
+    {
+        return filled($this->reason) && str($this->reason)->contains(['admin', 'manuel', 'override']);
+    }
+
+    /**
+     * 🕒 Formatage date + transition
+     */
+    public function label(): string
+    {
+        return sprintf(
+            '%s → %s par %s (%s)',
+            $this->old_status->label(),
+            $this->new_status->label(),
+            optional($this->changedBy)->first_name ?? 'Système',
+            $this->created_at?->format('d/m/Y H:i')
+        );
     }
 }

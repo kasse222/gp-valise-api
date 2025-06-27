@@ -16,39 +16,75 @@ class Payment extends Model
         'user_id',
         'booking_id',
         'amount',
-        'method',     // Ex: card, stripe, cash
-        'status',     // Ex: pending, paid, failed
+        'method',
+        'status',
         'paid_at',
     ];
 
     protected $casts = [
-        'status' => PaymentStatusEnum::class,
-        'paid_at' => 'datetime',
-        'amount'  => 'float',
-        'method' => PaymentMethodEnum::class,
+        'amount'   => 'float',
+        'paid_at'  => 'datetime',
+        'status'   => PaymentStatusEnum::class,
+        'method'   => PaymentMethodEnum::class,
     ];
 
-    /**
-     * 🔗 Utilisateur ayant payé
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | 🔗 Relations
+    |--------------------------------------------------------------------------
+    */
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * 🔗 Réservation liée au paiement
-     */
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
     }
 
-    /**
-     * 💳 Paiement finalisé ?
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | ⚙️ Méthodes métier
+    |--------------------------------------------------------------------------
+    */
+
     public function isPaid(): bool
     {
-        return $this->status === 'paid';
+        return $this->status === PaymentStatusEnum::SUCCES;
+    }
+
+    public function isPending(): bool
+    {
+        return $this->status === PaymentStatusEnum::EN_COURS;
+    }
+
+    public function isFailed(): bool
+    {
+        return $this->status === PaymentStatusEnum::ECHEC;
+    }
+
+    public function markAsPaid(): void
+    {
+        $this->status = PaymentStatusEnum::SUCCES;
+        $this->paid_at = now();
+        $this->save();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | 🔎 Query scopes
+    |--------------------------------------------------------------------------
+    */
+
+    public function scopePaid($query)
+    {
+        return $query->where('status', PaymentStatusEnum::SUCCES);
+    }
+
+    public function scopePending($query)
+    {
+        return $query->where('status', PaymentStatusEnum::EN_COURS);
     }
 }

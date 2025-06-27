@@ -7,8 +7,8 @@ use App\Models\BookingStatusHistory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany};
+use Illuminate\Support\Facades\Auth;
 
 class Booking extends Model
 {
@@ -33,25 +33,24 @@ class Booking extends Model
 
     /*
     |--------------------------------------------------------------------------
-    | Booted: création auto de l'historique initial
+    | Boot : audit du statut initial
     |--------------------------------------------------------------------------
     */
     protected static function booted(): void
     {
         static::created(function (Booking $booking) {
-            // Enregistre le statut initial dès la création
             $booking->statusHistories()->create([
                 'old_status' => null,
                 'new_status' => $booking->status,
                 'changed_by' => $booking->user_id,
-                'reason'     => 'Statut initial à la création',
+                'reason'     => 'Création initiale',
             ]);
         });
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Relations
+    | 🔗 Relations
     |--------------------------------------------------------------------------
     */
 
@@ -77,23 +76,95 @@ class Booking extends Model
 
     /*
     |--------------------------------------------------------------------------
-    | Logique métier : états
+    | ⚙️ Méthodes Métier : statut
     |--------------------------------------------------------------------------
     */
 
-    public function isConfirmed(): bool
+    public function statusIs(BookingStatusEnum $expected): bool
     {
-        return $this->status === BookingStatusEnum::CONFIRMEE;
-    }
-
-    public function isCancelled(): bool
-    {
-        return $this->status === BookingStatusEnum::ANNULE;
+        return $this->status === $expected;
     }
 
     public function isFinal(): bool
     {
         return $this->status->isFinal();
+    }
+
+    public function canTransitionTo(BookingStatusEnum $to): bool
+    {
+        return $this->status->canTransitionTo($to);
+    }
+
+    public function transitionTo(BookingStatusEnum $newStatus, ?User $changer = null, ?string $reason = null): void
+    {
+        if (! $this->canTransitionTo($newStatus)) {
+            throw new \DomainException("❌ Transition non autorisée de {$this->status->value} → {$newStatus->value}");
+        }
+
+        // Timestamps associés
+        match ($newStatus) {
+            BookingStatusEnum::CONFIRMEE => $this->confirmed_at = now(),
+            BookingStatusEnum::TERMINE   => $this->completed_at = now(),
+            BookingStatusEnum::ANNULE    => $this->cancelled_at = now(),
+            default                      => null,
+        };
+
+        $oldStatus = $this->status;
+        $this->status = $newStatus;
+        $this->save();
+
+        $this->statusHistories()->create([
+            'old_status' => $oldStatus,
+            'new_status' => $newStatus,
+            'changed_by' => $changer?->id ?? auth::id(),
+            'reason'     => $reason ?? 'Changement programmatique',
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | 🔐 Vérification des droits métier selon utilisateur
+    |--------------------------------------------------------------------------
+    */
+
+    public function canBeUpdatedTo(BookingStatusEnum $newStatus, ?User $user = null): bool
+    {
+        $user ??= Auth::user();
+
+        return match (true) {
+            // Expéditeur peut annuler une résa en attente
+            $this->is(BookingStatusEnum::EN_ATTENTE)
+                && $newStatus === BookingStatusEnum::ANNULE
+                && $user->id === $this->user_id => true,
+
+            // Voyageur peut confirmer
+            $this->is(BookingStatusEnum::EN_ATTENTE)
+                && $newStatus === BookingStatusEnum::CONFIRMEE
+                && $user->id === $this->trip->user_id => true,
+
+            // Livraison possible par le voyageur
+            $this->is(BookingStatusEnum::CONFIRMEE)
+                && $newStatus === BookingStatusEnum::LIVREE
+                && $user->id === $this->trip->user_id => true,
+
+            default => false,
+        };
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | 📄 Aliases lisibles
+    |--------------------------------------------------------------------------
+    */
+
+    public function isConfirmed(): bool
+    {
+        return $this->is(BookingStatusEnum::CONFIRMEE);
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->is(BookingStatusEnum::ANNULE);
     }
 
     public function canBeCancelled(): bool
@@ -119,63 +190,5 @@ class Booking extends Model
     public function canBeRefunded(): bool
     {
         return $this->status->canBeRefunded();
-    }
-
-    /**
-     * ✅ Vérifie si une transition est autorisée
-     */
-    public function canTransitionTo(BookingStatusEnum $to): bool
-    {
-        return $this->status->canTransitionTo($to);
-    }
-
-    /**
-     * 🚀 Applique une transition de statut (si autorisée)
-     */
-    public function transitionTo(BookingStatusEnum $newStatus): void
-    {
-        if (! $this->canTransitionTo($newStatus)) {
-            throw new \DomainException("Transition non autorisée de {$this->status->value} vers {$newStatus->value}");
-        }
-
-        match ($newStatus) {
-            BookingStatusEnum::CONFIRMEE => $this->confirmed_at = now(),
-            BookingStatusEnum::TERMINE   => $this->completed_at = now(),
-            BookingStatusEnum::ANNULE    => $this->cancelled_at = now(),
-            default                      => null,
-        };
-
-        $oldStatus = $this->status;
-        $this->status = $newStatus;
-        $this->save();
-
-        $this->statusHistories()->create([
-            'old_status' => $oldStatus,
-            'new_status' => $newStatus,
-            'changed_by' => $this->user_id, // à adapter si admin/modo
-            'reason'     => 'Changement via transitionTo()',
-        ]);
-    }
-
-    public function canBeUpdatedTo(BookingStatusEnum $newStatus, ?User $user = null): bool
-    {
-        if (! $user) {
-            $user = auth()->user();
-        }
-
-        $current = $this->status;
-
-        return match (true) {
-            // L’expéditeur peut annuler une réservation en attente
-            $current === BookingStatusEnum::EN_ATTENTE && $newStatus === BookingStatusEnum::ANNULE && $user->id === $this->user_id => true,
-
-            // Le voyageur peut confirmer une réservation en attente
-            $current === BookingStatusEnum::EN_ATTENTE && $newStatus === BookingStatusEnum::CONFIRMEE && $user->id === $this->trip->user_id => true,
-
-            // Le voyageur peut marquer comme livrée
-            $current === BookingStatusEnum::CONFIRMEE && $newStatus === BookingStatusEnum::LIVREE && $user->id === $this->trip->user_id => true,
-
-            default => false,
-        };
     }
 }

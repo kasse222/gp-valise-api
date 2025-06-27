@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use App\Enums\LuggageStatusEnum;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
@@ -13,7 +13,6 @@ class Luggage extends Model
     use HasFactory;
 
     protected $table = 'luggages';
-
 
     protected $fillable = [
         'user_id',
@@ -34,39 +33,85 @@ class Luggage extends Model
         'pickup_date'   => 'datetime',
         'delivery_date' => 'datetime',
         'status'        => LuggageStatusEnum::class,
+        'weight_kg'     => 'float',
+        'length_cm'     => 'float',
+        'width_cm'      => 'float',
+        'height_cm'     => 'float',
     ];
 
-    // 🚀 Boot pour générer un tracking UUID unique si vide
+    /*
+    |--------------------------------------------------------------------------
+    | Boot: génération automatique du tracking_id UUID
+    |--------------------------------------------------------------------------
+    */
     protected static function booted(): void
     {
         static::creating(function (self $luggage) {
-            if (!$luggage->tracking_id) {
-                $luggage->tracking_id = Str::uuid();
+            if (empty($luggage->tracking_id)) {
+                $luggage->tracking_id = Str::uuid()->toString();
             }
         });
     }
 
-    // 🔗 Relations
+    /*
+    |--------------------------------------------------------------------------
+    | Relations
+    |--------------------------------------------------------------------------
+    */
 
+    /**
+     * 🔗 Propriétaire du bagage
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    // 🔎 Accesseur : volume en cm³La méthode getVolumeCm3Attribute()
-    // est un accessor Laravel que tu peux appeler avec $luggage->volume_cm3.
+    /*
+    |--------------------------------------------------------------------------
+    | Accesseurs personnalisés
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * 📦 Volume du bagage (en cm³)
+     */
     public function getVolumeCm3Attribute(): ?float
     {
         if ($this->length_cm && $this->width_cm && $this->height_cm) {
-            return $this->length_cm * $this->width_cm * $this->height_cm;
+            return round($this->length_cm * $this->width_cm * $this->height_cm, 2);
         }
 
         return null;
     }
 
-    // ✅ Statut final ?
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers métier
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * ✅ Vérifie si le bagage est dans un état final (livré, perdu, annulé)
+     */
     public function isFinal(): bool
     {
-        return $this->status->isFinal();
+        return $this->status?->isFinal() ?? false;
+    }
+
+    /**
+     * 🔍 Bagage prêt à être réservé ?
+     */
+    public function isAvailable(): bool
+    {
+        return $this->status === LuggageStatusEnum::RESERVEE;
+    }
+
+    /**
+     * 🛑 Bagage annulé ?
+     */
+    public function isCancelled(): bool
+    {
+        return $this->status === LuggageStatusEnum::ANNULEE;
     }
 }

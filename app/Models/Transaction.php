@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\TransactionStatusEnum;
+use App\Enums\PaymentMethodEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,46 +17,62 @@ class Transaction extends Model
         'booking_id',
         'amount',
         'currency',
-        'status',     // ✅ Prévoir EnumTransactionStatus
-        'method',     // ✅ Prévoir EnumPaymentMethod
+        'status',        // ✅ Enum TransactionStatusEnum
+        'method',        // ✅ Enum PaymentMethodEnum
         'processed_at',
     ];
 
     protected $casts = [
-        'status'        => TransactionStatusEnum::class,
-        'processed_at' => 'datetime',
         'amount'       => 'float',
+        'processed_at' => 'datetime',
+        'status'       => TransactionStatusEnum::class,
+        'method'       => PaymentMethodEnum::class,
     ];
 
-    /**
-     * 🔗 Utilisateur ayant effectué le paiement
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | Relations
+    |--------------------------------------------------------------------------
+    */
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * 🔗 Réservation concernée (optionnelle)
-     */
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
     }
 
-    /**
-     * ✅ La transaction a-t-elle été traitée ?
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers métier
+    |--------------------------------------------------------------------------
+    */
+
     public function isProcessed(): bool
     {
         return $this->processed_at !== null;
     }
 
-    /**
-     * 💡 Prévoir une méthode d’état si Enums en place
-     */
     public function isPending(): bool
     {
-        return $this->status === 'pending';
+        return $this->status === TransactionStatusEnum::PENDING;
+    }
+
+    public function isSucceeded(): bool
+    {
+        return $this->status === TransactionStatusEnum::COMPLETED;
+    }
+
+    public function isFailed(): bool
+    {
+        return $this->status === TransactionStatusEnum::FAILED;
+    }
+
+    public function label(): string
+    {
+        return "{$this->method->label()} - {$this->amount} {$this->currency}";
     }
 }
