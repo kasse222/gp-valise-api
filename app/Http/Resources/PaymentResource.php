@@ -5,44 +5,46 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class PaymentResource extends JsonResource
+class PlanResource extends JsonResource
 {
     /**
-     * Transform the payment resource into an array.
+     * Transform the plan resource into an array.
      *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
     {
         return [
-            'id'         => $this->id,
+            'id'          => $this->id,
+            'name'        => $this->name,
 
-            // Montant
-            'amount'     => round($this->amount, 2),
-            'currency'   => 'EUR', // ou configurable selon app()
-
-            // Statut enrichi
-            'status' => [
-                'code'   => $this->status->value,
-                'label'  => $this->status->label(),
-                'color'  => $this->status->color(),
-                'is_final' => $this->status->isFinal(),
-                'is_success' => $this->status->isSuccess(),
+            'type' => [
+                'code'        => $this->type->value,
+                'label'       => $this->type->label(),
+                'is_paid'     => $this->type->isPaid(),
+                'is_giftable' => $this->type->isGiftable(),
             ],
 
-            // Méthode de paiement
-            'method' => [
-                'code'   => $this->method->value,
-                'label'  => $this->method->label(),
-            ],
+            'price'         => round($this->price, 2),
+            'duration_days' => $this->duration_days,
+
+            // Avantages dynamiques
+            'features'      => $this->features,
+
+            // Promotions actives
+            'discount_percent'     => $this->discount_percent,
+            'discount_expires_at'  => optional($this->discount_expires_at)?->toDateTimeString(),
+            'has_active_discount'  => $this->hasActiveDiscount(),
+            'commission_percent'   => $this->getCommissionPercent(),
+
+            // État
+            'is_active'     => $this->is_active,
+            'is_available'  => $this->isAvailable(),
+            'is_premium'    => $this->isPremium(),
 
             // Dates
-            'paid_at'    => optional($this->paid_at)->toDateTimeString(),
-            'created_at' => $this->created_at->toDateTimeString(),
-
-            // Relations
-            'user_id'    => $this->user_id,
-            'booking_id' => $this->booking_id,
+            'created_at'    => $this->created_at?->toDateTimeString(),
+            'updated_at'    => $this->updated_at?->toDateTimeString(),
         ];
     }
 }
