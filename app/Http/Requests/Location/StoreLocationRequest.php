@@ -8,7 +8,7 @@ class StoreLocationRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // 🔐 Autorisation contrôlée via policy
+        return true; // 🔐 Contrôle via Policy côté contrôleur
     }
 
     public function rules(): array
@@ -18,6 +18,7 @@ class StoreLocationRequest extends FormRequest
             'city'      => ['required', 'string', 'max:100'],
             'postcode'  => ['nullable', 'string', 'max:20'],
             'address'   => ['nullable', 'string', 'max:255'],
+            // latitude, longitude, type, position, trip_id, order_index → injectés côté backend
         ];
     }
 
