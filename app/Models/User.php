@@ -77,6 +77,11 @@ class User extends Authenticatable
         return $this->role === UserRoleEnum::ADMIN;
     }
 
+    public function isExpeditor(): bool
+    {
+        return $this->role === UserRoleEnum::SENDER;
+    }
+
     /**
      * Vérifie si l'utilisateur a validé son KYC.
      */
