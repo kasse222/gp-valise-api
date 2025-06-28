@@ -25,4 +25,29 @@ enum ReportReasonEnum: string
             self::SCAM_SUSPECT  => 'Escroquerie suspectée',
         };
     }
+    public function color(): string
+    {
+        return match ($this) {
+            self::ABUS          => 'red',
+            self::LOST_LUGGAGE  => 'orange',
+            self::INAPPROPRIATE => 'yellow',
+            self::SCAM_SUSPECT  => 'red-dark',
+        };
+    }
+    public function description(): string
+    {
+        return match ($this) {
+            self::ABUS          => 'Insultes, menaces ou comportement agressif.',
+            self::LOST_LUGGAGE  => 'Le bagage n’a pas été livré comme prévu.',
+            self::INAPPROPRIATE => 'Messages à caractère déplacé ou offensant.',
+            self::SCAM_SUSPECT  => 'Soupçon d’arnaque ou de demande frauduleuse.',
+        };
+    }
+    public static function asSelect(): array
+    {
+        return collect(self::cases())->map(fn($case) => [
+            'value' => $case->value,
+            'label' => $case->label(),
+        ])->toArray();
+    }
 }
