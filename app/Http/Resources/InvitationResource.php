@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Auth;
 
 class InvitationResource extends JsonResource
 {
@@ -16,20 +17,31 @@ class InvitationResource extends JsonResource
     {
         return [
             'id'               => $this->id,
-            //	Pour relier au parrain
+
+            // 👤 Expéditeur (parrain)
             'sender_id'        => $this->sender_id,
 
-            // Email invité
+            // 📧 Destinataire
             'recipient_email'  => $this->recipient_email,
 
-            // Token (affichable uniquement en mode admin ou owner ?)
-            'used_at'          => optional($this->used_at)->toDateTimeString(),
+            // 🔐 Token visible uniquement si admin ou émetteur
+            'token'           => $this->when($this->isAuthorized($request), $this->token),
 
-            // Statut d'utilisation
+
+            // 🕓 Statuts et dates
             'is_used'          => $this->used_at !== null,
-            'used_at'          => optional($this->used_at)->toDateTimeString(),
+            'used_at'          => optional($this->used_at)?->toDateTimeString(),
+            'expires_at'       => optional($this->expires_at)?->toDateTimeString(),
 
-            // Métadonnées
+            // 🧠 Enum enrichi
+            'status'           => $this->status->value,
+            'status_label'     => $this->status->label(),
+            'status_color'     => $this->status->color(),
+
+            // 💬 Message facultatif
+            'message'          => $this->message,
+
+            // 📅 Timestamps
             'created_at'       => $this->created_at->toDateTimeString(),
         ];
     }
