@@ -3,24 +3,31 @@
 namespace App\Http\Requests\Booking;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 class StoreBookingRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // L'utilisateur doit être connecté, et de rôle "expéditeur"
-        return auth()->check() && auth()->user()->isExpeditor();
+        return Auth::check() && auth()->user::isExpeditor();
     }
 
     public function rules(): array
     {
         return [
-            'booking_id'  => ['required', 'exists:bookings,id'],
-            'luggage_id'  => ['required', 'exists:luggages,id'],
             'trip_id'     => ['required', 'exists:trips,id'],
-            'kg_reserved' => ['nullable', 'numeric', 'min:0'],
-            'price'       => ['nullable', 'numeric', 'min:0'],
+            'luggage_id'  => ['required', 'exists:luggages,id'],
+            'kg_reserved' => ['required', 'numeric', 'min:0.1'],
+            'price'       => ['nullable', 'numeric', 'min:0'], // prix facultatif si calcul auto
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'trip_id.required'    => 'Le trajet est obligatoire.',
+            'luggage_id.required' => 'Le bagage est requis.',
+            'kg_reserved.required' => 'Le poids réservé doit être spécifié.',
         ];
     }
 }
