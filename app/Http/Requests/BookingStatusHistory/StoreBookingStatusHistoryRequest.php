@@ -10,14 +10,14 @@ class StoreBookingStatusHistoryRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // 🔐 Le contrôleur gère l'autorisation via la réservation
+        return true; // 🔐 Autorisation traitée côté contrôleur ou policy
     }
 
     public function rules(): array
     {
         return [
-            'old_status' => ['required', 'in:' . implode(',', BookingStatusEnum::values())],
-            'new_status' => ['required', 'in:' . implode(',', BookingStatusEnum::values())],
+            'old_status' => ['required', Rule::in(BookingStatusEnum::values())],
+            'new_status' => ['required', Rule::in(BookingStatusEnum::values())],
             'reason'     => ['nullable', 'string', 'max:255'],
         ];
     }
