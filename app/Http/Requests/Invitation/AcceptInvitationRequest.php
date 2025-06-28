@@ -4,15 +4,16 @@ namespace App\Http\Requests\Invitation;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class AcceptInvitationRequest extends FormRequest
 {
     /**
-     * Autorise uniquement un utilisateur invité (non connecté)
+     * Autorise uniquement les utilisateurs non connectés
      */
     public function authorize(): bool
     {
-        return !Auth::check(); // uniquement si l'utilisateur n'est pas encore connecté
+        return !Auth::check(); // 👤 L’utilisateur ne doit pas être connecté
     }
 
     /**
@@ -21,12 +22,16 @@ class AcceptInvitationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'token' => ['required', 'uuid', 'exists:invitations,token'],
+            'token' => [
+                'required',
+                'uuid',
+                Rule::exists('invitations', 'token'), // ✅ vérifie que le token existe en BDD
+            ],
         ];
     }
 
     /**
-     * Messages d'erreur personnalisés
+     * Messages d'erreurs personnalisés
      */
     public function messages(): array
     {
