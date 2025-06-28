@@ -21,29 +21,36 @@ class TripResource extends JsonResource
             // 🛫 Infos trajet
             'departure'      => $this->departure,
             'destination'    => $this->destination,
-            'date'           => $this->date?->toDateString(),
+            'date'           => optional($this->date)?->toDateString(),
             'flight_number'  => $this->flight_number,
             'capacity'       => $this->capacity,
+            'price_per_kg'   => round($this->price_per_kg, 2),
 
-            // 🎯 Type enrichi (enum)
+            // 🎯 Type enrichi
             'type_trip'      => $this->type_trip?->value,
-            'type_badge'     => $this->type_trip?->badge(), // contient label + color
+            'type_badge'     => $this->type_trip?->badge(),
 
-            // 📦 Disponibilité & état métier
+            // 📊 Statut enrichi
+            'status' => [
+                'code'     => $this->status?->value,
+                'label'    => $this->status?->label(),
+                'color'    => $this->status?->color(),
+            ],
+
+            // 📦 Capacité
             'is_reservable'  => $this->isReservable(),
-            // ⚖️ Disponibilité
-            'kg_disponible' => $this->whenLoaded('bookings', function () {
+            'kg_disponible'  => $this->whenLoaded('bookings', function () {
                 return $this->capacity - $this->bookings->flatMap->bookingItems->sum('kg_reserved');
             }, $this->kgDisponible()),
 
-            // 🔗 Relations
+            // 🔗 Relations (si chargées)
             'user'           => new UserResource($this->whenLoaded('user')),
             'bookings'       => BookingResource::collection($this->whenLoaded('bookings')),
             'locations'      => LocationResource::collection($this->whenLoaded('locations')),
 
-            // 🕓 Dates
-            'created_at'     => $this->created_at->toDateTimeString(),
-            'updated_at'     => $this->updated_at->toDateTimeString(),
+            // 🕓 Timestamps
+            'created_at'     => optional($this->created_at)?->toDateTimeString(),
+            'updated_at'     => optional($this->updated_at)?->toDateTimeString(),
         ];
     }
 }
