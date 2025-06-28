@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\CurrencyEnum;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Booking;
@@ -22,7 +23,7 @@ class TransactionFactory extends Factory
             'user_id'      => User::factory(),
             'booking_id'   => Booking::factory(),
             'amount'       => $this->faker->randomFloat(2, 10, 500),
-            'currency'     => $this->faker->randomElement(['EUR', 'USD', 'XOF']),
+            'currency' => CurrencyEnum::default()->value,
             'status'       => $status,
             'method'       => $method,
             'processed_at' => $status === TransactionStatusEnum::PENDING ? null : now(),

@@ -2,60 +2,48 @@
 
 namespace App\Enums;
 
-enum BookingStatusEnum: string
+enum BookingStatusEnum: int
 {
-    // 🔹 Phase initiale (expéditeur)
-    case EN_ATTENTE       = 'en_attente';
-    case EN_PAIEMENT      = 'en_paiement';
+    case EN_ATTENTE       = 0;
+    case EN_PAIEMENT      = 1;
+    case PAIEMENT_ECHOUE  = 2;
+    case ACCEPTE          = 3;
+    case REFUSE           = 4;
+    case CONFIRMEE        = 5;
+    case LIVREE           = 6;
+    case TERMINE          = 7;
+    case ANNULE           = 8;
+    case REMBOURSEE       = 9;
+    case EXPIREE          = 10;
+    case EN_LITIGE        = 11;
+    case SUSPENDUE        = 12;
 
-        // 🔹 Réponse du voyageur
-    case ACCEPTE          = 'accepte';
-    case REFUSE           = 'refuse';
-
-        // 🔹 Livraison
-    case CONFIRMEE        = 'confirmee';
-    case LIVREE           = 'livree';
-    case TERMINE          = 'termine';
-
-        // 🔹 Exceptions & erreurs
-    case ANNULE           = 'annule';
-    case REMBOURSEE       = 'remboursee';
-    case EXPIREE          = 'expiree';
-    case EN_LITIGE        = 'en_litige';
-    case PAIEMENT_ECHOUE  = 'paiement_echoue';
-    case SUSPENDUE        = 'suspendue';
-
-    /**
-     * 🔄 Transitions autorisées
-     */
     private const TRANSITIONS = [
-        'en_attente'      => ['en_paiement', 'accepte', 'refuse', 'annule'],
-        'en_paiement'     => ['paiement_echoue', 'confirmee', 'annule'],
-        'paiement_echoue' => ['en_paiement', 'annule'],
-        'accepte'         => ['confirmee', 'annule'],
-        'confirmee'       => ['livree', 'en_litige', 'termine'],
-        'livree'          => ['termine', 'en_litige'],
-        'en_litige'       => ['remboursee'],
-        'suspendue'       => ['en_attente'],
+        'en_attente'       => ['en_paiement', 'accepte', 'refuse', 'annule'],
+        'en_paiement'      => ['paiement_echoue', 'confirmee', 'annule'],
+        'paiement_echoue'  => ['en_paiement', 'annule'],
+        'accepte'          => ['confirmee', 'annule'],
+        'confirmee'        => ['livree', 'en_litige', 'termine'],
+        'en_litige'        => ['termine', 'annule'],
+        // etc.
     ];
 
-    // 🏷️ UI/UX
     public function label(): string
     {
         return match ($this) {
-            self::EN_ATTENTE      => 'En attente',
-            self::EN_PAIEMENT     => 'En paiement',
-            self::PAIEMENT_ECHOUE => 'Paiement échoué',
-            self::ACCEPTE         => 'Acceptée',
-            self::REFUSE          => 'Refusée',
-            self::CONFIRMEE       => 'Confirmée',
-            self::LIVREE          => 'Livrée',
-            self::TERMINE         => 'Terminée',
-            self::ANNULE          => 'Annulée',
-            self::REMBOURSEE      => 'Remboursée',
-            self::EXPIREE         => 'Expirée',
-            self::EN_LITIGE       => 'En litige',
-            self::SUSPENDUE       => 'Suspendue',
+            self::EN_ATTENTE       => 'En attente',
+            self::EN_PAIEMENT      => 'En paiement',
+            self::PAIEMENT_ECHOUE  => 'Paiement échoué',
+            self::ACCEPTE          => 'Acceptée',
+            self::REFUSE           => 'Refusée',
+            self::CONFIRMEE        => 'Confirmée',
+            self::LIVREE           => 'Livrée',
+            self::TERMINE          => 'Terminée',
+            self::ANNULE           => 'Annulée',
+            self::REMBOURSEE       => 'Remboursée',
+            self::EXPIREE          => 'Expirée',
+            self::EN_LITIGE        => 'En litige',
+            self::SUSPENDUE        => 'Suspendue',
         };
     }
 

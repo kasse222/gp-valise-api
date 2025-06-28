@@ -20,6 +20,7 @@ class BookingStatusHistory extends Model
     ];
 
     protected $casts = [
+        'status' => BookingStatusEnum::class,
         'old_status' => BookingStatusEnum::class,
         'new_status' => BookingStatusEnum::class,
     ];

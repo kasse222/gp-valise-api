@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\InvitationStatusEnum;
 use App\Models\Invitation;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -14,26 +15,30 @@ class InvitationFactory extends Factory
 
     public function definition(): array
     {
-        $used      = $this->faker->boolean(20); // 20% utilisées
-        $expiresAt = Carbon::now()->addDays($this->faker->numberBetween(1, 30));
-
         return [
-            'sender_id'        => User::factory(),
-            'recipient_email'  => $this->faker->unique()->safeEmail,
-            'token'            => (string) Str::uuid(), // UUID = traçable et sécurisé
-            'used_at'          => $used ? now() : null,
-            'expires_at'       => $expiresAt,
-            'message'          => $this->faker->optional()->sentence(10),
+            'sender_id'       => User::factory()->sender(),
+            'recipient_email' => $this->faker->unique()->safeEmail(),
+            'token'           => Str::uuid(),
+            'used_at'         => null,
+            'expires_at'      => now()->addDays(rand(3, 7)),
+            'status'          => InvitationStatusEnum::PENDING,
+            'message'         => $this->faker->optional()->sentence(),
         ];
     }
 
-    /**
-     * 📍 Invitation déjà utilisée
-     */
+    public function expired(): static
+    {
+        return $this->state(fn() => [
+            'expires_at' => now()->subDay(),
+            'status'     => InvitationStatusEnum::EXPIRED,
+        ]);
+    }
+
     public function used(): static
     {
         return $this->state(fn() => [
-            'used_at' => now(),
+            'used_at' => now()->subMinutes(rand(10, 120)),
+            'status'  => InvitationStatusEnum::USED,
         ]);
     }
 
@@ -47,15 +52,7 @@ class InvitationFactory extends Factory
         ]);
     }
 
-    /**
-     * ⛔️ Invitation expirée
-     */
-    public function expired(): static
-    {
-        return $this->state(fn() => [
-            'expires_at' => now()->subDays(1),
-        ]);
-    }
+
 
     /**
      * ⏳ Invitation valide (non utilisée, non expirée)

@@ -9,7 +9,7 @@ use App\Enums\TripTypeEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany};
+use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany, HasOne};
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 
@@ -19,21 +19,32 @@ class Trip extends Model
 
     protected $fillable = [
         'user_id',
-        'departure',
-        'destination',
         'date',
         'capacity',
         'status',
         'type_trip',
         'flight_number',
+        'price_per_kg'
     ];
 
     protected $casts = [
         'date'        => 'datetime',
-        'status'      => TripStatusEnum::class,
-        'type_trip'   => TripTypeEnum::class,
+        'status'     => TripStatusEnum::class,
+        'type_trip'  => TripTypeEnum::class,
         'capacity'    => 'float',
+        'price_per_kg' => 'decimal:2',
+
     ];
+    public function departureLocation(): HasOne
+    {
+        return $this->hasOne(Location::class)->where('order_index', 0);
+    }
+
+    public function destinationLocation(): HasOne
+    {
+        return $this->hasOne(Location::class)->orderByDesc('order_index');
+    }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -59,6 +70,10 @@ class Trip extends Model
     public function locations(): HasMany
     {
         return $this->hasMany(Location::class)->orderBy('order_index');
+    }
+    public function reports(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(Report::class, 'reportable');
     }
 
     /*

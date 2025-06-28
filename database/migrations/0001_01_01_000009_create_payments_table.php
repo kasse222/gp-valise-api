@@ -1,6 +1,6 @@
 <?php
 
-
+use App\Enums\CurrencyEnum;
 use App\Enums\PaymentMethodEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -24,9 +24,7 @@ return new class extends Migration
 
             $table->decimal('amount', 10, 2);
 
-            $table->enum('currency', ['EUR', 'USD', 'XOF', 'GBP', 'MAD'])
-                ->default('EUR')
-                ->after('amount');
+            $table->enum('currency', CurrencyEnum::values())->default(CurrencyEnum::EUR->value);
             $table->string('method', 50)
                 ->default(PaymentMethodEnum::CARTE_BANCAIRE->value); // 🟢 Enum Laravel >= 9.19
 

@@ -42,7 +42,7 @@ class LuggageSeeder extends Seeder
                     'length_cm'           => $length,
                     'width_cm'            => $width,
                     'height_cm'           => $height,
-                    'volume_cm3'          => $volume,
+                    //  'volume_cm3'          => $volume,
                     'pickup_city'         => fake()->city(),
                     'delivery_city'       => fake()->city(),
                     'pickup_date'         => $pickupDate,

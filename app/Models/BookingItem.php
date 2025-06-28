@@ -57,6 +57,10 @@ class BookingItem extends Model
     {
         return $this->belongsTo(Trip::class);
     }
+    public function reports(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(Report::class, 'reportable');
+    }
 
     /*
     |--------------------------------------------------------------------------

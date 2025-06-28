@@ -7,20 +7,23 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('bookings', function (Blueprint $table) {
             $table->id();
 
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->foreignId('trip_id')->constrained()->onDelete('cascade');
+            $table->foreignId('user_id')
+                ->constrained()
+                ->cascadeOnDelete();
 
-            $table->enum('status', BookingStatusEnum::values())->default(
-                BookingStatusEnum::EN_ATTENTE->value
-            );
+            $table->foreignId('trip_id')
+                ->constrained()
+                ->cascadeOnDelete();
+
+            // ✅ On utilise une string simple pour l’enum, pas l’objet lui-même
+            $table->string('status', 30)
+                ->default(BookingStatusEnum::EN_ATTENTE->value) // valeur string ici (ex: 'en_attente')
+                ->comment('Statut de réservation (enum casté dans le modèle BookingStatusEnum)');
 
             $table->timestamp('confirmed_at')->nullable();
             $table->timestamp('completed_at')->nullable();
@@ -30,12 +33,11 @@ return new class extends Migration
 
             $table->softDeletes();
             $table->timestamps();
+
+            $table->index(['user_id', 'trip_id', 'status']);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('bookings');

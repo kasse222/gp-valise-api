@@ -118,6 +118,7 @@ class Booking extends Model
             'new_status' => $newStatus,
             'changed_by' => $changer?->id ?? auth::id(),
             'reason'     => $reason ?? 'Changement programmatique',
+
         ]);
     }
 
@@ -190,5 +191,9 @@ class Booking extends Model
     public function canBeRefunded(): bool
     {
         return $this->status->canBeRefunded();
+    }
+    public function reports(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(Report::class, 'reportable');
     }
 }

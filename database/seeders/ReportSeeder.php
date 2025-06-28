@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\ReportReasonEnum;
 use App\Models\Report;
 use App\Models\User;
 use App\Models\Booking;
@@ -16,8 +17,8 @@ class ReportSeeder extends Seeder
         $users = User::inRandomOrder()->take(10)->get();
 
         $reportables = collect()
-            ->merge(Booking::inRandomOrder()->take(5)->all())
-            ->merge(Luggage::inRandomOrder()->take(5)->all());
+            ->merge(Booking::inRandomOrder()->limit(5)->get())   // → get()
+            ->merge(Luggage::inRandomOrder()->limit(5)->get());
 
         if ($reportables->isEmpty() || $users->isEmpty()) {
             $this->command->warn('Aucune donnée disponible pour générer des rapports.');
@@ -29,12 +30,7 @@ class ReportSeeder extends Seeder
                 'user_id'         => $users->random()->id,
                 'reportable_id'   => $reportable->id,
                 'reportable_type' => get_class($reportable),
-                'reason'          => fake()->randomElement([
-                    'comportement abusif',
-                    'valise non livrée',
-                    'communication inappropriée',
-                    'escroquerie suspectée',
-                ]),
+                'reason'          => fake()->randomElement(ReportReasonEnum::values()),
                 'details'         => fake()->realText(100),
             ]);
         }

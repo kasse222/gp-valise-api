@@ -4,10 +4,10 @@ namespace Database\Factories;
 
 use App\Models\Trip;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Str;
 use App\Enums\TripTypeEnum;
 use App\Enums\TripStatusEnum;
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
 
 class TripFactory extends Factory
 {
@@ -15,18 +15,40 @@ class TripFactory extends Factory
 
     public function definition(): array
     {
-        $departureDate = $this->faker->dateTimeBetween('+1 day', '+1 month');
-
         return [
-            'user_id'       => User::factory()->traveler(), // 👈 Assure-toi que traveler() existe bien
-            'departure'     => $this->faker->city,
-            'destination'   => $this->faker->city,
-            'date'          => $departureDate,
-            'capacity'      => $this->faker->randomFloat(1, 10, 50), // en kg, plus précis
-            'status'        => TripStatusEnum::ACTIVE, // 👈 Enum si présent
-            'type_trip'     => $this->faker->randomElement(TripTypeEnum::cases()),
+            'user_id' => User::factory()->traveler(), // 💡 Laisse Laravel gérer la création
+            'date' => $this->faker->dateTimeBetween('+1 day', '+1 month'),
+            'capacity' => $this->faker->randomFloat(1, 10, 50),
+            'status' => TripStatusEnum::ACTIVE->value,
+            'type_trip' => TripTypeEnum::STANDARD->value,      // ✅ idem
             'flight_number' => strtoupper(Str::random(2)) . $this->faker->numberBetween(100, 9999),
+            'price_per_kg' => $this->faker->randomFloat(2, 5, 30),
         ];
+    }
+
+    /**
+     * 🧪 Ajoute automatiquement des localisations cohérentes à ce trip
+     */
+    public function withLocations(int $steps = 0): static
+    {
+        return $this->afterCreating(function (Trip $trip) use ($steps) {
+            // 👣 Départ
+            $trip->locations()->create(
+                \Database\Factories\LocationFactory::new()->departure()->make()->toArray()
+            );
+
+            // 🔁 Étapes intermédiaires (douane, hub…)
+            for ($i = 1; $i <= $steps; $i++) {
+                $trip->locations()->create(
+                    \Database\Factories\LocationFactory::new()->step($i)->make()->toArray()
+                );
+            }
+
+            // 🎯 Arrivée
+            $trip->locations()->create(
+                \Database\Factories\LocationFactory::new()->arrival($steps + 1)->make()->toArray()
+            );
+        });
     }
 
     public function standard(): static

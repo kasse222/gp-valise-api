@@ -58,7 +58,11 @@ class UserFactory extends Factory
             'role' => UserRoleEnum::TRAVELER,
         ]);
     }
-
+    public function sender(): static
+    {
+        // alias vers la méthode déjà existante
+        return $this->expeditor();
+    }
     /**
      * 🧪 Utilisateur vérifié
      */

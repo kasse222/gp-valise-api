@@ -21,6 +21,10 @@ enum CurrencyEnum: string
         };
     }
 
+    public static function default(): self
+    {
+        return self::EUR;       // tu peux changer ici si la devise par défaut évolue
+    }
     public static function values(): array
     {
         return array_column(self::cases(), 'value');

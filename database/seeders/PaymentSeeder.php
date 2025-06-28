@@ -27,9 +27,9 @@ class PaymentSeeder extends Seeder
                 'booking_id'        => $booking->id,
                 'amount'            => fake()->randomFloat(2, 20, 500),
                 'method'            => $method->value,
-                'status'            => $status->value,
+                'currency' => CurrencyEnum::default()->value,
                 'currency'          => fake()->randomElement(CurrencyEnum::values()),
-                'payment_reference' => fake()->uuid(),
+                //  'payment_reference' => fake()->uuid(),
                 'paid_at'           => $status->isSuccess() ? now()->subDays(rand(0, 15)) : null,
             ]);
         }

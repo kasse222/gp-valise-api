@@ -14,12 +14,13 @@ class Location extends Model
     use HasFactory;
 
     protected $fillable = [
-        'trip_id',       // 🔗 ID du trajet auquel appartient ce point
-        'latitude',      // 🌍 Coordonnée latitude
-        'longitude',     // 🌍 Coordonnée longitude
+        'trip_id',
+        'latitude',
+        'longitude',
         'city',
-        'position',         // 🏙️ Ville (optionnelle ou normalisée)
-        'order_index',   // 🧭 Position dans le trajet (0 = départ, n = arrivée)
+        'position',
+        'order_index',
+        'type',
     ];
 
     protected $casts = [
@@ -28,17 +29,16 @@ class Location extends Model
         'order_index'  => 'integer',
         'position'     => LocationPositionEnum::class,
         'type'         => LocationTypeEnum::class,
-
     ];
 
     /*
     |--------------------------------------------------------------------------
-    | Relations
+    | 🔗 Relations
     |--------------------------------------------------------------------------
     */
 
     /**
-     * 🔗 Trajet auquel appartient cette localisation
+     * 🔗 Le trajet auquel ce point appartient
      */
     public function trip(): BelongsTo
     {
@@ -47,12 +47,12 @@ class Location extends Model
 
     /*
     |--------------------------------------------------------------------------
-    | Scopes
+    | 🔍 Scopes
     |--------------------------------------------------------------------------
     */
 
     /**
-     * 🔁 Scope : ordonné selon l’ordre du trajet
+     * 🔁 Scope pour trier les étapes d’un trajet
      */
     public function scopeOrdered(Builder $query): Builder
     {
@@ -61,24 +61,18 @@ class Location extends Model
 
     /*
     |--------------------------------------------------------------------------
-    | Helpers Métier
+    | 🧠 Helpers métier
     |--------------------------------------------------------------------------
     */
 
-    /**
-     * ✅ Est-ce la première étape ?
-     */
     public function isDeparture(): bool
     {
         return $this->order_index === 0;
     }
 
-    /**
-     * ✅ Est-ce la dernière étape ? (si total connu)
-     */
-    public function isArrival(int $maxIndex): bool
+    public function isArrival(?int $maxIndex = null): bool
     {
-        return $this->order_index === $maxIndex;
+        return $maxIndex !== null && $this->order_index === $maxIndex;
     }
 
     public function isCustomsCheckpoint(): bool
@@ -89,5 +83,10 @@ class Location extends Model
     public function isHub(): bool
     {
         return $this->type === LocationTypeEnum::HUB;
+    }
+
+    public function label(): string
+    {
+        return "{$this->city} ({$this->latitude}, {$this->longitude})";
     }
 }

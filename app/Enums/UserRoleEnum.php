@@ -9,6 +9,7 @@ enum UserRoleEnum: int
     case SENDER    = 3;
     case MODERATOR = 4;
     case SUPPORT   = 5;
+    case SUPER_ADMIN = 6;
 
     public static function values(): array
     {
@@ -23,6 +24,7 @@ enum UserRoleEnum: int
             self::SENDER    => 'Expéditeur',
             self::MODERATOR => 'Modérateur',
             self::SUPPORT   => 'Support',
+            self::SUPER_ADMIN => 'is_super_admin'
         };
     }
 

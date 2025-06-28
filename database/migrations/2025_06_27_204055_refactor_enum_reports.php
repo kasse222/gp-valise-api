@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('reports', function (Blueprint $table) {
-            $table->tinyInteger('reason')->change();
+            $table->string('reason', 50)->change();
         });
     }
 
@@ -22,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('reports', function (Blueprint $table) {
-            $table->string('reason')->change();
+            $table->unsignedTinyInteger('reason')->change();   // si jamais tu veux revenir
         });
     }
 };

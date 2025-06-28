@@ -2,11 +2,11 @@
 
 namespace Database\Factories;
 
-use App\Models\Location;
 use App\Models\Trip;
+use App\Models\Location;
+use Illuminate\Database\Eloquent\Factories\Factory;
 use App\Enums\LocationTypeEnum;
 use App\Enums\LocationPositionEnum;
-use Illuminate\Database\Eloquent\Factories\Factory;
 
 class LocationFactory extends Factory
 {
@@ -14,28 +14,41 @@ class LocationFactory extends Factory
 
     public function definition(): array
     {
-        $position = fake()->randomElement(LocationPositionEnum::cases());
-
-        // Logique de type en fonction de la position
-        $type = match ($position) {
-            LocationPositionEnum::DEPART, LocationPositionEnum::ARRIVEE =>
-            fake()->randomElement([LocationTypeEnum::AEROPORT, LocationTypeEnum::VILLE]),
-            LocationPositionEnum::ETAPE =>
-            fake()->randomElement([
-                LocationTypeEnum::ETAPE,
-                LocationTypeEnum::DOUANE,
-                LocationTypeEnum::HUB,
-            ]),
-        };
-
         return [
-            'trip_id'     => Trip::factory(),
-            'latitude'    => fake()->latitude,
-            'longitude'   => fake()->longitude,
-            'city'        => fake()->city,
-            'position'    => $position,
-            'type'        => $type,
-            'order_index' => 0, // à surcharger depuis le Seeder
+            'trip_id'     => Trip::factory(), // Peut être surchargé
+            'latitude'    => $this->faker->latitude(),
+            'longitude'   => $this->faker->longitude(),
+            'city'        => $this->faker->city(),
+            'position'    => LocationPositionEnum::DEPART, // Par défaut, mais overridable
+            'type'        => LocationTypeEnum::AEROPORT,   // Par défaut pour un départ
+            'order_index' => 0, // À ajuster manuellement dans les states
         ];
+    }
+
+    public function departure(): static
+    {
+        return $this->state(fn() => [
+            'position' => LocationPositionEnum::DEPART,
+            'type' => LocationTypeEnum::AEROPORT, // ou VILLE aléatoire
+            'order_index' => 0,
+        ]);
+    }
+
+    public function step(int $i = 1): static
+    {
+        return $this->state(fn() => [
+            'position' => LocationPositionEnum::ETAPE,
+            'type' => fake()->randomElement([LocationTypeEnum::HUB, LocationTypeEnum::DOUANE]),
+            'order_index' => $i,
+        ]);
+    }
+
+    public function arrival(int $i = 2): static
+    {
+        return $this->state(fn() => [
+            'position' => LocationPositionEnum::ARRIVEE,
+            'type' => LocationTypeEnum::VILLE,
+            'order_index' => $i,
+        ]);
     }
 }

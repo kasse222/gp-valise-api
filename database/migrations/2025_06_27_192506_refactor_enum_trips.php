@@ -4,42 +4,43 @@ use App\Enums\TripTypeEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
     /**
-     * Run the migrations.
+     * Up : on ne touche qu’à `type_trip`.
+     * On laisse `status` tel quel (string) pour éviter l’erreur
+     * “Incorrect integer value : 'active'”.
      */
     public function up(): void
     {
-        Schema::table('trips', function (Blueprint $table) {
-            $table->tinyInteger('status')
-                ->default(0)
-                ->comment('Statut du trajet (enum int)') // Casté dans Trip.php
-                ->change();
-
-            $table->string('type_trip')
-                ->default(TripTypeEnum::STANDARD->value)
-                ->comment('Type de trajet (enum TripTypeEnum)')
-                ->change();
-        });
+        // ⚠️ Vérifie d’abord que la colonne existe
+        if (Schema::hasColumn('trips', 'type_trip')) {
+            Schema::table('trips', function (Blueprint $table) {
+                // On force VARCHAR + valeur par défaut cohérente
+                $table->string('type_trip', 20)
+                    ->default(TripTypeEnum::STANDARD->value)
+                    ->comment('Type de trajet (enum TripTypeEnum, string)')
+                    ->change();
+            });
+        }
     }
 
     /**
-     * Reverse the migrations.
+     * Down : simple rollback → on repasse `type_trip` en string sans défaut.
+     * On ne touche toujours pas à `status`.
      */
     public function down(): void
     {
-        Schema::table('trips', function (Blueprint $table) {
-            $table->string('status')
-                ->default('0')
-                ->comment('Statut ancien (string)')
-                ->change();
-
-            $table->string('type_trip')
-                ->default('standard')
-                ->comment('Type ancien (string)')
-                ->change();
-        });
+        if (Schema::hasColumn('trips', 'type_trip')) {
+            Schema::table('trips', function (Blueprint $table) {
+                $table->string('type_trip', 20)
+                    ->nullable()
+                    ->default(null)
+                    ->comment(null)
+                    ->change();
+            });
+        }
     }
 };

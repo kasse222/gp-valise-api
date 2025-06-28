@@ -41,6 +41,7 @@ class Luggage extends Model
         'insurance_requested' => 'boolean',
     ];
 
+
     /*
     |--------------------------------------------------------------------------
     | Boot: génération automatique du tracking_id UUID
@@ -122,5 +123,9 @@ class Luggage extends Model
     public function isCancelled(): bool
     {
         return $this->status === LuggageStatusEnum::ANNULEE;
+    }
+    public function reports(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(Report::class, 'reportable');
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\InvitationStatusEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,12 +19,15 @@ class Invitation extends Model
         'token',             // Jeton d’invitation unique
         'used_at',           // Date d’utilisation
         'expires_at',        // Date d’expiration (facultative)
+        'status',
         'message',           // Message personnalisé (facultatif)
     ];
 
     protected $casts = [
         'used_at'    => 'datetime',
         'expires_at' => 'datetime',
+        'status'       => InvitationStatusEnum::class,
+
     ];
 
     /*
@@ -74,6 +78,11 @@ class Invitation extends Model
         return $this->expires_at && $this->expires_at->isPast();
     }
 
+    // Exemple de méthode métier
+    public function isPending(): bool
+    {
+        return $this->status === InvitationStatusEnum::PENDING;
+    }
     /**
      * ✅ L’invitation peut-elle encore être acceptée ?
      */
