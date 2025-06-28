@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Request;
 
 class Invitation extends Model
 {
@@ -61,6 +62,11 @@ class Invitation extends Model
     | Helpers métier
     |--------------------------------------------------------------------------
     */
+    protected function isAuthorized(Request $request): bool
+    {
+        $user = $request->user();
+        return $user && ($user->id === $this->sender_id || $user->is_admin);
+    }
 
     /**
      * ✅ L’invitation a-t-elle été utilisée ?
