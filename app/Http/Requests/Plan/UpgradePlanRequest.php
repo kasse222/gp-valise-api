@@ -3,28 +3,29 @@
 namespace App\Http\Requests\Plan;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+use App\Enums\PlanTypeEnum;
+use Illuminate\Support\Facades\Auth;
 
 class UpgradePlanRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // L'autorisation se fait dans le contrôleur via ->authorize('update', $user)
-        return true;
+        return Auth::check(); // Le user doit être connecté pour upgrader
     }
 
     public function rules(): array
     {
         return [
-            'plan_id' => ['required', 'integer', 'exists:plans,id'],
+            'plan_id' => ['required', 'exists:plans,id'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'plan_id.required' => 'Le plan est obligatoire.',
-            'plan_id.integer'  => 'Le plan doit être un identifiant valide.',
-            'plan_id.exists'   => 'Ce plan n’existe pas.',
+            'plan_id.required' => 'Veuillez sélectionner un plan.',
+            'plan_id.exists'   => 'Le plan sélectionné n’est pas valide.',
         ];
     }
 }
