@@ -23,12 +23,13 @@ class BookingItemResource extends JsonResource
             'kg_reserved'  => round($this->kg_reserved, 2),
             'price'        => round($this->price, 2),
 
-            // 🔗 Relations optionnelles
+            // 🔗 Relations optionnelles (lazy loaded ou with('...'))
             'luggage'      => new LuggageResource($this->whenLoaded('luggage')),
             'trip'         => new TripResource($this->whenLoaded('trip')),
 
-            'created_at'   => $this->created_at->toDateTimeString(),
-            'updated_at'   => $this->updated_at->toDateTimeString(),
+            // 🕓 Dates formatées avec fallback
+            'created_at'   => optional($this->created_at)?->toDateTimeString(),
+            'updated_at'   => optional($this->updated_at)?->toDateTimeString(),
         ];
     }
 }
