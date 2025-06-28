@@ -14,32 +14,39 @@ class ReportResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $reportableType = class_basename($this->reportable_type);
+
         return [
-            'id'               => $this->id,
-            'user_id'          => $this->user_id,
+            'id'              => $this->id,
+            'user_id'         => $this->user_id,
 
             // Polymorphic cible signalée
-            'reportable_type'  => class_basename($this->reportable_type),
-            'reportable_id'    => $this->reportable_id,
+            'reportable_type' => $reportableType,
+            'reportable_id'   => $this->reportable_id,
 
-            // Détails du signalement
-            'reason'           => $this->reason,
-            'details'          => $this->details,
+            // 🎯 Raison du signalement enrichie
+            'reason'          => $this->reason->value,
+            'reason_label'    => $this->reason->label(),
+            'reason_color'    => $this->reason->color(),
+            'reason_description' => $this->reason->description(),
+
+            // Détails supplémentaires
+            'details'         => $this->details,
 
             // Auteur (si chargé)
-            'user'             => new UserResource($this->whenLoaded('user')),
+            'user'            => new UserResource($this->whenLoaded('user')),
 
-            // Optionnel : résumé de l'objet signalé
-            'reportable'       => $this->whenLoaded('reportable', function () {
-                return match (class_basename($this->reportable_type)) {
+            // Cible polymorphe si chargée
+            'reportable'      => $this->whenLoaded('reportable', function () use ($reportableType) {
+                return match ($reportableType) {
                     'Trip'    => new TripResource($this->reportable),
                     'Booking' => new BookingResource($this->reportable),
                     'Luggage' => new LuggageResource($this->reportable),
-                    default   => null,
+                    default   => null, // fallback safe
                 };
             }),
 
-            'created_at'       => $this->created_at->toDateTimeString(),
+            'created_at'      => optional($this->created_at)?->toDateTimeString(),
         ];
     }
 }
