@@ -2,43 +2,49 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Enums\UserRoleEnum;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\Enum;
+use Illuminate\Validation\Rules\Password;
 
-class LoginRequest extends FormRequest
+class RegisterRequest extends FormRequest
 {
-    /**
-     * Toute requête de login est autorisée (publique).
-     */
     public function authorize(): bool
     {
-        return true;
+        return true; // Inscription publique
     }
 
-    /**
-     * Règles de validation du formulaire de connexion.
-     *
-     * @return array<string, mixed>
-     */
     public function rules(): array
     {
         return [
-            'email'    => ['required', 'email', 'max:150'],
-            'password' => ['required', 'string', 'min:6', 'max:100'],
+            'first_name'  => ['required', 'string', 'max:100'],
+            'last_name'   => ['required', 'string', 'max:100'],
+
+            'email'       => ['required', 'email', 'unique:users,email'],
+            'password'    => ['required', 'confirmed', Password::min(8)],
+
+            // ✅ Enum Laravel 9+ / 10+ : validation directe
+            'role' => ['required', new Enum(UserRoleEnum::class)],
+
+            'phone'       => ['required', 'string', 'max:20'],
+            'country'     => ['nullable', 'string', 'max:100'],
+            'plan_id'     => ['nullable', 'exists:plans,id'],
         ];
     }
 
-    /**
-     * Messages personnalisés pour l’API (facultatif mais pro UX).
-     *
-     * @return array<string, string>
-     */
     public function messages(): array
     {
         return [
-            'email.required'    => 'L’adresse e-mail est obligatoire.',
-            'email.email'       => 'Le format de l’e-mail est invalide.',
-            'password.required' => 'Le mot de passe est requis.',
-            'password.min'      => 'Le mot de passe doit contenir au moins :min caractères.',
+            'first_name.required' => 'Le prénom est obligatoire.',
+            'last_name.required'  => 'Le nom est obligatoire.',
+            'email.required'      => 'L’adresse email est requise.',
+            'email.email'         => 'L’adresse email est invalide.',
+            'email.unique'        => 'Cet email est déjà utilisé.',
+            'password.required'   => 'Le mot de passe est requis.',
+            'password.confirmed'  => 'La confirmation du mot de passe ne correspond pas.',
+            'role.required'       => 'Le rôle est obligatoire.',
+            'role.in'             => 'Le rôle fourni est invalide.',
+            'phone.required'      => 'Le téléphone est requis.',
         ];
     }
 }
