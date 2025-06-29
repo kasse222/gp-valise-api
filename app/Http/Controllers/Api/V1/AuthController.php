@@ -3,36 +3,35 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\UserRoleEnum;
-use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class AuthController extends Controller
 {
     /**
-     * Enregistrement d’un nouvel utilisateur
+     * 🔐 Inscription
      */
     public function register(RegisterRequest $request)
     {
-        $this->authorize('create', User::class); // seulement si c’est une route protégée
-
         try {
             $user = User::create([
-                'first_name'      => $request->first_name,
-                'last_name'       => $request->last_name,
-                'email'           => $request->email,
-                'password'        => Hash::make($request->password),
-                'role'            => UserRoleEnum::from($request->role), // Enum 💡
-                'phone'           => $request->phone,
-                'country'         => $request->country,
-                'verified_user'   => false,
-                'kyc_passed_at'   => null,
+                'first_name'     => $request->first_name,
+                'last_name'      => $request->last_name,
+                'email'          => $request->email,
+                'password'       => Hash::make($request->password),
+                'role'           => UserRoleEnum::from($request->role),
+                'phone'          => $request->phone,
+                'country'        => $request->country,
+                'verified_user'  => false,
+                'kyc_passed_at'  => null,
             ]);
 
             $token = $user->createToken('auth_token')->plainTextToken;
@@ -43,15 +42,16 @@ class AuthController extends Controller
                 'token'   => $token,
             ], 201);
         } catch (Throwable $e) {
+            Log::error('[AuthController@register] ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return response()->json([
                 'message' => 'Une erreur est survenue lors de l’inscription.',
-                'error'   => $e->getMessage(),
+                'error'   => app()->isLocal() ? $e->getMessage() : null,
             ], 500);
         }
     }
 
     /**
-     * Connexion d’un utilisateur
+     * 🔓 Connexion
      */
     public function login(LoginRequest $request)
     {
@@ -70,19 +70,30 @@ class AuthController extends Controller
             'user'        => new UserResource($user),
             'token'       => $token,
             'token_type'  => 'Bearer',
+            'is_admin'    => $user->isAdmin(),
+            'is_premium'  => $user->isPremium(),
         ]);
     }
 
     /**
-     * Infos de l’utilisateur connecté
+     * 👤 Données de l'utilisateur connecté
      */
     public function me(Request $request)
     {
-        return new UserResource($request->user());
+        /** @var User $user */
+        $user = $request->user();
+
+        return response()->json([
+            'user'        => new UserResource($user),
+            'is_admin'    => $user->isAdmin(),
+            'is_premium'  => $user->isPremium(),
+            'has_kyc'     => $user->hasKyc(),
+            'role'        => $user->role->value,
+        ]);
     }
 
     /**
-     * Déconnexion de l’utilisateur
+     * 🔒 Déconnexion
      */
     public function logout(Request $request)
     {
@@ -90,6 +101,18 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Déconnexion réussie.',
+        ]);
+    }
+
+    /**
+     * 🔒 Déconnexion de toutes les sessions (optionnel)
+     */
+    public function logoutAll(Request $request)
+    {
+        $request->user()->tokens()->delete();
+
+        return response()->json([
+            'message' => 'Toutes les sessions ont été fermées.',
         ]);
     }
 }
