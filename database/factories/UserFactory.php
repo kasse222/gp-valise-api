@@ -29,13 +29,16 @@ class UserFactory extends Factory
         ];
     }
 
+    protected $casts = [
+        'role' => UserRoleEnum::class,
+    ];
     /**
      * 💼 Administrateur
      */
     public function admin(): static
     {
         return $this->state(fn() => [
-            'role' => UserRoleEnum::ADMIN,
+            'role' => UserRoleEnum::ADMIN->value,
         ]);
     }
 
@@ -45,7 +48,7 @@ class UserFactory extends Factory
     public function expeditor(): static
     {
         return $this->state(fn() => [
-            'role' => UserRoleEnum::SENDER,
+            'role' => UserRoleEnum::SENDER->value,
         ]);
     }
 
@@ -55,7 +58,7 @@ class UserFactory extends Factory
     public function traveler(): static
     {
         return $this->state(fn() => [
-            'role' => UserRoleEnum::TRAVELER,
+            'role' => UserRoleEnum::TRAVELER->value,
         ]);
     }
     public function sender(): static

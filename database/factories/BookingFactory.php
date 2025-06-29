@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\Trip;
 use App\Models\User;
 use App\Enums\BookingStatusEnum;
+use App\Enums\UserRoleEnum;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class BookingFactory extends Factory
@@ -35,7 +36,9 @@ class BookingFactory extends Factory
         };
 
         return [
-            'user_id'      => User::factory()->state(['role' => 'expeditor']),
+            'user_id' => User::factory()->create([
+                'role' => UserRoleEnum::SENDER->value,
+            ])->id,
             'trip_id'      => Trip::factory(),
             'status'       => $status,
             'comment'      => $this->faker->optional()->sentence(),
