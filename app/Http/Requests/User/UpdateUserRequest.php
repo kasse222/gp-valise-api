@@ -3,28 +3,27 @@
 namespace App\Http\Requests\User;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\Enum;
+use App\Enums\UserRoleEnum;
 use Illuminate\Support\Facades\Auth;
 
 class UpdateUserRequest extends FormRequest
 {
-    /** @var \App\Models\User $user */
     public function authorize(): bool
     {
-        return Auth::check() && Auth::id() === $this->user()->id;
+        return Auth::check(); // ou par Policy (user owner || admin)
     }
 
     public function rules(): array
     {
         return [
-            'first_name'     => ['sometimes', 'string', 'max:100'],
-            'last_name'      => ['sometimes', 'string', 'max:100'],
-            'email'          => ['sometimes', 'email', 'max:255', 'unique:users,email,' . $this->user()->id],
-            'phone'          => ['sometimes', 'string', 'max:20'],
-            'country'        => ['sometimes', 'string', 'max:100'],
-            'role'           => ['prohibited'], // 🔒 Ne pas permettre la modification du rôle
-            'verified_user'  => ['prohibited'],
-            'plan_id'        => ['prohibited'], // Plan modifiable via logique métier séparée
-            'kyc_passed_at'  => ['prohibited'],
+            'first_name' => ['sometimes', 'string', 'max:255'],
+            'last_name'  => ['sometimes', 'string', 'max:255'],
+            'email'      => ['sometimes', 'email', 'unique:users,email,' . $this->user?->id],
+            'phone'      => ['sometimes', 'string', 'max:20'],
+            'country'    => ['sometimes', 'string', 'max:255'],
+            'role'       => ['sometimes', new Enum(UserRoleEnum::class)],
+            'plan_id'    => ['nullable', 'exists:plans,id'],
         ];
     }
 }

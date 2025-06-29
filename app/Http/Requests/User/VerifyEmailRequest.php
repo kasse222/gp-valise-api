@@ -3,18 +3,20 @@
 namespace App\Http\Requests\User;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Auth;
 
 class VerifyEmailRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return auth()->check();
+        return Auth::check();
     }
 
     public function rules(): array
     {
         return [
-            'verification_token' => ['required', 'string'], // Ex: token reçu par mail
+            'email' => ['required', 'email'],
+            'code'  => ['required', 'string', 'min:4', 'max:10'], // ex: code OTP ou token
         ];
     }
 }

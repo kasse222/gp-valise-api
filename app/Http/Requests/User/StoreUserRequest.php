@@ -3,31 +3,28 @@
 namespace App\Http\Requests\User;
 
 use Illuminate\Foundation\Http\FormRequest;
+use App\Enums\UserRoleEnum;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Rules\Enum;
 
 class StoreUserRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // Seul un administrateur peut créer un nouvel utilisateur
-        return Auth::check() && auth()->user()->isAdmin();
+        return Auth::check(); // à restreindre par Policy si besoin (admin only)
     }
 
     public function rules(): array
     {
         return [
-            'first_name'       => ['required', 'string', 'max:100'],
-            'last_name'        => ['required', 'string', 'max:100'],
-            'email'            => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password'         => ['required', 'string', Password::defaults()],
-            'phone'            => ['nullable', 'string', 'max:20'],
-            'country'          => ['nullable', 'string', 'max:100'],
-            'role'             => ['required', 'in:admin,expeditor,traveler'], // adapte selon UserRoleEnum
-            'verified_user'    => ['boolean'],
-            'plan_id'          => ['nullable', 'exists:plans,id'],
-            'plan_expires_at'  => ['nullable', 'date'],
-            'kyc_passed_at'    => ['nullable', 'date'],
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name'  => ['required', 'string', 'max:255'],
+            'email'      => ['required', 'email', 'unique:users,email'],
+            'phone'      => ['required', 'string', 'max:20'],
+            'country'    => ['required', 'string', 'max:255'],
+            'password'   => ['required', 'string', 'min:8', 'confirmed'],
+            'role'       => ['required', new Enum(UserRoleEnum::class)],
+            'plan_id'    => ['nullable', 'exists:plans,id'],
         ];
     }
 }
