@@ -3,20 +3,31 @@
 namespace App\Http\Requests\Report;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rules\Enum;
+use App\Enums\ReportReasonEnum;
+use App\Models\Report;
+
 
 class UpdateReportRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return auth()->check();
+        /** @var \App\Models\User $user */
+        $user = $this->user();
+
+        $report = $this->route('report');
+
+        return $user && (
+            $report?->user_id === $user->id || $user->isAdmin()
+        );
     }
 
     public function rules(): array
     {
         return [
-            'reason'  => ['sometimes', 'string', 'max:255'],
-            'details' => ['nullable', 'string', 'max:1000'],
+            'reason'  => ['sometimes', new Enum(ReportReasonEnum::class)],
+            'details' => ['nullable', 'string', 'max:2000'],
         ];
     }
 }

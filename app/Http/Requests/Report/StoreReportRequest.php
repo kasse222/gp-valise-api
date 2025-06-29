@@ -3,27 +3,32 @@
 namespace App\Http\Requests\Report;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rules\Enum;
+use App\Enums\ReportReasonEnum;
 
 class StoreReportRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return auth()->check();
+        return Auth::check(); // 📌 Tous les utilisateurs connectés peuvent signaler
     }
 
     public function rules(): array
     {
         return [
             'reportable_id'   => ['required', 'integer'],
-            'reportable_type' => ['required', Rule::in([
-                'App\Models\Trip',
-                'App\Models\Booking',
-                'App\Models\User',
-                // ➕ Ajouter d'autres entités si nécessaire
-            ])],
-            'reason'  => ['required', 'string', 'max:255'],
-            'details' => ['nullable', 'string', 'max:1000'],
+            'reportable_type' => ['required', 'string', 'max:255'],
+            'reason'          => ['required', new Enum(ReportReasonEnum::class)],
+            'details'         => ['nullable', 'string', 'max:2000'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'reason.required' => 'Merci de préciser un motif de signalement.',
+            'reason.enum'     => 'Le motif est invalide.',
         ];
     }
 }
