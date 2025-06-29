@@ -6,30 +6,27 @@ use App\Enums\BookingStatusEnum;
 use App\Models\Booking;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CompleteBooking
 {
     /**
-     * Marquer une réservation comme livrée.
+     * Marquer une réservation comme livrée par le voyageur.
      */
     public function execute(Booking $booking): Booking
     {
-        return DB::transaction(function () use ($booking) {
-            // Vérification du statut actuel
-            if (! $booking->status->canTransitionTo(BookingStatusEnum::LIVREE)) {
-                abort(400, 'La réservation ne peut pas être marquée comme livrée.');
-            }
+        $user = Auth::user();
 
-            // Mise à jour du statut
-            $booking->update(['status' => BookingStatusEnum::LIVREE]);
-
-            // Historisation
-            $booking->statusHistories()->create([
-                'old_status' => $booking->status,
-                'new_status' => BookingStatusEnum::LIVREE,
-                'user_id'    => Auth::id(),
-                'reason'     => 'Réservation livrée par le voyageur.',
+        // 🔐 Vérifie les droits métier
+        if (! $booking->canBeUpdatedTo(BookingStatusEnum::LIVREE, $user)) {
+            throw ValidationException::withMessages([
+                'booking' => 'Livraison non autorisée ou statut invalide.',
             ]);
+        }
+
+        return DB::transaction(function () use ($booking, $user) {
+            // ✅ Transition métier avec timestamp et historique
+            $booking->transitionTo(BookingStatusEnum::LIVREE, $user, 'Livraison confirmée par le voyageur');
 
             return $booking->fresh(['bookingItems.luggage', 'trip']);
         });

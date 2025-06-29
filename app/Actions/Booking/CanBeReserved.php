@@ -3,6 +3,7 @@
 namespace App\Actions\Booking;
 
 use App\Models\Trip;
+use App\Enums\TripStatusEnum;
 
 class CanBeReserved
 {
@@ -16,7 +17,7 @@ class CanBeReserved
             return false;
         }
 
-        if (method_exists($trip, 'status') && !$trip->status->isReservable()) {
+        if (!$trip->status instanceof TripStatusEnum || !$trip->status->isReservable()) {
             return false;
         }
 

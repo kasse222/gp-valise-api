@@ -40,13 +40,8 @@ class ConfirmBooking
         }
 
         // ✅ Transition vers 'confirmée'
-        $success = $booking->transitionTo(BookingStatusEnum::CONFIRMEE, $user, 'Confirmation par le voyageur');
+        $booking->transitionTo(BookingStatusEnum::CONFIRMEE, $user, 'Confirmation par le voyageur');
 
-        if (! $success) {
-            throw ValidationException::withMessages([
-                'booking' => 'Impossible de confirmer cette réservation.',
-            ]);
-        }
 
         return $booking->fresh(['bookingItems.luggage', 'trip']);
     }

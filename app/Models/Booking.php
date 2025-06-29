@@ -110,8 +110,9 @@ class Booking extends Model
         };
 
         $oldStatus = $this->status;
-        $this->status = $newStatus;
+        $this->status = $newStatus->value; // 👈 fix ici
         $this->save();
+
 
         $this->statusHistories()->create([
             'old_status' => $oldStatus,
@@ -133,24 +134,25 @@ class Booking extends Model
         $user ??= Auth::user();
 
         return match (true) {
-            // Expéditeur peut annuler une résa en attente
-            $this->is(BookingStatusEnum::EN_ATTENTE)
+            // Expéditeur peut annuler une résa en attente ou acceptée
+            $this->status === BookingStatusEnum::EN_ATTENTE
                 && $newStatus === BookingStatusEnum::ANNULE
                 && $user->id === $this->user_id => true,
 
             // Voyageur peut confirmer
-            $this->is(BookingStatusEnum::EN_ATTENTE)
+            $this->status === BookingStatusEnum::EN_ATTENTE
                 && $newStatus === BookingStatusEnum::CONFIRMEE
                 && $user->id === $this->trip->user_id => true,
 
             // Livraison possible par le voyageur
-            $this->is(BookingStatusEnum::CONFIRMEE)
+            $this->status === BookingStatusEnum::CONFIRMEE
                 && $newStatus === BookingStatusEnum::LIVREE
                 && $user->id === $this->trip->user_id => true,
 
             default => false,
         };
     }
+
 
     /*
     |--------------------------------------------------------------------------

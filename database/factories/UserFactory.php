@@ -19,7 +19,7 @@ class UserFactory extends Factory
             'last_name'       => $this->faker->lastName,
             'email'           => $this->faker->unique()->safeEmail,
             'password'        => Hash::make('password'), // ❗ à overrider en tests si besoin
-            'role'            => $this->faker->randomElement(UserRoleEnum::cases()),
+            'role'            => $this->faker->randomElement(UserRoleEnum::cases())->value,
             'verified_user'   => $this->faker->boolean(80), // 80% des utilisateurs sont vérifiés
             'phone'           => $this->faker->unique()->e164PhoneNumber,
             'country'         => $this->faker->countryCode, // 💡 Plus utile en API (FR, SN, MA...)

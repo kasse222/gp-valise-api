@@ -23,13 +23,8 @@ class CancelBooking
         }
 
         // ✅ Transition métier centralisée
-        $success = $booking->transitionTo(BookingStatusEnum::ANNULE, $user, 'Annulation par l’utilisateur');
+        $booking->transitionTo(BookingStatusEnum::ANNULE, $user, 'Annulation par l’utilisateur');
 
-        if (! $success) {
-            throw ValidationException::withMessages([
-                'booking' => 'Impossible d’annuler la réservation.',
-            ]);
-        }
 
         return $booking->fresh(['bookingItems.luggage']);
     }

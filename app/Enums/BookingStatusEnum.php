@@ -19,14 +19,15 @@ enum BookingStatusEnum: int
     case SUSPENDUE        = 12;
 
     private const TRANSITIONS = [
-        'en_attente'       => ['en_paiement', 'accepte', 'refuse', 'annule'],
-        'en_paiement'      => ['paiement_echoue', 'confirmee', 'annule'],
-        'paiement_echoue'  => ['en_paiement', 'annule'],
-        'accepte'          => ['confirmee', 'annule'],
-        'confirmee'        => ['livree', 'en_litige', 'termine'],
-        'en_litige'        => ['termine', 'annule'],
+        self::EN_ATTENTE->value       => [self::EN_PAIEMENT->value, self::ACCEPTE->value, self::REFUSE->value, self::ANNULE->value, self::CONFIRMEE->value],
+        self::EN_PAIEMENT->value      => [self::PAIEMENT_ECHOUE->value, self::CONFIRMEE->value, self::ANNULE->value],
+        self::PAIEMENT_ECHOUE->value  => [self::EN_PAIEMENT->value, self::ANNULE->value],
+        self::ACCEPTE->value          => [self::CONFIRMEE->value, self::ANNULE->value],
+        self::CONFIRMEE->value        => [self::LIVREE->value, self::EN_LITIGE->value, self::TERMINE->value],
+        self::EN_LITIGE->value        => [self::TERMINE->value, self::ANNULE->value],
         // etc.
     ];
+
 
     public function label(): string
     {
