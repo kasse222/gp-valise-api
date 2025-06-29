@@ -5,46 +5,37 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class PlanResource extends JsonResource
+class PaymentResource extends JsonResource
 {
     /**
-     * Transform the plan resource into an array.
-     *
-     * @return array<string, mixed>
+     * Transforme un paiement en JSON pour l'API.
      */
     public function toArray(Request $request): array
     {
         return [
-            'id'          => $this->id,
-            'name'        => $this->name,
+            'id'             => $this->id,
 
-            'type' => [
-                'code'        => $this->type->value,
-                'label'       => $this->type->label(),
-                'is_paid'     => $this->type->isPaid(),
-                'is_giftable' => $this->type->isGiftable(),
-            ],
+            // 🔄 Booking lié
+            'booking_id'     => $this->booking_id,
 
-            'price'         => round($this->price, 2),
-            'duration_days' => $this->duration_days,
+            // 💳 Méthode de paiement
+            'method'         => $this->method->value,
+            'method_label'   => $this->method->label(),
 
-            // Avantages dynamiques
-            'features'      => $this->features,
+            // 📊 Statut de paiement
+            'status'         => $this->status->value,
+            'status_label'   => $this->status->label(),
 
-            // Promotions actives
-            'discount_percent'     => $this->discount_percent,
-            'discount_expires_at'  => optional($this->discount_expires_at)?->toDateTimeString(),
-            'has_active_discount'  => $this->hasActiveDiscount(),
-            'commission_percent'   => $this->getCommissionPercent(),
+            // 💰 Montant et devise
+            'amount'         => $this->amount,
+            'currency'       => $this->currency,
 
-            // État
-            'is_active'     => $this->is_active,
-            'is_available'  => $this->isAvailable(),
-            'is_premium'    => $this->isPremium(),
+            // 📅 Date de paiement (optionnelle)
+            'paid_at'        => optional($this->paid_at)?->toDateTimeString(),
 
-            // Dates
-            'created_at'    => $this->created_at?->toDateTimeString(),
-            'updated_at'    => $this->updated_at?->toDateTimeString(),
+            // 🕓 Timestamps
+            'created_at'     => $this->created_at->toDateTimeString(),
+            'updated_at'     => $this->updated_at->toDateTimeString(),
         ];
     }
 }

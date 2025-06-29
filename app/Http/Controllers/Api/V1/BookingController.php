@@ -9,13 +9,14 @@ use App\Actions\Booking\DeleteBooking;
 use App\Actions\Booking\GetBookingDetails;
 use App\Actions\Booking\GetUserBookings;
 use App\Actions\Booking\ReserveBooking;
+use App\Actions\Booking\UpdateBookingStatus;
 use App\Enums\BookingStatusEnum;
 use App\Http\Requests\Booking\StoreBookingRequest;
 use App\Http\Requests\Booking\UpdateBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\Request;
+use Illuminate\Http\Request;
 
 class BookingController extends Controller
 {
@@ -59,16 +60,11 @@ class BookingController extends Controller
     public function update(UpdateBookingRequest $request, string $id)
     {
         $booking = Booking::with('trip')->findOrFail($id);
-
         $this->authorize('update', $booking);
 
         $newStatus = BookingStatusEnum::from($request->validated('status'));
 
-        if (! $booking->canBeUpdatedTo($newStatus, $request->user())) {
-            abort(403, 'Transition de statut non autorisée.');
-        }
-
-        $booking->update(['status' => $newStatus]);
+        $booking = UpdateBookingStatus::execute($booking, $newStatus, $request->user());
 
         return new BookingResource($booking);
     }

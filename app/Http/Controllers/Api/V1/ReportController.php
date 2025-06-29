@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Report\CreateReport;
 use Illuminate\Routing\Controller;
 use App\Http\Requests\Report\StoreReportRequest;
 use App\Http\Resources\ReportResource;
 use App\Models\Report;
+use App\Services\ReportService;
 use Illuminate\Http\Request;
 
 class ReportController extends Controller
@@ -32,9 +34,9 @@ class ReportController extends Controller
     /**
      * 🆕 Créer un nouveau signalement
      */
-    public function store(StoreReportRequest $request)
+    public function store(StoreReportRequest $request, ReportService $service)
     {
-        $report = $request->user()->reports()->create($request->validated());
+        $report = $service->create($request->user(), $request->validated());
 
         return response()->json(new ReportResource($report), 201);
     }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Location\CreateLocation;
 use Illuminate\Routing\Controller;
 use App\Http\Requests\Location\StoreLocationRequest;
 use App\Http\Resources\LocationResource;
@@ -23,7 +24,9 @@ class LocationController extends Controller
     public function store(StoreLocationRequest $request)
     {
         $this->authorize('create', Location::class);
-        $location = Location::create($request->validated());
+
+        $location = CreateLocation::execute($request->validated());
+
         return new LocationResource($location);
     }
 }

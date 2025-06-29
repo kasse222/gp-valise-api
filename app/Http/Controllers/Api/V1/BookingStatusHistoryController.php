@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Booking\CreateBookingStatusHistory;
 use Illuminate\Routing\Controller;
 use App\Http\Requests\BookingStatusHistory\StoreBookingStatusHistoryRequest;
 use App\Http\Resources\BookingStatusHistoryResource;
@@ -19,7 +20,9 @@ class BookingStatusHistoryController extends Controller
     public function store(StoreBookingStatusHistoryRequest $request, Booking $booking)
     {
         $this->authorize('update', $booking);
-        $history = $booking->statusHistories()->create($request->validated());
+
+        $history = CreateBookingStatusHistory::execute($booking, $request->validated());
+
         return new BookingStatusHistoryResource($history);
     }
 }

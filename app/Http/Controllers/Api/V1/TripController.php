@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Trip\CreateTrip;
 use Illuminate\Routing\Controller;
 use App\Http\Requests\Trip\StoreTripRequest;
 use App\Http\Requests\Trip\UpdateTripRequest;
@@ -33,7 +34,7 @@ class TripController extends Controller
      */
     public function store(StoreTripRequest $request)
     {
-        $trip = $request->user()->trips()->create($request->validated());
+        $trip = CreateTrip::execute($request->user(), $request->validated());
 
         return response()->json(new TripResource($trip), 201);
     }

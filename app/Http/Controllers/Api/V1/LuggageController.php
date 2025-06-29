@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Luggage\CreateLuggage;
+use App\Actions\Luggage\UpdateLuggage;
 use Illuminate\Routing\Controller;
 use App\Http\Requests\Luggage\StoreLuggageRequest;
 use App\Http\Requests\Luggage\UpdateLuggageRequest;
@@ -27,10 +29,7 @@ class LuggageController extends Controller
      */
     public function store(StoreLuggageRequest $request)
     {
-        $luggage = $request->user()->luggages()->create([
-            ...$request->validated(),
-            'status' => LuggageStatusEnum::EN_ATTENTE, // ✅ Enum pour robustesse
-        ]);
+        $luggage = CreateLuggage::execute($request->user(), $request->validated());
 
         return response()->json(new LuggageResource($luggage), 201);
     }
@@ -52,7 +51,7 @@ class LuggageController extends Controller
     {
         $this->authorize('update', $luggage);
 
-        $luggage->update($request->validated());
+        $luggage = UpdateLuggage::execute($luggage, $request->validated());
 
         return new LuggageResource($luggage);
     }

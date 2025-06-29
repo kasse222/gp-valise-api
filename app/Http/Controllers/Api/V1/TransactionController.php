@@ -6,6 +6,7 @@ use Illuminate\Routing\Controller;
 use App\Http\Requests\Transaction\StoreTransactionRequest;
 use App\Http\Resources\TransactionResource;
 use App\Models\Transaction;
+use App\Services\TransactionService;
 use Illuminate\Http\Request;
 
 class TransactionController extends Controller
@@ -32,9 +33,9 @@ class TransactionController extends Controller
     /**
      * ➕ Créer une transaction (ex : dépôt ou paiement)
      */
-    public function store(StoreTransactionRequest $request)
+    public function store(StoreTransactionRequest $request, TransactionService $service)
     {
-        $transaction = $request->user()->transactions()->create($request->validated());
+        $transaction = $service->create($request->user(), $request->validated());
 
         return response()->json(new TransactionResource($transaction), 201);
     }

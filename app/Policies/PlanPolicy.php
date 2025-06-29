@@ -22,4 +22,8 @@ class PlanPolicy
     {
         return $user->isAdmin() ? true : null;
     }
+    public function view(User $user, Plan $plan)
+    {
+        return $user->isAdmin() || $plan->is_active;
+    }
 }

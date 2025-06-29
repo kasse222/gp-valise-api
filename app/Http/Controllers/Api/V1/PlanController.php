@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Plan\CreatePlan;
+use App\Actions\Plan\UpdatePlan;
 use Illuminate\Routing\Controller;
 use App\Http\Requests\Plan\StorePlanRequest;
 use App\Http\Requests\Plan\UpdatePlanRequest;
@@ -26,14 +28,16 @@ class PlanController extends Controller
     public function store(StorePlanRequest $request)
     {
         $this->authorize('create', Plan::class);
-        $plan = Plan::create($request->validated());
+        $plan = CreatePlan::execute($request->validated());
         return new PlanResource($plan);
     }
 
     public function update(UpdatePlanRequest $request, Plan $plan)
     {
         $this->authorize('update', $plan);
-        $plan->update($request->validated());
+
+        $plan = UpdatePlan::execute($plan, $request->validated());
+
         return new PlanResource($plan);
     }
 

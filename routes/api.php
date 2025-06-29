@@ -9,85 +9,97 @@ use App\Http\Middleware\EnsureRole;
 
 /*
 |--------------------------------------------------------------------------
-| 🔓 Authentification publique
+| 🌐 API v1 – Public (auth non requise)
 |--------------------------------------------------------------------------
 */
 
-Route::prefix('v1')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login',    [AuthController::class, 'login']);
+Route::prefix('v1')->name('api.v1.')->group(function () {
+    // 🔐 Authentification
+    Route::post('/register', [AuthController::class, 'register'])->name('auth.register');
+    Route::post('/login',    [AuthController::class, 'login'])->name('auth.login');
 });
 
 /*
 |--------------------------------------------------------------------------
-| 🔐 Routes protégées (auth:sanctum)
+| 🔐 API v1 – Protégée (auth:sanctum obligatoire)
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
-
-    // 👤 Utilisateur connecté
-    Route::get('/me',     [AuthController::class, 'me']);
-    Route::post('/logout', [AuthController::class, 'logout']);
+Route::middleware('auth:sanctum')->prefix('v1')->name('api.v1.')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | ✈️ TripController — Gestion des trajets
+    | 👤 Utilisateur connecté
     |--------------------------------------------------------------------------
     */
+    Route::get('/me',     [AuthController::class, 'me'])->name('auth.me');
+    Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout');
+    Route::post('/logout-all', [AuthController::class, 'logoutAll'])->name('auth.logoutAll');
 
-    // ➕ Création / édition / suppression → réservé aux voyageurs
+    /*
+    |--------------------------------------------------------------------------
+    | ✈️ Trips – Gestion des trajets
+    |--------------------------------------------------------------------------
+    */
     Route::middleware([EnsureRole::class . ':voyageur'])->group(function () {
-        Route::post('/trips',             [TripController::class, 'store']);
-        Route::put('/trips/{trip}',       [TripController::class, 'update']);
-        Route::delete('/trips/{trip}',    [TripController::class, 'destroy']);
+        Route::post('/trips',             [TripController::class, 'store'])->name('trips.store');
+        Route::put('/trips/{trip}',       [TripController::class, 'update'])->name('trips.update');
+        Route::delete('/trips/{trip}',    [TripController::class, 'destroy'])->name('trips.destroy');
     });
 
-    // 👁️ Lecture des trajets → tous utilisateurs connectés
-    Route::get('/trips',                [TripController::class, 'index']);
-    Route::get('/trips/{trip}',         [TripController::class, 'show']);
+    Route::get('/trips',            [TripController::class, 'index'])->name('trips.index');
+    Route::get('/trips/{trip}',     [TripController::class, 'show'])->name('trips.show');
 
     /*
     |--------------------------------------------------------------------------
-    | 📦 BookingController — Réservations
+    | 📦 Bookings – Réservations
     |--------------------------------------------------------------------------
     */
-
-    // ➕ Création / modification / suppression → expéditeur uniquement
     Route::middleware([EnsureRole::class . ':expediteur'])->group(function () {
-        Route::post('/bookings',               [BookingController::class, 'store']);
-        Route::put('/bookings/{booking}',      [BookingController::class, 'update']);
-        Route::delete('/bookings/{booking}',   [BookingController::class, 'destroy']);
+        Route::post('/bookings',             [BookingController::class, 'store'])->name('bookings.store');
+        Route::put('/bookings/{booking}',    [BookingController::class, 'update'])->name('bookings.update');
+        Route::delete('/bookings/{booking}', [BookingController::class, 'destroy'])->name('bookings.destroy');
     });
 
-    // 👁️ Lecture des réservations → tous connectés
-    Route::get('/bookings',               [BookingController::class, 'index']);
-    Route::get('/bookings/{booking}',     [BookingController::class, 'show']);
+    Route::get('/bookings',              [BookingController::class, 'index'])->name('bookings.index');
+    Route::get('/bookings/{booking}',    [BookingController::class, 'show'])->name('bookings.show');
 
-    // 🔁 Transitions métier → selon les rôles
-    Route::post('/bookings/{booking}/confirm',  [BookingController::class, 'confirm'])
-        ->middleware(EnsureRole::class . ':voyageur');
+    // 🔁 Transitions métier
+    Route::post('/bookings/{booking}/confirm', [BookingController::class, 'confirm'])
+        ->middleware(EnsureRole::class . ':voyageur')
+        ->name('bookings.confirm');
 
-    Route::post('/bookings/{booking}/cancel',   [BookingController::class, 'cancel'])
-        ->middleware(EnsureRole::class . ':voyageur,expediteur');
+    Route::post('/bookings/{booking}/cancel', [BookingController::class, 'cancel'])
+        ->middleware(EnsureRole::class . ':voyageur,expediteur')
+        ->name('bookings.cancel');
 
     Route::post('/bookings/{booking}/complete', [BookingController::class, 'complete'])
-        ->middleware(EnsureRole::class . ':voyageur');
+        ->middleware(EnsureRole::class . ':voyageur')
+        ->name('bookings.complete');
 
     /*
     |--------------------------------------------------------------------------
-    | 🎒 LuggageController — Gestion des valises
+    | 🎒 Luggages – Gestion des valises
     |--------------------------------------------------------------------------
     */
-
-    // ➕ Création / édition / suppression → expéditeur uniquement
     Route::middleware([EnsureRole::class . ':expediteur'])->group(function () {
-        Route::post('/luggages',              [LuggageController::class, 'store']);
-        Route::put('/luggages/{luggage}',     [LuggageController::class, 'update']);
-        Route::delete('/luggages/{luggage}',  [LuggageController::class, 'destroy']);
+        Route::post('/luggages',             [LuggageController::class, 'store'])->name('luggages.store');
+        Route::put('/luggages/{luggage}',    [LuggageController::class, 'update'])->name('luggages.update');
+        Route::delete('/luggages/{luggage}', [LuggageController::class, 'destroy'])->name('luggages.destroy');
     });
 
-    // 👁️ Lecture → tous les utilisateurs connectés
-    Route::get('/luggages',                [LuggageController::class, 'index']);
-    Route::get('/luggages/{luggage}',      [LuggageController::class, 'show']);
+    Route::get('/luggages',             [LuggageController::class, 'index'])->name('luggages.index');
+    Route::get('/luggages/{luggage}',   [LuggageController::class, 'show'])->name('luggages.show');
+});
+
+/*
+|--------------------------------------------------------------------------
+| 🚨 Fallback – Route non trouvée
+|--------------------------------------------------------------------------
+*/
+Route::fallback(function () {
+    return response()->json([
+        'message' => '🔍 Route introuvable.',
+        'status'  => 404,
+    ], 404);
 });

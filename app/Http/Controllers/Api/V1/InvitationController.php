@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Invitation\AcceptInvitation;
+use App\Actions\Invitation\SendInvitation;
 use Illuminate\Routing\Controller;
 use App\Http\Requests\Invitation\StoreInvitationRequest;
 use App\Http\Requests\Invitation\AcceptInvitationRequest;
@@ -31,30 +33,16 @@ class InvitationController extends Controller
     {
         $this->authorize('create', Invitation::class);
 
-        $invitation = Invitation::create([
-            'sender_id'       => $request->user()->id,
-            'recipient_email' => $request->validated('recipient_email'),
-            'token'           => Str::uuid(),
-        ]);
-
-        // TODO : envoi d’email futur
+        $invitation = SendInvitation::execute($request->user(), $request->validated('recipient_email'));
 
         return (new InvitationResource($invitation))->response()->setStatusCode(201);
     }
-
     /**
      * ✅ Accepter une invitation (via token)
      */
     public function accept(AcceptInvitationRequest $request)
     {
-        $invitation = Invitation::where('token', $request->validated('token'))
-            ->whereNull('used_at')
-            ->firstOrFail();
-
-        DB::transaction(function () use ($invitation) {
-            // TODO : ici tu pourrais créer le user (register), ou associer à un compte existant
-            $invitation->update(['used_at' => now()]);
-        });
+        $invitation = AcceptInvitation::execute($request->validated('token'));
 
         return response()->json(['message' => 'Invitation acceptée.']);
     }

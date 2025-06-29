@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Payment\CreatePayment;
+use App\Actions\Payment\UpdatePayment;
+use App\Http\Resources\PaymentResource;
 use Illuminate\Routing\Controller;
 use App\Http\Requests\Payment\StorePaymentRequest;
 use App\Http\Requests\Payment\UpdatePaymentRequest;
-use App\Http\Resources\PaymentResource;
 use App\Models\Payment;
 use Illuminate\Http\Request;
 
@@ -26,10 +28,7 @@ class PaymentController extends Controller
      */
     public function store(StorePaymentRequest $request)
     {
-        $payment = $request->user()->payments()->create([
-            ...$request->validated(),
-            'status' => 'en_attente', // ou PaymentStatusEnum::EN_ATTENTE
-        ]);
+        $payment = CreatePayment::execute($request->user(), $request->validated());
 
         return response()->json(new PaymentResource($payment), 201);
     }
@@ -51,7 +50,7 @@ class PaymentController extends Controller
     {
         $this->authorize('update', $payment);
 
-        $payment->update($request->validated());
+        $payment = UpdatePayment::execute($payment, $request->validated());
 
         return new PaymentResource($payment);
     }

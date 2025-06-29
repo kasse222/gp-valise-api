@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\BookingItem\CreateBookingItem;
+use App\Actions\BookingItem\UpdateBookingItem;
 use Illuminate\Routing\Controller;
 use App\Http\Requests\BookingItem\StoreBookingItemRequest;
 use App\Http\Requests\BookingItem\UpdateBookingItemRequest;
@@ -14,20 +16,27 @@ class BookingItemController extends Controller
     public function index(Booking $booking)
     {
         $this->authorize('view', $booking);
-        return BookingItemResource::collection($booking->bookingItems()->get());
+        // 🧠 On trie pour UX / prédictibilité
+        return BookingItemResource::collection(
+            $booking->bookingItems()->orderBy('created_at')->get()
+        );
     }
 
     public function store(StoreBookingItemRequest $request, Booking $booking)
     {
         $this->authorize('update', $booking);
-        $item = $booking->bookingItems()->create($request->validated());
+
+        $item = CreateBookingItem::execute($booking, $request->validated());
+
         return new BookingItemResource($item);
     }
 
     public function update(UpdateBookingItemRequest $request, BookingItem $item)
     {
         $this->authorize('update', $item);
-        $item->update($request->validated());
+
+        $item = UpdateBookingItem::execute($item, $request->validated());
+
         return new BookingItemResource($item);
     }
 
