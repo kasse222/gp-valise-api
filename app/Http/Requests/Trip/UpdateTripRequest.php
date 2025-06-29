@@ -3,13 +3,17 @@
 namespace App\Http\Requests\Trip;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rules\Enum;
+use App\Enums\TripStatusEnum;
+use App\Enums\TripTypeEnum;
 
 class UpdateTripRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $trip = $this->route('trip');
-        return $trip && auth()->check() && $trip->user_id === auth()->id();
+        // MVP = modification par le propriétaire seulement (à sécuriser via Policy côté controller)
+        return Auth::check();
     }
 
     public function rules(): array
@@ -18,10 +22,11 @@ class UpdateTripRequest extends FormRequest
             'departure'      => ['sometimes', 'string', 'max:255'],
             'destination'    => ['sometimes', 'string', 'max:255'],
             'date'           => ['sometimes', 'date', 'after_or_equal:today'],
-            'capacity'       => ['sometimes', 'numeric', 'min:0.1'],
-            'status'         => ['sometimes', 'string'],
-            'type_trip'      => ['sometimes', 'string'],
-            'flight_number'  => ['nullable', 'string', 'max:100'],
+            'flight_number'  => ['nullable', 'string', 'max:255'],
+            'capacity'       => ['sometimes', 'integer', 'min:1'],
+            'price_per_kg'   => ['sometimes', 'numeric', 'min:0'],
+            'status'         => ['sometimes', new Enum(TripStatusEnum::class)],
+            'type_trip'      => ['sometimes', new Enum(TripTypeEnum::class)],
         ];
     }
 }
