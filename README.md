@@ -1,6 +1,6 @@
-# ✈️ GP Valise API
+# ✈️ GP-Valise API
 
-[![Tests](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)](https://github.com/kasse222/gp-valise-api/actions)
+![Tests](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)
 [![Swagger](https://img.shields.io/badge/docs-swagger-blue.svg)](http://localhost:8000/api/documentation)
 [![Laravel 12](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com)
 [![Docker](https://img.shields.io/badge/containerized-Docker-blue)](https://www.docker.com/)
@@ -13,175 +13,173 @@
 -   [🚀 Stack technique](#-stack-technique)
 -   [📦 Modèles implémentés](#-modèles-implémentés)
 -   [🔐 Authentification](#-authentification)
--   [📦 Réservations (Bookings)](#-réservations-bookings)
+-   [📦 Réservations & Valises](#-réservations--valises)
 -   [🧪 Tests automatisés](#-tests-automatisés)
 -   [🧱 Sécurité & Accès](#-sécurité--accès)
 -   [🧬 Données de test (seeders)](#-données-de-test-seeders)
 -   [⚙️ Installation locale (Docker)](#️-installation-locale-docker)
 -   [🛠️ Roadmap fonctionnelle](#️-roadmap-fonctionnelle)
--   [🔗 Liens utiles](#-liens-utiles)
 -   [👨‍💻 À propos](#-à-propos)
 
 ---
 
 ## 🚀 Stack technique
 
--   **Laravel 12** (API-only)
--   **Sanctum** – Authentification par token
--   **PestPHP** – Framework de tests modernes
--   **MySQL 8** – Base de données relationnelle
--   **Docker** – Environnement de dev/test/prod
--   **Swagger (l5-swagger)** – Documentation interactive
--   **GitHub Actions** – CI/CD (build + tests)
--   **Enums centrés métier** – statuts, rôles, types
+-   **Laravel 12** (API only)
+-   **Sanctum** pour l’authentification
+-   **PestPHP** pour les tests automatisés
+-   **MySQL 8** – base de données relationnelle
+-   **Docker** – dev/test/prod isolés
+-   **Swagger (l5-swagger)** – documentation API interactive
+-   **GitHub Actions** – CI/CD automatisé
+-   **Enums métiers** – statuts, rôles, types, etc.
+-   **Actions Laravel** – logique métier séparée
+-   **Policies** – sécurité d’accès centralisée
 
 ---
 
 ## 📦 Modèles implémentés
 
-| Modèle                 | Description                                                            |
-| ---------------------- | ---------------------------------------------------------------------- |
-| `User`                 | Utilisateur (`voyageur`, `expéditeur`, `admin`)                        |
-| `Trip`                 | Trajet proposé avec lieu, capacité, dates, type (`standard`, etc.)     |
-| `Luggage`              | Colis/valise à expédier, avec suivi et statut (`enum`)                 |
-| `Booking`              | Réservation d’un trajet pour un ou plusieurs bagages                   |
-| `BookingItem`          | Association réservation/valise (kg, prix, suivi)                       |
-| `BookingStatusHistory` | Historique des changements de statut (log métier horodaté)             |
-| `Payment`              | Paiement lié à une réservation                                         |
-| `Report`               | Signalement morphable (utilisateur, trajet, réservation)               |
-| `Location`             | Coordonnées GPS (géolocalisation live)                                 |
-| `Plan`                 | Abonnement utilisateur (freemium, premium, etc.)                       |
-| `Invitation`           | Invitation à rejoindre la plateforme (recommandation, lien parrainage) |
-| `Transaction`          | Suivi comptable des paiements internes/externes                        |
+| Modèle                 | Description principale                   |
+| ---------------------- | ---------------------------------------- |
+| `User`                 | Voyageur, Expéditeur, Admin              |
+| `Trip`                 | Trajets proposés                         |
+| `Booking`              | Réservation d’un ou plusieurs colis      |
+| `BookingItem`          | Détail des valises réservées             |
+| `Luggage`              | Valise à envoyer (statut, volume, poids) |
+| `BookingStatusHistory` | Historique des statuts                   |
+| `Payment`              | Paiements utilisateurs                   |
+| `Transaction`          | Enregistrements financiers               |
+| `Report`               | Signalements d’incidents                 |
+| `Location`             | Coordonnées GPS                          |
+| `Plan`                 | Abonnements freemium / premium           |
+| `Invitation`           | Invitations ou liens parrainage          |
 
 ---
 
 ## 🔐 Authentification
 
--   `POST /api/v1/register`
--   `POST /api/v1/login`
--   `GET /api/v1/me`
--   `POST /api/v1/logout`
+| Méthode | Endpoint    | Description       |
+| ------- | ----------- | ----------------- |
+| POST    | `/register` | Inscription       |
+| POST    | `/login`    | Connexion         |
+| GET     | `/me`       | Infos utilisateur |
+| POST    | `/logout`   | Déconnexion       |
 
-> Token-based (Laravel Sanctum)  
-> FormRequest + Policy + Enum + Roles
+-   Tokens via Sanctum
+-   Sécurité : FormRequest + RoleMiddleware + Policy
 
 ---
 
-## 📦 Réservations (Bookings)
+## 📦 Réservations & Valises
 
-### Endpoints REST
+### Booking – Endpoints
 
-| Méthode | Route                            | Description               |
-| ------- | -------------------------------- | ------------------------- |
-| GET     | `/api/v1/bookings`               | Liste des réservations    |
-| POST    | `/api/v1/bookings`               | Créer une réservation     |
-| GET     | `/api/v1/bookings/{id}`          | Voir une réservation      |
-| PUT     | `/api/v1/bookings/{id}`          | Modifier une réservation  |
-| DELETE  | `/api/v1/bookings/{id}`          | Supprimer une réservation |
-| POST    | `/api/v1/bookings/{id}/confirm`  | Confirmer une réservation |
-| POST    | `/api/v1/bookings/{id}/cancel`   | Annuler une réservation   |
-| POST    | `/api/v1/bookings/{id}/complete` | Marquer comme livrée      |
+| Méthode | Route                     | Description              |
+| ------- | ------------------------- | ------------------------ |
+| GET     | `/bookings`               | Liste des réservations   |
+| POST    | `/bookings`               | Créer une réservation    |
+| PUT     | `/bookings/{id}`          | Modifier le statut       |
+| DELETE  | `/bookings/{id}`          | Supprimer la réservation |
+| POST    | `/bookings/{id}/confirm`  | Confirmer                |
+| POST    | `/bookings/{id}/cancel`   | Annuler                  |
+| POST    | `/bookings/{id}/complete` | Marquer comme livrée     |
 
-### Actions métier
+-   Statuts via `BookingStatusEnum`
+-   Transitions historisées
+-   Autorisation via `BookingPolicy`
 
-> Toutes les transitions de statuts (`CONFIRMEE`, `ANNULEE`, `TERMINE`) :
+### Luggage – Endpoints
 
--   Centralisées via `BookingStatusEnum`
--   Historisées via `BookingStatusHistory::log()`
--   Sécurisées par `BookingPolicy`
+| Méthode | Route            | Description          |
+| ------- | ---------------- | -------------------- |
+| GET     | `/luggages`      | Liste de ses valises |
+| POST    | `/luggages`      | Créer une valise     |
+| PUT     | `/luggages/{id}` | Modifier une valise  |
+| DELETE  | `/luggages/{id}` | Supprimer            |
 
-🎒 **Valises (Luggage)**
-
-| Méthode | Route                   | Description                         |
-| ------- | ----------------------- | ----------------------------------- |
-| GET     | `/api/v1/luggages`      | Lister les valises de l’utilisateur |
-| POST    | `/api/v1/luggages`      | Créer une valise                    |
-| GET     | `/api/v1/luggages/{id}` | Voir une valise                     |
-| PUT     | `/api/v1/luggages/{id}` | Modifier une valise                 |
-| DELETE  | `/api/v1/luggages/{id}` | Supprimer une valise                |
-
--   Enum : `LuggageStatusEnum`
 -   Sécurité : `LuggagePolicy`
--   Validation : `StoreLuggageRequest`, `UpdateLuggageRequest`
+-   Validation : FormRequests
+-   Enum : `LuggageStatusEnum`
 
 ---
 
 ## 🧪 Tests automatisés
 
-> Écrits en **PestPHP** (tests simples + tests de logique métier + edge-cases)
+-   Framework : **PestPHP**
+-   Testés :
+    -   Auth (register, login, logout)
+    -   Booking CRUD + transitions
+    -   Enum : `canBeCancelled`, `canBeDelivered`, `canTransitionTo`
+    -   Erreurs métiers (tentative de mise à jour illégale, statut invalide)
 
-### Ce qui est couvert :
+🎯 À venir :
 
--   Auth : register/login/logout
--   Booking CRUD
--   Transitions de statut (confirm, cancel, complete)
--   Erreurs métier (ex : réservation déjà terminée)
--   Enum : logique métier dans `BookingStatusEnum::canTransitionTo()`
+-   Tests sur `Payment`, `Transaction`, `User` (changement plan, password, vérification)
 
 ---
 
 ## 🧱 Sécurité & Accès
 
--   Authentification : `auth:sanctum`
--   Middleware : `EnsureRole`, `EnsureKYC`, `Throttle`
--   FormRequests : validation sécurisée
--   Enum : `BookingStatusEnum`, `LuggageStatusEnum`, `TripTypeEnum`
--   Policies Laravel : `BookingPolicy`, `LuggagePolicy`
--   Historique des statuts : sécurisé, immuable
--   Roadmap :
-    -   Gestion des permissions via `spatie/laravel-permission`
-    -   Intégration KYC (upload docs + validation)
-    -   Checklist sécurité OWASP pour API
+-   `auth:sanctum` obligatoire
+-   Policies Laravel actives :
+    -   `BookingPolicy`, `LuggagePolicy`, `PaymentPolicy`, etc.
+-   Middleware personnalisés :
+    -   `EnsureRole`, `EnsureKYC`, etc.
+-   Enum = source de vérité métier
+-   Historique `BookingStatusHistory` immutable
+
+🔒 Prochaines étapes :
+
+-   Spatie Laravel Permission
+-   Checklist OWASP
+-   Token JWT optionnel
 
 ---
 
 ## 🧬 Données de test (Seeders)
 
--   👤 15 utilisateurs (`5 voyageurs`, `5 expéditeurs`, `5 admins`)
--   ✈️ 30 `Trips` (variés, avec `type_trip`)
--   🎒 40 `Luggages`
--   📦 20 `Bookings` avec `BookingItems` générés
--   💰 20 `Payments` simulés
--   🔁 `BookingStatusHistory` auto-généré au statut initial
--   🛡️ 10 `Reports`
--   📍 150 `Locations` (coordonnées aléatoires)
--   💸 10 `Transactions` (paiement simulé)
--   📨 5 `Invitations` créées
+| Élément      | Quantité     |
+| ------------ | ------------ |
+| Users        | 15 (3 rôles) |
+| Trips        | 30           |
+| Bookings     | 20           |
+| Luggages     | 40           |
+| BookingItems | auto-générés |
+| Payments     | 20           |
+| Reports      | 10           |
+| Locations    | 150          |
+| Transactions | 10           |
+| Invitations  | 5            |
 
 ---
 
-## 🛠️ Roadmap fonctionnelle (v0.4 → v0.5)
+👨‍💻 À propos
+Projet open source développé avec ❤️ par Lamine Kasse dans le cadre d’une reconversion vers le back-end Laravel/DevOps/API.
 
-| Étape   | Description                                                           |
-| ------- | --------------------------------------------------------------------- |
-| ✅ v0.4 | Tous les modèles, controllers, policies terminés                      |
-| 🧪 v0.5 | Couverture des tests Pest sur tous les modules critiques              |
-| 🔐 v0.6 | Implémentation de Spatie Roles & Permissions + sécurisation API OWASP |
-| 🚀 v0.7 | Déploiement Docker (staging), CI/CD avec prod.yml                     |
-| 📤 v0.8 | Intégration upload fichiers KYC (carte ID, passeport, etc.)           |
-| 📡 v1.0 | Version publique, hébergement + monitoring + dashboard admin          |
+GitHub → kasse222
+Email → kasse.lamine.dev@cloud.com
 
 ## ⚙️ Installation locale (Docker)
 
 ```bash
-# 1. Cloner le repo
+# Cloner le projet
 git clone https://github.com/kasse222/gp-valise-api.git
 cd gp-valise-api
 
-# 2. Copier le fichier .env
+# Copier l’environnement
 make copy-env
 
-# 3. Démarrer l'environnement Docker
+# Lancer Docker
 make up
 
-# 4. Générer la clé Laravel, migrer et remplir la base
+# Générer la clé + migrations + seeds
 make key
 make migrate
 make seed
 
-# Accès :
+# Interfaces disponibles :
 # API         → http://localhost:8000
 # Swagger     → http://localhost:8000/api/documentation
-# PhpMyAdmin  → http://localhost:8080 (gpvalise_user / secret)
+# PhpMyAdmin  → http://localhost:8080
 ```
