@@ -15,7 +15,9 @@ class Luggage extends Model
     protected $table = 'luggages';
 
     protected $fillable = [
+
         'user_id',
+        'trip_id',
         'description',
         'weight_kg',
         'length_cm',

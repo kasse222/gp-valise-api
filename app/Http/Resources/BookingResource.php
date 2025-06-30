@@ -29,7 +29,7 @@ class BookingResource extends JsonResource
 
             // 💬 Détail utilisateur
             'comment'      => $this->comment,
-            'kg_reserved'  => $items ? round($items->sum('kg_reserved'), 2) : null,
+            'kg_reserved'  => $this->whenLoaded('items', fn() => collect($this->items)->filter()->sum('kg_reserved')),
 
             // 🕓 Dates de transition
             'confirmed_at' => optional($this->confirmed_at)?->toDateTimeString(),
@@ -42,7 +42,8 @@ class BookingResource extends JsonResource
             // 🔗 Relations
             'trip'         => new TripResource($this->whenLoaded('trip')),
             'user'         => new UserResource($this->whenLoaded('user')),
-            'items'        => BookingItemResource::collection($items),
+            'booking_items' => BookingItemResource::collection($this->whenLoaded('bookingItems')),
+            'items'           => BookingItemResource::collection($this->whenLoaded('items')),
             'status_history' => BookingStatusHistoryResource::collection($this->whenLoaded('statusHistories')),
 
             // 📅 Timestamps

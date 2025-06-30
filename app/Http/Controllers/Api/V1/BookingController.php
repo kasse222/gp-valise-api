@@ -15,11 +15,13 @@ use App\Http\Requests\Booking\StoreBookingRequest;
 use App\Http\Requests\Booking\UpdateBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
 
 class BookingController extends Controller
 {
+    use AuthorizesRequests;
     /**
      * 📦 Lister les réservations de l'utilisateur (voyageur)
      */
@@ -57,9 +59,8 @@ class BookingController extends Controller
     /**
      * 🔁 Modifier le statut d'une réservation
      */
-    public function update(UpdateBookingRequest $request, string $id)
+    public function update(UpdateBookingRequest $request,  Booking $booking)
     {
-        $booking = Booking::with('trip')->findOrFail($id);
         $this->authorize('update', $booking);
 
         $newStatus = BookingStatusEnum::from($request->validated('status'));

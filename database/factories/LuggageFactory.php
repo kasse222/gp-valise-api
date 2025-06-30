@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 use App\Enums\LuggageStatusEnum;
+use App\Models\Trip;
 
 class LuggageFactory extends Factory
 {
@@ -19,6 +20,7 @@ class LuggageFactory extends Factory
 
         return [
             'user_id'        => User::factory()->expeditor(),
+            'trip_id'        => Trip::factory(), // 💡 Association automatique
             'description'    => $this->faker->sentence(5),
             'weight_kg'      => $this->faker->randomFloat(1, 1, 25),
             'length_cm'      => $this->faker->numberBetween(20, 80),

@@ -15,7 +15,7 @@ return new class extends Migration {
             $table->foreignId('user_id')
                 ->constrained()
                 ->cascadeOnDelete();
-
+            $table->foreignId('trip_id')->constrained()->onDelete('cascade');
             // 📦 Description + poids total
             $table->string('description')->nullable();
             $table->float('weight_kg')->default(0);

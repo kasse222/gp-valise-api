@@ -9,25 +9,29 @@ class StoreBookingRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Auth::check() && auth()->user::isExpeditor();
+        /** @var \App\Models\User $user */
+        $user = $this->user();
+        return $user && $user->isExpeditor();
     }
 
     public function rules(): array
     {
         return [
-            'trip_id'     => ['required', 'exists:trips,id'],
-            'luggage_id'  => ['required', 'exists:luggages,id'],
-            'kg_reserved' => ['required', 'numeric', 'min:0.1'],
-            'price'       => ['nullable', 'numeric', 'min:0'], // prix facultatif si calcul auto
+            'trip_id'         => ['required', 'exists:trips,id'],
+            'items'           => ['required', 'array', 'min:1'],
+            'items.*.luggage_id'  => ['required', 'exists:luggages,id'],
+            'items.*.kg_reserved' => ['required', 'numeric', 'min:0.1'],
+            'items.*.price'       => ['nullable', 'numeric', 'min:0'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'trip_id.required'    => 'Le trajet est obligatoire.',
-            'luggage_id.required' => 'Le bagage est requis.',
-            'kg_reserved.required' => 'Le poids réservé doit être spécifié.',
+            'trip_id.required'           => 'Le trajet est obligatoire.',
+            'items.required'             => 'Vous devez fournir au moins une valise.',
+            'items.*.luggage_id.required' => 'Chaque valise doit avoir un ID.',
+            'items.*.kg_reserved.required' => 'Le poids réservé est obligatoire pour chaque valise.',
         ];
     }
 }

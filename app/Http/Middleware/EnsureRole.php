@@ -13,7 +13,7 @@ class EnsureRole
     {
         $user = $request->user();
 
-        // 🔐 Vérifie que le rôle est bien un enum attendu
+        // 🧱 Vérification de base
         if (! $user || ! $user->role instanceof UserRoleEnum) {
             report("Utilisateur sans rôle ou rôle invalide : " . optional($user)->id);
             return response()->json([
@@ -21,14 +21,27 @@ class EnsureRole
             ], Response::HTTP_FORBIDDEN);
         }
 
-        // 🧠 Convertit les noms de rôle en enums, ignore les invalides
+        // 🔄 Conversion dynamique (string ou int → UserRoleEnum)
         $authorized = collect($roles)
-            ->map(fn($role) => UserRoleEnum::tryFrom($role))
+            ->map(function ($role) {
+                if (is_numeric($role)) {
+                    return UserRoleEnum::tryFrom((int) $role);
+                }
+
+                // Convertit 'ADMIN' → UserRoleEnum::ADMIN
+                $roleConst = strtoupper($role);
+                if (defined(UserRoleEnum::class . "::{$roleConst}")) {
+                    return constant(UserRoleEnum::class . "::{$roleConst}");
+                }
+
+                return null;
+            })
             ->filter()
             ->contains($user->role);
 
+        // ❌ Accès refusé
         if (! $authorized) {
-            report("Tentative d’accès refusée pour l’utilisateur #{$user->id} avec rôle {$user->role->value}");
+            report("Accès refusé à l’utilisateur #{$user->id} avec rôle {$user->role->value}");
 
             return response()->json([
                 'message' => 'Accès refusé – rôle requis : ' . implode(', ', $roles),

@@ -19,10 +19,10 @@ class BookingStatusHistoryResource extends JsonResource
             'booking_id'   => $this->booking_id,
 
             // 🧠 Statuts transition
-            'old_status'   => $this->old_status->value,
-            'old_label'    => $this->old_status->label(),
-            'new_status'   => $this->new_status->value,
-            'new_label'    => $this->new_status->label(),
+            'old_status'   => optional($this->old_status)?->value,
+            'old_label'    => optional($this->old_status)?->label(),
+            'new_status'   => optional($this->new_status)?->value,
+            'new_label'    => optional($this->new_status)?->label(),
 
             // 🔍 Informations de changement
             'reason'       => $this->reason,

@@ -1,114 +1,125 @@
 <?php
-/*
+
 uses(
     Tests\TestCase::class,
     Illuminate\Foundation\Testing\RefreshDatabase::class
 );
 
-use App\Models\Booking;
-use App\Models\Luggage;
-use App\Models\Trip;
 use App\Models\User;
+use App\Models\Booking;
+use App\Models\Trip;
+use App\Models\Luggage;
+use App\Enums\BookingStatusEnum;
+use App\Enums\UserRoleEnum;
+use Laravel\Sanctum\Sanctum;
+
 use function Pest\Laravel\actingAs;
-use function Pest\Laravel\deleteJson;
-use function Pest\Laravel\getJson;
-use function Pest\Laravel\postJson;
-use function Pest\Laravel\putJson;
 
 beforeEach(function () {
-    $this->user = User::factory()->create([
-        'password' => \Illuminate\Support\Facades\Hash::make('password'),
+    $expediteur = User::factory()->create([
+        'role' => UserRoleEnum::SENDER,
     ]);
-    actingAs($this->user);
-    $this->trip = Trip::factory()->create(['user_id' => $this->user->id]);
+
+    Sanctum::actingAs($expediteur);
+    test()->expediteur = $expediteur;
 });
 
-test('index retourne les réservations de l’utilisateur connecté', function () {
-    Booking::factory()->count(2)->create(['trip_id' => $this->trip->id]);
+it('retourne la liste des bookings (index)', function () {
+    Booking::factory()->count(3)->create(['user_id' => $this->expediteur->id]);
 
-    $response = getJson('/api/v1/bookings');
-    $response->assertStatus(200)->assertJsonCount(2);
+    $response = $this->getJson('/api/v1/bookings');
+
+    $response->assertOk()
+        ->assertJsonCount(3, 'data');
+});
+test('le rôle est bien casté en enum', function () {
+    $user = User::factory()->create([
+        'role' => UserRoleEnum::SENDER->value,
+    ]);
+
+    expect($user->role)->toBeInstanceOf(UserRoleEnum::class);
 });
 
+it('affiche une réservation spécifique (show)', function () {
+    $trip = Trip::factory()->create();
+    $booking = Booking::factory()->create([
+        'user_id' => test()->expediteur->id,
+        'trip_id' => $trip->id,
+    ]);
 
-test('store crée une réservation', function () {
-    $luggage = \App\Models\Luggage::factory()->create(['status' => 'en_attente']);
+    $response = $this->getJson("/api/v1/bookings/{$booking->id}");
 
-    $payload = [
-        'trip_id' => $this->trip->id,
+    $response->assertOk()
+        ->assertJsonPath('data.id', $booking->id);
+});
+
+it('crée une réservation (store)', function () {
+    $expediteur = User::factory()->create(['role' => UserRoleEnum::SENDER]);
+    $this->actingAs($expediteur);
+
+    $trip = Trip::factory()->create();
+    $luggage = Luggage::factory()->create([
+        'user_id' => $expediteur->id,
+        'status' => \App\Enums\LuggageStatusEnum::EN_ATTENTE,
+    ]);
+
+    $data = [
+        'trip_id' => $trip->id,
         'items' => [
             [
                 'luggage_id' => $luggage->id,
-                'kg_reserved' => 10,
-                'price' => 55.00,
-            ],
-        ],
+                'kg_reserved' => 2.5,
+                'price' => 100.0,
+            ]
+        ]
     ];
 
-    $response = postJson('/api/v1/bookings', $payload);
-    $response->assertCreated();
-    expect(Booking::count())->toBe(1);
+    $response = $this->postJson('/api/v1/bookings', $data);
+
+    $response->assertCreated()
+        ->assertJsonPath('data.status', BookingStatusEnum::EN_ATTENTE->value)
+        ->assertJsonPath('data.booking_items.0.luggage.id', $luggage->id);
 });
 
-test('show retourne une réservation spécifique', function () {
-    $booking = Booking::factory()->create(['trip_id' => $this->trip->id]);
 
-    $response = getJson("/api/v1/bookings/{$booking->id}");
-    $response->assertOk()->assertJsonFragment(['id' => $booking->id]);
-});
 
-test('update modifie le statut d’une réservation', function () {
-    $voyageur = User::factory()->create(); // Le voyageur
-    $trip = Trip::factory()->create(['user_id' => $voyageur->id]);
+
+
+it('met à jour une réservation (update)', function () {
+    $trip = Trip::factory()->create();
     $booking = Booking::factory()->create([
+        'user_id' => test()->expediteur->id,
         'trip_id' => $trip->id,
-        'status' => 'en_attente',
+        'status' => BookingStatusEnum::EN_ATTENTE,
     ]);
-    actingAs($voyageur); // Simule la connexion du bon user
 
-    $response = putJson("/api/v1/bookings/{$booking->id}", ['status' => 'accepte']);
+    $data = [
+        'status' => BookingStatusEnum::ANNULE->value,
+    ];
 
-    $response->assertOk()->assertJsonPath('booking.status', 'accepte');
+    $response = $this->putJson("/api/v1/bookings/{$booking->id}", $data);
+
+    $response->assertOk()
+        ->assertJsonPath('data.status', BookingStatusEnum::ANNULE->value);
 });
 
-test('on ne peut pas changer une réservation terminée', function () {
-    $voyageur = User::factory()->create();
-    $trip = Trip::factory()->create(['user_id' => $voyageur->id]);
+it('supprime une réservation (destroy)', function () {
+    $trip = Trip::factory()->create();
+
     $booking = Booking::factory()->create([
+        'user_id' => test()->expediteur->id,
         'trip_id' => $trip->id,
-        'status' => 'termine',
     ]);
 
-    actingAs($voyageur);
+    $response = $this->deleteJson("/api/v1/bookings/{$booking->id}");
 
-    $response = putJson("/api/v1/bookings/{$booking->id}", ['status' => 'annule']);
-    $response->assertStatus(403);
-});
+    $response->assertOk()
+        ->assertJson([
+            'message' => 'Réservation supprimée.',
+        ]);
 
-
-test('on ne peut pas mettre un statut invalide', function () {
-    $luggage = Luggage::factory()->create();
-    $trip = Trip::factory()->create(['user_id' => $this->user->id]);
-    $booking = Booking::factory()->create([
-        'trip_id' => $trip->id,
-
+    // ✅ Vérifie que le booking est soft-deleted
+    $this->assertSoftDeleted('bookings', [
+        'id' => $booking->id,
     ]);
-
-    $response = putJson("/api/v1/bookings/{$booking->id}", [
-        'status' => 'invalide',
-    ]);
-
-    $response->assertStatus(422);
 });
-
-
-
-test('destroy supprime une réservation', function () {
-    $booking = Booking::factory()->create(['trip_id' => $this->trip->id]);
-
-    $response = deleteJson("/api/v1/bookings/{$booking->id}");
-    $response->assertOk();
-
-    expect(Booking::find($booking->id))->toBeNull();
-});
-*/

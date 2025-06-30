@@ -31,6 +31,7 @@ class Booking extends Model
         'cancelled_at'   => 'datetime',
     ];
 
+
     /*
     |--------------------------------------------------------------------------
     | Boot : audit du statut initial

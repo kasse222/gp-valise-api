@@ -9,12 +9,14 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use App\Enums\LuggageStatusEnum;
 use App\Enums\UserRoleEnum;
+use App\Models\Trip;
 
 class LuggageSeeder extends Seeder
 {
     public function run(): void
     {
         $senders = User::where('role', UserRoleEnum::SENDER->value)->get();
+        $trips   = Trip::all();
 
         if ($senders->isEmpty()) {
             $this->command->warn('⚠ Aucun expéditeur trouvé. LuggageSeeder ignoré.');
@@ -37,6 +39,7 @@ class LuggageSeeder extends Seeder
 
                 Luggage::create([
                     'user_id'             => $sender->id,
+                    'trip_id'             => $trips->random()->id, // ✅ lien valide
                     'description'         => fake()->words(3, true),
                     'weight_kg'           => fake()->randomFloat(1, 2, 25),
                     'length_cm'           => $length,
