@@ -94,6 +94,11 @@ class Luggage extends Model
 
         return null;
     }
+    public function isDisponible(): bool
+    {
+        return $this->status === LuggageStatusEnum::EN_ATTENTE;
+    }
+
 
     /*
     |--------------------------------------------------------------------------

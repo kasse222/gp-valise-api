@@ -144,6 +144,7 @@ class Booking extends Model
 
     public function canBeUpdatedTo(BookingStatusEnum $newStatus, ?User $user = null): bool
     {
+
         $user ??= Auth::user();
 
         return match (true) {
