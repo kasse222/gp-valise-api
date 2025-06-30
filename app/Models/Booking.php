@@ -73,6 +73,10 @@ class Booking extends Model
     {
         return $this->hasMany(BookingStatusHistory::class);
     }
+    public function transaction()
+    {
+        return $this->hasOne(Transaction::class);
+    }
 
     /*
     |--------------------------------------------------------------------------

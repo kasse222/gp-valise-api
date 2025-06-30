@@ -15,7 +15,7 @@ class GetBookingDetails
         return Booking::with([
             'bookingItems.luggage',
             'trip.user',
-            'statusHistory',
+            'statusHistories',
             'transaction',
         ])
             ->findOrFail($bookingId);
