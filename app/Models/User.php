@@ -81,7 +81,10 @@ class User extends Authenticatable
     {
         return $this->role === UserRoleEnum::SENDER;
     }
-
+    public function isVoyageur(): bool
+    {
+        return $this->role === UserRoleEnum::TRAVELER;
+    }
     /**
      * Vérifie si l'utilisateur a validé son KYC.
      */

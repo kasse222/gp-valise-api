@@ -36,9 +36,7 @@ class BookingFactory extends Factory
         };
 
         return [
-            'user_id' => User::factory()->create([
-                'role' => UserRoleEnum::SENDER->value,
-            ])->id,
+            'user_id' => User::factory(),
             'trip_id'      => Trip::factory(),
             'status'       => $status,
             'comment'      => $this->faker->optional()->sentence(),

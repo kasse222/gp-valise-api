@@ -36,9 +36,18 @@ class Booking extends Model
     | Boot : audit du statut initial
     |--------------------------------------------------------------------------
     */
+    protected static bool $disableStatusAutoCreate = false;
+
+    public static function disableAutoStatusCreation(): void
+    {
+        static::$disableStatusAutoCreate = true;
+    }
     protected static function booted(): void
     {
         static::created(function (Booking $booking) {
+            if (self::$disableStatusAutoCreate) {
+                return;
+            }
             $booking->statusHistories()->create([
                 'old_status' => null,
                 'new_status' => $booking->status,
