@@ -3,12 +3,13 @@
 namespace App\Http\Requests\BookingItem;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Auth;
 
 class UpdateBookingItemRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return auth()->check(); // à spécialiser plus tard
+        return Auth::check(); // à spécialiser plus tard
     }
 
     public function rules(): array

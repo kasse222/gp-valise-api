@@ -18,11 +18,9 @@ class StoreBookingItemRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'booking_id'  => ['required', 'exists:bookings,id'],
-            'luggage_id'  => ['required', 'exists:luggages,id'],
-            'trip_id'     => ['required', 'exists:trips,id'],
             'kg_reserved' => ['required', 'numeric', 'min:0.1', 'max:100'],
             'price'       => ['nullable', 'numeric', 'min:0'], // nullable si prix auto
+            'luggage_id'  => ['required', 'exists:luggages,id'],
         ];
     }
 

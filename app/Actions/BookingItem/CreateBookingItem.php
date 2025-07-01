@@ -13,7 +13,11 @@ class CreateBookingItem
         // 1. Vérifications métier
         app(BookingItemValidator::class)->validate($booking, $data);
 
-        // 2. Création de l’item lié à la réservation
-        return $booking->bookingItems()->create($data);
+        // 2. Ajouts explicites
+        $data['booking_id'] = $booking->id;
+        $data['trip_id'] = $booking->trip_id; // 💡 fix critique ici
+
+        // 3. Création de l’item
+        return BookingItem::create($data);
     }
 }

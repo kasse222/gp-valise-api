@@ -4,15 +4,18 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Actions\BookingItem\CreateBookingItem;
 use App\Actions\BookingItem\UpdateBookingItem;
-use Illuminate\Routing\Controller;
 use App\Http\Requests\BookingItem\StoreBookingItemRequest;
 use App\Http\Requests\BookingItem\UpdateBookingItemRequest;
+use Illuminate\Routing\Controller;
+
 use App\Http\Resources\BookingItemResource;
 use App\Models\Booking;
 use App\Models\BookingItem;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class BookingItemController extends Controller
 {
+    use AuthorizesRequests;
     public function index(Booking $booking)
     {
         $this->authorize('view', $booking);
@@ -22,9 +25,9 @@ class BookingItemController extends Controller
         );
     }
 
-    public function store(StoreBookingItemRequest $request, Booking $booking)
+    public function store(Booking $booking, StoreBookingItemRequest $request)
     {
-        $this->authorize('update', $booking);
+
 
         $item = CreateBookingItem::execute($booking, $request->validated());
 
@@ -33,7 +36,7 @@ class BookingItemController extends Controller
 
     public function update(UpdateBookingItemRequest $request, BookingItem $item)
     {
-        $this->authorize('update', $item);
+
 
         $item = UpdateBookingItem::execute($item, $request->validated());
 

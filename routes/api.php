@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\LuggageController;
 use App\Http\Middleware\EnsureRole;
 use App\Enums\UserRoleEnum;
+use App\Http\Controllers\Api\V1\BookingItemController;
 
 /*
 |--------------------------------------------------------------------------
@@ -59,6 +60,16 @@ Route::middleware('auth:sanctum')->prefix('v1')->name('api.v1.')->group(function
     Route::post('/bookings/{booking}/complete', [BookingController::class, 'complete'])
         ->middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)
         ->name('bookings.complete');
+    Route::prefix('bookings/{booking}')->name('bookings.')->group(function () {
+        Route::get('items', [BookingItemController::class, 'index'])->name('items.index');
+        Route::post('items', [BookingItemController::class, 'store'])->name('items.store');
+    });
+
+    Route::prefix('booking-items')->name('booking_items.')->group(function () {
+        Route::put('{item}', [BookingItemController::class, 'update'])->name('update');
+        Route::delete('{item}', [BookingItemController::class, 'destroy'])->name('destroy');
+    });
+
 
     // 🎒 LUGGAGE
     Route::middleware(EnsureRole::class . ':' . UserRoleEnum::SENDER->value)->group(function () {

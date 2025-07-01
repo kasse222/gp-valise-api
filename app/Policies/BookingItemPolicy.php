@@ -19,7 +19,7 @@ class BookingItemPolicy
 
     public function delete(User $user, BookingItem $item): bool
     {
-        return $this->update($user, $item);
+        return $user->id === $item->booking->user_id;
     }
 
     public function before(User $user, string $ability): ?bool
