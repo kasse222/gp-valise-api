@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\LuggageController;
 use App\Http\Middleware\EnsureRole;
 use App\Enums\UserRoleEnum;
 use App\Http\Controllers\Api\V1\BookingItemController;
+use App\Http\Controllers\Api\V1\BookingStatusHistoryController;
 
 /*
 |--------------------------------------------------------------------------
@@ -68,6 +69,15 @@ Route::middleware('auth:sanctum')->prefix('v1')->name('api.v1.')->group(function
     Route::prefix('booking-items')->name('booking_items.')->group(function () {
         Route::put('{item}', [BookingItemController::class, 'update'])->name('update');
         Route::delete('{item}', [BookingItemController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('bookings/{booking}')->name('bookings.')->group(function () {
+        Route::get('items', [BookingItemController::class, 'index'])->name('items.index');
+        Route::post('items', [BookingItemController::class, 'store'])->name('items.store');
+
+        // 📜 Statuts (BookingStatusHistory)
+        Route::get('status-histories', [BookingStatusHistoryController::class, 'index'])->name('status_histories.index');
+        Route::post('status-histories', [BookingStatusHistoryController::class, 'store'])->name('status_histories.store');
     });
 
 

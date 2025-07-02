@@ -14,33 +14,42 @@ class CreateBookingStatusHistory
      * Crée un historique de statut de réservation.
      *
      * @param Booking $booking
-     * @param array{old_status: BookingStatusEnum, new_status: BookingStatusEnum, reason?: string} $data
+     * @param array{old_status: int|string|BookingStatusEnum, new_status: int|string|BookingStatusEnum, reason?: string} $data
      */
     public static function execute(Booking $booking, array $data): BookingStatusHistory
     {
-        // 1️⃣ Protection anti-doublon inutile
-        if ($booking->status === $data['new_status']) {
+        // 🔁 Cast explicite si int/string
+        $old = $data['old_status'] instanceof BookingStatusEnum
+            ? $data['old_status']
+            : BookingStatusEnum::from($data['old_status']);
+
+        $new = $data['new_status'] instanceof BookingStatusEnum
+            ? $data['new_status']
+            : BookingStatusEnum::from($data['new_status']);
+
+        // 1️⃣ Doublon inutile
+        if ($booking->status === $new) {
             throw ValidationException::withMessages([
                 'new_status' => 'Le statut est déjà défini comme tel.',
             ]);
         }
 
-        // 2️⃣ Vérifie que la transition est autorisée
-        if (! $data['old_status']->canTransitionTo($data['new_status'])) {
+        // 2️⃣ Transition interdite
+        if (! $old->canTransitionTo($new)) {
             throw ValidationException::withMessages([
-                'new_status' => "Transition non autorisée de {$data['old_status']->label()} vers {$data['new_status']->label()}",
+                'new_status' => "Transition non autorisée de {$old->label()} vers {$new->label()}",
             ]);
         }
 
-        // 3️⃣ Ajoute l’auteur si non précisé
-        $data['user_id'] ??= Auth::id();
+        // 3️⃣ Auteur auto
+        $userId = $data['user_id'] ?? Auth::id();
 
-        // 4️⃣ Enregistrement en base
+        // 4️⃣ Persistance
         return $booking->statusHistories()->create([
-            'old_status' => $data['old_status'],
-            'new_status' => $data['new_status'],
+            'old_status' => $old,
+            'new_status' => $new,
             'reason'     => $data['reason'] ?? 'Mise à jour manuelle du statut',
-            'user_id'    => $data['user_id'],
+            'user_id'    => $userId,
         ]);
     }
 }

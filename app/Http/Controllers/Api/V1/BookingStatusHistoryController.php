@@ -8,9 +8,11 @@ use App\Http\Requests\BookingStatusHistory\StoreBookingStatusHistoryRequest;
 use App\Http\Resources\BookingStatusHistoryResource;
 use App\Models\Booking;
 use App\Models\BookingStatusHistory;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class BookingStatusHistoryController extends Controller
 {
+    use AuthorizesRequests;
     public function index(Booking $booking)
     {
         $this->authorize('view', $booking);
