@@ -106,18 +106,38 @@
 
 ## 🧪 Tests automatisés
 
--   Framework : **PestPHP**
--   Testés :
-    -   Auth (register, login, logout)
-    -   Booking CRUD + transitions
-    -   Enum : `canBeCancelled`, `canBeDelivered`, `canTransitionTo`
-    -   Erreurs métiers (tentative de mise à jour illégale, statut invalide)
+-   **Framework** : PestPHP
+-   **Environnements** : SQLite en mémoire (CI) + MySQL local (optionnel)
 
-🎯 À venir :
+### ✅ Modules testés
 
--   Tests sur `Payment`, `Transaction`, `User` (changement plan, password, vérification)
+-   🔐 **Auth** : register, login, logout, /me
+-   📦 **Booking** :
+    -   CRUD (store, update, destroy, show)
+    -   Transitions métier (`confirm`, `cancel`, `complete`)
+    -   Historique de statut (`BookingStatusHistory`)
+    -   Booking Items (création, update, suppression)
+-   🎒 **Luggage** :
+    -   CRUD + Actions `CreateLuggage`, `UpdateLuggage`
+-   ⚙️ **Enums métier** :
+    -   `canBeCancelled()`, `canBeDelivered()`, `canTransitionTo()`, `label()`, `color()`
+-   🚫 **Cas d’erreur** :
+    -   Statuts invalides, tentative de modification non autorisée, accès non propriétaire
+
+### 🎯 À venir
+
+-   💸 `Payment`, `Transaction`
+-   👤 `User` (vérification email/téléphone, changement de mot de passe, upgrade de plan)
+-   🚀 `Trip` (CRUD + logique métier, dates, capacité)
+-   🧱 Tests d’intégration plus avancés (pagination, withCount, autorisations strictes)
 
 ---
+
+👉 Lancer tous les tests :
+
+````bash
+./vendor/bin/pest
+
 
 ## 🧱 Sécurité & Accès
 
@@ -182,4 +202,4 @@ make seed
 # API         → http://localhost:8000
 # Swagger     → http://localhost:8000/api/documentation
 # PhpMyAdmin  → http://localhost:8080
-```
+````
