@@ -18,7 +18,7 @@ class UserFactory extends Factory
             'first_name'      => $faker->firstName,
             'last_name'       => $faker->lastName,
             'email'           => $faker->unique()->email,
-            'password'        => bcrypt('password'), // ❗ à overrider en tests si besoin
+            'password'        => 'password', // ❗ à overrider en tests si besoin
             'role'            => $faker->randomElement(UserRoleEnum::cases())->value,
             'verified_user'   => $faker->boolean(80), // 80% des utilisateurs sont vérifiés
             'phone'           => $faker->unique()->e164PhoneNumber,
