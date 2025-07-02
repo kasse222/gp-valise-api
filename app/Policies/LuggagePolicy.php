@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\UserRoleEnum;
 use App\Models\Luggage;
 use App\Models\User;
 
@@ -14,6 +15,12 @@ class LuggagePolicy
     {
         return $user->id === $luggage->user_id || $user->isAdmin();
     }
+
+    public function create(User $user): bool
+    {
+        return $user->role === UserRoleEnum::SENDER;
+    }
+
 
     /**
      * Modifier une valise (si propriétaire)

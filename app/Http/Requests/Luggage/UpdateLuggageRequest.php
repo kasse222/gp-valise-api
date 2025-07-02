@@ -17,6 +17,7 @@ class UpdateLuggageRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'trip_id'             => ['sometimes', 'exists:trips,id'],
             'description'         => ['sometimes', 'string', 'max:1000'],
             'weight_kg'           => ['sometimes', 'numeric', 'min:0.1', 'max:100'],
             'length_cm'           => ['sometimes', 'numeric', 'min:1', 'max:200'],

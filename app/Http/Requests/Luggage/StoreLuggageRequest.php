@@ -5,18 +5,20 @@ namespace App\Http\Requests\Luggage;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use App\Enums\LuggageStatusEnum;
+use App\Models\Luggage;
 use Illuminate\Support\Facades\Auth;
 
 class StoreLuggageRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Auth::check(); // 🔐 Auth par défaut, Policy possible ensuite
+        return true;
     }
 
     public function rules(): array
     {
         return [
+            'trip_id'             => ['required', 'exists:trips,id'],
             'description'         => ['nullable', 'string', 'max:1000'],
             'weight_kg'           => ['required', 'numeric', 'min:0.1', 'max:100'],
             'length_cm'           => ['required', 'numeric', 'min:1', 'max:200'],

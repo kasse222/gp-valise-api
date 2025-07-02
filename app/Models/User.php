@@ -50,6 +50,10 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Plan::class);
     }
+    public function luggages()
+    {
+        return $this->hasMany(Luggage::class);
+    }
 
     /**
      * Vérifie si l'utilisateur est premium.
@@ -91,5 +95,25 @@ class User extends Authenticatable
     public function hasKyc(): bool
     {
         return !is_null($this->kyc_passed_at);
+    }
+    public function sender(): self
+    {
+        return $this->state([
+            'role' => UserRoleEnum::SENDER,
+        ]);
+    }
+
+    public function traveler(): self
+    {
+        return $this->state([
+            'role' => UserRoleEnum::TRAVELER,
+        ]);
+    }
+
+    public function admin(): self
+    {
+        return $this->state([
+            'role' => UserRoleEnum::ADMIN,
+        ]);
     }
 }

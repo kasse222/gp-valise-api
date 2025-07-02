@@ -10,10 +10,13 @@ use App\Http\Requests\Luggage\UpdateLuggageRequest;
 use App\Http\Resources\LuggageResource;
 use App\Models\Luggage;
 use App\Enums\LuggageStatusEnum;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 
 class LuggageController extends Controller
 {
+    use AuthorizesRequests;
+
     /**
      * 📦 Lister les valises de l'utilisateur connecté
      */

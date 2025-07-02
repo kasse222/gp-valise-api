@@ -6,6 +6,7 @@ use App\Models\BookingStatusHistory;
 use App\Models\User;
 
 use function Pest\Laravel\actingAs;
+use function Pest\Laravel\postJson;
 
 uses(
     Tests\TestCase::class,
@@ -52,24 +53,30 @@ it('crée un historique de statut pour un booking', function () {
 });
 
 it('refuse la création si l’utilisateur n’est pas le propriétaire', function () {
-    // 👤 Création de l'utilisateur propriétaire de la réservation
-    $owner = User::factory()->create();
+    // 👤 Création d’un propriétaire et d’un autre utilisateur non autorisé
+    $owner = User::factory()->traveler()->create();
+    $other = User::factory()->sender()->create();
+
+    // 📦 Réservation appartenant au propriétaire
     $booking = Booking::factory()->create(['user_id' => $owner->id]);
 
-    // 🚫 Création d’un autre utilisateur NON propriétaire
-    $intruder = User::factory()->create();
+    // 🔐 Authentification en tant qu’utilisateur non autorisé
+    actingAs($other);
 
-    // 🔐 Authentification en tant qu'intrus
-    /** @var \App\Models\User $intruder */
-    actingAs($intruder);
+    $newStatus = BookingStatusEnum::CONFIRMEE;
 
-    // 🔁 Tentative de création d’un historique de statut
-    $response = $this->postJson(route('api.v1.bookings.status_histories.store', $booking), [
-        'old_status' => BookingStatusEnum::ACCEPTE->value,
-        'new_status' => BookingStatusEnum::CONFIRMEE->value,
+    // ⚠️ On évite que le new_status soit identique pour ne pas avoir une erreur de validation
+    if ($booking->status === $newStatus) {
+        $newStatus = BookingStatusEnum::ANNULE;
+    }
+
+    // 🚫 Tentative de changement de statut non autorisée
+    $response = postJson(route('api.v1.bookings.status.store', $booking), [
+        'old_status' => $booking->status->value, // ✅ requis par le FormRequest
+        'new_status' => $newStatus->value,
         'reason'     => 'Tentative non autorisée',
     ]);
 
-    // ✅ Vérification que l’accès est refusé
+    // ✅ On vérifie bien que l’accès est refusé (403) et pas une erreur de validation (422)
     $response->assertForbidden();
 });
