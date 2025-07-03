@@ -7,6 +7,7 @@ uses(
 
 
 use App\Enums\PlanTypeEnum;
+use App\Enums\UserRoleEnum;
 use App\Models\User;
 use App\Models\Plan;
 use Illuminate\Support\Facades\Hash;
@@ -26,7 +27,11 @@ it('affiche le profil de l’utilisateur connecté', function () {
 });
 
 it('refuse l’accès au profil d’un autre utilisateur', function () {
-    $other = User::factory()->create();
+    $other = User::factory()->create(['role' => UserRoleEnum::TRAVELER]); //example traveler
+    $this->user->update(['role' => UserRoleEnum::TRAVELER]);
+
+    expect($this->user->isAdmin())->toBeFalse();
+    expect($other->isAdmin())->toBeFalse();
 
     actingAs($this->user)
         ->getJson("/api/v1/users/{$other->id}")
