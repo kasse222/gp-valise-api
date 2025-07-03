@@ -18,6 +18,8 @@ class UserFactory extends Factory
             'first_name'      => $faker->firstName,
             'last_name'       => $faker->lastName,
             'email'           => $faker->unique()->email,
+            //   'phone_verified_at' => optional(0.6)->dateTimeBetween('-6 months'),
+            //   'email_verified_at' => optional(0.6)->dateTimeBetween('-6 months'),
             'password'        => 'password', // ❗ à overrider en tests si besoin
             'role'            => $faker->randomElement(UserRoleEnum::cases())->value,
             'verified_user'   => $faker->boolean(80), // 80% des utilisateurs sont vérifiés

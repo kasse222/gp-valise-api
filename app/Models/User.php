@@ -22,6 +22,8 @@ class User extends Authenticatable
         'first_name',
         'last_name',
         'email',
+        'email_verified_at',
+        'phone_verified_at',
         'password',
         'role',
         'verified_user',
@@ -39,6 +41,7 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'kyc_passed_at'      => 'datetime',
         'plan_expires_at'    => 'datetime',
+        'phone_verified_at' => 'datetime',
         'verified_user'      => 'boolean',
         'role'               => UserRoleEnum::class,
     ];

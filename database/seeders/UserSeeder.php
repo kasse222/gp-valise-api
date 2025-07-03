@@ -31,6 +31,7 @@ class UserSeeder extends Seeder
                 'password'        => Hash::make('password'),
                 'role'            => UserRoleEnum::ADMIN->value,
                 'verified_user'   => true,
+                //      'phone_verified_at' => now()->addMonth(),
                 'plan_id'         => $defaultPlan->id,
                 'plan_expires_at' => now()->addMonth(),
             ]
@@ -41,6 +42,7 @@ class UserSeeder extends Seeder
             'email'         => 'voyageur@example.com',
             'role'          => UserRoleEnum::TRAVELER->value,
             'verified_user' => true,
+            //    'phone_verified_at' => now()->addMonth(),
             'plan_id'       => $defaultPlan->id,
         ]);
 
@@ -49,6 +51,7 @@ class UserSeeder extends Seeder
             'email'         => 'expediteur@example.com',
             'role'          => UserRoleEnum::SENDER->value,
             'verified_user' => true,
+            //   'phone_verified_at' => now()->addMonth(),
             'plan_id'       => $defaultPlan->id,
         ]);
 
@@ -61,6 +64,7 @@ class UserSeeder extends Seeder
                 ]),
                 'plan_id'       => $defaultPlan->id,
                 'verified_user' => fake()->boolean(80),
+                //    'phone_verified_at' => fake()->boolean(80) ? now()->subDays(rand(1, 30)) : null,
             ]);
         });
 

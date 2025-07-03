@@ -7,7 +7,8 @@ use App\Http\Controllers\Api\V1\{
     BookingController,
     BookingItemController,
     BookingStatusHistoryController,
-    LuggageController
+    LuggageController,
+    UserController
 };
 use App\Http\Middleware\EnsureRole;
 use App\Enums\UserRoleEnum;
@@ -27,6 +28,16 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->name('auth.login');
 });
 
+Route::prefix('v1')
+    ->middleware('auth:sanctum')
+    ->group(function () {
+        Route::get('/users/{user}', [UserController::class, 'show']);
+        Route::put('/users/{user}', [UserController::class, 'update']);
+        Route::post('/users/{user}/change-password', [UserController::class, 'changePassword']);
+        Route::post('/users/{user}/verify-phone', [UserController::class, 'verifyPhone']);
+        Route::post('/users/{user}/verify-email', [UserController::class, 'verifyEmail']);
+        Route::post('/users/{user}/upgrade-plan', [UserController::class, 'upgradePlan']);
+    });
 /*
 |--------------------------------------------------------------------------
 | 🔐 API v1 – Routes protégées (auth:sanctum obligatoire)

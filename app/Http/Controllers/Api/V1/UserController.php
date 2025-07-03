@@ -12,9 +12,13 @@ use App\Http\Requests\User\VerifyEmailRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\PlanService;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Support\Facades\Auth;
 
 class UserController extends Controller
 {
+    use AuthorizesRequests;
+
     public function show(User $user)
     {
         $this->authorize('view', $user);
@@ -46,6 +50,7 @@ class UserController extends Controller
     {
         $this->authorize('update', $user);
         VerifyUserEmail::execute($user);
+
         return response()->json(['message' => 'Email vérifié.']);
     }
 
