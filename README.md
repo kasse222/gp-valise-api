@@ -109,20 +109,84 @@
 -   **Framework** : PestPHP
 -   **Environnements** : SQLite en mémoire (CI) + MySQL local (optionnel)
 
-### ✅ Modules testés
+# ✅ Modules testés – v0.3
 
--   🔐 **Auth** : register, login, logout, /me
--   📦 **Booking** :
-    -   CRUD (store, update, destroy, show)
-    -   Transitions métier (`confirm`, `cancel`, `complete`)
-    -   Historique de statut (`BookingStatusHistory`)
-    -   Booking Items (création, update, suppression)
--   🎒 **Luggage** :
-    -   CRUD + Actions `CreateLuggage`, `UpdateLuggage`
--   ⚙️ **Enums métier** :
-    -   `canBeCancelled()`, `canBeDelivered()`, `canTransitionTo()`, `label()`, `color()`
--   🚫 **Cas d’erreur** :
-    -   Statuts invalides, tentative de modification non autorisée, accès non propriétaire
+Ce document liste l’ensemble des modules de l’API GP-Valise testés automatiquement avec PestPHP.  
+Statut : **100 % OK** – `91 tests passés / 227 assertions` – Temps total ~0.79s
+
+---
+
+## 🔐 Auth
+
+-   `register`, `login`, `logout`, `/me`
+-   🔒 Cas invalides : email existant, mot de passe incorrect, accès sans token
+
+## 👤 User
+
+-   Affichage & modification du profil
+-   Vérification email & téléphone
+-   Changement de mot de passe
+-   Upgrade de plan via `PlanService`
+-   Refus d’accès au profil d’un autre utilisateur
+
+## 📦 Booking
+
+-   CRUD complet (`index`, `store`, `show`, `update`, `destroy`)
+-   Transitions métier :
+    -   `confirm`, `cancel`, `complete`
+-   Historique de statuts :
+    -   Création + validations (rejet si transition non autorisée)
+-   Booking Items :
+    -   Création, update, suppression avec cohérence (booking/trip/luggage)
+
+## 🎒 Luggage
+
+-   CRUD : liste, création, mise à jour, suppression
+-   Accès sécurisé (policies + tests 403)
+-   Actions : `CreateLuggage`, `UpdateLuggage`
+
+## ✈️ Trip
+
+-   Liste des trajets, affichage
+-   Création, modification, suppression avec tests d’autorisation
+
+## 💼 Plan
+
+-   Accès restreint aux plans actifs
+-   Création, mise à jour, suppression (admin only)
+-   Refus d’accès aux utilisateurs non admin
+
+## 📢 Report
+
+-   Liste des reports liés à l’utilisateur connecté
+-   Création avec validation du `reason`
+-   Accès à un report propre
+-   🔒 Rejet 403 si accès à un report d’un autre utilisateur
+
+## 🧠 Enums métier
+
+-   `BookingStatusEnum`, `PaymentStatusEnum`, etc.
+-   Logique métier centralisée :
+    -   `canBeCancelled()`
+    -   `canBeDelivered()`
+    -   `canTransitionTo()`
+    -   `isFinal()`
+    -   `label()`, `color()`
+
+## 🚫 Cas d’erreur & sécurité
+
+-   Tentatives d’accès non autorisées (`403`)
+-   Statuts invalides (`422`)
+-   Réservations incohérentes (dates passées, kg dépassé, valise déjà réservée)
+-   Rejet des actions interdites par règles métiers ou policies
+
+---
+
+✅ **Couverture totale validée pour la v0.3**  
+📁 Test suite PestPHP  
+🧪 Tous les tests situés dans `tests/Feature/` et `tests/Unit/`
+
+---
 
 ### 🎯 À venir
 
