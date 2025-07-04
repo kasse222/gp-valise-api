@@ -12,9 +12,12 @@ use App\Http\Resources\PlanResource;
 use App\Models\Plan;
 use App\Models\User;
 use App\Services\PlanService;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class PlanController extends Controller
 {
+    use AuthorizesRequests;
+
     public function index()
     {
         return PlanResource::collection(Plan::where('is_active', true)->get());

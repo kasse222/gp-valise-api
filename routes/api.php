@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\{
     BookingItemController,
     BookingStatusHistoryController,
     LuggageController,
+    PlanController,
     UserController
 };
 use App\Http\Middleware\EnsureRole;
@@ -68,6 +69,20 @@ Route::middleware('auth:sanctum')->prefix('v1')->name('api.v1.')->group(function
     // 🔍 Accès libre aux détails des trips
     Route::get('/trips', [TripController::class, 'index'])->name('trips.index');
     Route::get('/trips/{trip}', [TripController::class, 'show'])->name('trips.show');
+
+
+    // 📦 Plans – Création, gestion réservée à l’admin
+    Route::get('/plans', [PlanController::class, 'index'])->name('plans.index');
+    Route::get('/plans/{plan}', [PlanController::class, 'show'])->name('plans.show');
+
+    Route::middleware(EnsureRole::class . ':' . UserRoleEnum::ADMIN->value)->group(function () {
+        Route::post('/plans', [PlanController::class, 'store'])->name('plans.store');
+        Route::put('/plans/{plan}', [PlanController::class, 'update'])->name('plans.update');
+        Route::delete('/plans/{plan}', [PlanController::class, 'destroy'])->name('plans.destroy');
+    });
+
+    // ✅ Upgrade d’abonnement (admin uniquement pour le moment)
+    Route::post('/plans/{user}/upgrade', [PlanController::class, 'upgradePlan'])->name('plans.upgrade');
 
     /*
     |--------------------------------------------------------------------------
