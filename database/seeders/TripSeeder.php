@@ -38,6 +38,8 @@ class TripSeeder extends Seeder
                 // Créer le trip de base
                 $trip = Trip::create([
                     'user_id'       => $traveler->id,
+                    'departure'     => $departureCity . ', ' . fake()->countryCode(),
+                    'destination'   => $destinationCity . ', ' . fake()->countryCode(),
                     'date'          => now()->addDays(rand(5, 60)),
                     'capacity'      => rand(10, 50),
                     'status'        => TripStatusEnum::ACTIVE->value,

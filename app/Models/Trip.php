@@ -18,6 +18,8 @@ class Trip extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'departure',
+        'destination',
         'user_id',
         'date',
         'capacity',

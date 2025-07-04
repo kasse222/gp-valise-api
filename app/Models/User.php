@@ -58,6 +58,12 @@ class User extends Authenticatable
         return $this->hasMany(Luggage::class);
     }
 
+    public function trips()
+    {
+        return $this->hasMany(Trip::class);
+    }
+
+
     /**
      * Vérifie si l'utilisateur est premium.
      */

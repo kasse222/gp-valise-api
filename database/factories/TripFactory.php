@@ -17,6 +17,8 @@ class TripFactory extends Factory
     {
         return [
             'user_id' => User::factory()->traveler(), // 💡 Laisse Laravel gérer la création
+            'departure'      => $this->faker->city() . ', ' . $this->faker->countryCode(),
+            'destination'    => $this->faker->city() . ', ' . $this->faker->countryCode(),
             'date' => $this->faker->dateTimeBetween('+1 day', '+1 month'),
             'capacity' => $this->faker->randomFloat(1, 10, 50),
             'status' => TripStatusEnum::ACTIVE->value,

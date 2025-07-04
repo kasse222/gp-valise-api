@@ -17,6 +17,9 @@ return new class extends Migration
                 ->constrained()
                 ->cascadeOnDelete();
 
+            $table->string('departure', 255);     // ✅ Ajouté
+            $table->string('destination', 255);
+
             $table->dateTime('date');
             $table->float('capacity'); // en kg
 

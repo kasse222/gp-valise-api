@@ -8,10 +8,13 @@ use App\Http\Requests\Trip\StoreTripRequest;
 use App\Http\Requests\Trip\UpdateTripRequest;
 use App\Http\Resources\TripResource;
 use App\Models\Trip;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 
 class TripController extends Controller
 {
+    use AuthorizesRequests;
+
     /**
      * 📦 Lister les trajets
      */
