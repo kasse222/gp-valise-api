@@ -9,6 +9,7 @@ use App\Models\Trip;
 use App\Models\Luggage;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
+use App\Enums\ReportReasonEnum;
 
 class ReportFactory extends Factory
 {
@@ -32,12 +33,7 @@ class ReportFactory extends Factory
             'user_id'         => User::factory(),
             'reportable_id'   => $reportable->getKey(),
             'reportable_type' => $reportableType,
-            'reason'          => $this->faker->randomElement([
-                'contenu inapproprié',
-                'arnaque suspectée',
-                'informations fausses',
-                'communication agressive',
-            ]),
+            'reason' => $this->faker->randomElement(ReportReasonEnum::cases()),
             'details'         => $this->faker->realText(150),
         ];
     }

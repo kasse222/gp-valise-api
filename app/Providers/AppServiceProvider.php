@@ -5,10 +5,12 @@ namespace App\Providers;
 use App\Models\Booking;
 use App\Models\Luggage;
 use App\Models\Plan;
+use App\Models\Report;
 use App\Models\Trip;
 use App\Models\User;
 use App\Policies\LuggagePolicy;
 use App\Policies\PlanPolicy;
+use App\Policies\ReportPolicy;
 use App\Policies\TripPolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Support\ServiceProvider;
@@ -21,6 +23,7 @@ class AppServiceProvider extends ServiceProvider
         Trip::class => TripPolicy::class,
         Luggage::class => LuggagePolicy::class,
         Plan::class  => PlanPolicy::class,
+        Report::class => ReportPolicy::class,
     ];
     /**
      * Register any application services.

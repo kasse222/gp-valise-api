@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\{
     BookingStatusHistoryController,
     LuggageController,
     PlanController,
+    ReportController,
     UserController
 };
 use App\Http\Middleware\EnsureRole;
@@ -142,6 +143,24 @@ Route::middleware('auth:sanctum')->prefix('v1')->name('api.v1.')->group(function
         Route::put('{item}', [BookingItemController::class, 'update'])->name('update');
         Route::delete('{item}', [BookingItemController::class, 'destroy'])->name('destroy');
     });
+
+    /*
+    |--------------------------------------------------------------------------
+    | 🚨 Routes REPORTS (signalements)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('reports')->name('reports.')->group(function () {
+        // 🔍 Liste des signalements de l’utilisateur
+        Route::get('/', [ReportController::class, 'index'])->name('index');
+
+        // ➕ Création d’un nouveau signalement
+        Route::post('/', [ReportController::class, 'store'])->name('store');
+
+        // 👁️ Voir un signalement spécifique (Policy appliquée)
+        Route::get('/{report}', [ReportController::class, 'show'])->name('show');
+    });
+
+
 
     /*
     |--------------------------------------------------------------------------

@@ -2,16 +2,20 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Actions\Report\CreateReport;
 use Illuminate\Routing\Controller;
 use App\Http\Requests\Report\StoreReportRequest;
 use App\Http\Resources\ReportResource;
 use App\Models\Report;
 use App\Services\ReportService;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class ReportController extends Controller
 {
+    use AuthorizesRequests;
+
     /**
      * 🗂️ Liste des signalements faits par l’utilisateur
      */
@@ -24,9 +28,11 @@ class ReportController extends Controller
     /**
      * 🔍 Voir un signalement
      */
-    public function show(Report $report)
+    public function show(Report $report): ReportResource
     {
-        $this->authorize('view', $report);
+        if (Auth::id() !== $report->user_id) {
+            abort(403, 'Access denied to this report.');
+        }
 
         return new ReportResource($report);
     }
@@ -38,6 +44,8 @@ class ReportController extends Controller
     {
         $report = $service->create($request->user(), $request->validated());
 
-        return response()->json(new ReportResource($report), 201);
+        return (new ReportResource($report->load(['user', 'reportable'])))
+            ->response()
+            ->setStatusCode(201);
     }
 }

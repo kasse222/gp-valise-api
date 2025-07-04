@@ -12,8 +12,9 @@ class ReportPolicy
      */
     public function view(User $user, Report $report): bool
     {
-        return $user->id === $report->user_id || $user->isAdmin();
+        return $report->user_id === $user->id || $user->isAdmin(); // optionnel pour admin
     }
+
 
     /**
      * Seul l’auteur peut supprimer un report.
