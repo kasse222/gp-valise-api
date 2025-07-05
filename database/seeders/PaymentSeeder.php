@@ -6,9 +6,9 @@ use App\Enums\CurrencyEnum;
 use App\Models\Payment;
 use App\Models\Booking;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Carbon;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\PaymentStatusEnum;
+use Illuminate\Support\Str;
 
 class PaymentSeeder extends Seeder
 {
@@ -27,9 +27,8 @@ class PaymentSeeder extends Seeder
                 'booking_id'        => $booking->id,
                 'amount'            => fake()->randomFloat(2, 20, 500),
                 'method'            => $method->value,
-                'currency' => CurrencyEnum::default()->value,
-                'currency'          => fake()->randomElement(CurrencyEnum::values()),
-                //  'payment_reference' => fake()->uuid(),
+                'currency' => fake()->randomElement(CurrencyEnum::values()),
+                'payment_reference' => strtoupper(Str::random(12)),
                 'paid_at'           => $status->isSuccess() ? now()->subDays(rand(0, 15)) : null,
             ]);
         }

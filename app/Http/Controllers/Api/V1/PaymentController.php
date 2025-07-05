@@ -9,10 +9,13 @@ use Illuminate\Routing\Controller;
 use App\Http\Requests\Payment\StorePaymentRequest;
 use App\Http\Requests\Payment\UpdatePaymentRequest;
 use App\Models\Payment;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 
 class PaymentController extends Controller
 {
+    use AuthorizesRequests;
+
     /**
      * 💳 Lister les paiements de l’utilisateur
      */
@@ -30,7 +33,7 @@ class PaymentController extends Controller
     {
         $payment = CreatePayment::execute($request->user(), $request->validated());
 
-        return response()->json(new PaymentResource($payment), 201);
+        return PaymentResource::make($payment)->response()->setStatusCode(201);
     }
 
     /**

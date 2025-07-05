@@ -7,9 +7,12 @@ use App\Http\Controllers\Api\V1\{
     BookingController,
     BookingItemController,
     BookingStatusHistoryController,
+    InvitationController,
     LuggageController,
+    PaymentController,
     PlanController,
     ReportController,
+    TransactionController,
     UserController
 };
 use App\Http\Middleware\EnsureRole;
@@ -137,6 +140,38 @@ Route::middleware('auth:sanctum')->prefix('v1')->name('api.v1.')->group(function
 
         Route::post('status', [BookingStatusHistoryController::class, 'store'])->name('status.store');
     });
+
+    // 💳 Paiements (accès REST standard)
+    // 📦 Paiements – CRUD RESTful
+    Route::apiResource('payments', PaymentController::class);
+
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | 💰 Transactions (liées aux paiements)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('transactions')->name('transactions.')->group(function () {
+        Route::get('/', [TransactionController::class, 'index'])->name('index');
+        Route::post('/', [TransactionController::class, 'store'])->name('store');
+        Route::get('/{transaction}', [TransactionController::class, 'show'])->name('show');
+        Route::put('/{transaction}', [TransactionController::class, 'update'])->name('update');
+        Route::delete('/{transaction}', [TransactionController::class, 'destroy'])->name('destroy');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | 📧 Invitations (parrainage, ajouts collaborateur)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('invitations')->name('invitations.')->group(function () {
+        Route::get('/', [InvitationController::class, 'index'])->name('index');
+        Route::post('/', [InvitationController::class, 'store'])->name('store'); // créer une invitation
+        Route::get('/{invitation}', [InvitationController::class, 'show'])->name('show'); // voir détail
+        Route::post('/{invitation}/accept', [InvitationController::class, 'accept'])->name('accept'); // accepter une invitation
+    });
+
 
     // ✏️ Mise à jour ou suppression directe via ID item
     Route::prefix('booking-items')->name('booking_items.')->group(function () {

@@ -16,7 +16,15 @@ class PaymentPolicy
     {
         return $user->exists;
     }
+    public function update(User $user, Payment $payment): bool
+    {
+        return $user->id === $payment->user_id;
+    }
 
+    public function delete(User $user, Payment $payment): bool
+    {
+        return $user->id === $payment->user_id;
+    }
     public function refund(User $user, Payment $payment): bool
     {
         return $user->isAdmin() || $user->id === $payment->booking?->user_id;

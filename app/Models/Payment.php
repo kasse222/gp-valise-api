@@ -20,7 +20,7 @@ class Payment extends Model
         'method',
         'status',
         'currency',
-        // 'payment_reference',
+        'payment_reference',
         'paid_at',
     ];
 

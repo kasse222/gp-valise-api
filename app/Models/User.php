@@ -68,6 +68,11 @@ class User extends Authenticatable
         return $this->hasMany(Report::class);
     }
 
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
     /**
      * Vérifie si l'utilisateur est premium.
      */

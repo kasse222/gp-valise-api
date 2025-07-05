@@ -22,7 +22,7 @@ return new class extends Migration
                 ->constrained('bookings')
                 ->onDelete('set null');
 
-            $table->decimal('amount', 10, 2);
+            $table->decimal('amount', 8, 2);
 
             $table->enum('currency', CurrencyEnum::values())->default(CurrencyEnum::EUR->value);
             $table->string('method', 50)
@@ -30,6 +30,9 @@ return new class extends Migration
 
             $table->unsignedTinyInteger('status')
                 ->default(\App\Enums\PaymentStatusEnum::EN_ATTENTE->value); // 🟢 Enum numérique
+
+            $table->uuid('payment_reference')->unique(); // ou ->nullable()->unique() selon ton besoin
+
 
             $table->timestamp('paid_at')->nullable();
 

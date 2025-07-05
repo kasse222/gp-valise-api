@@ -9,6 +9,7 @@ use App\Models\Booking;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\PaymentStatusEnum;
+use Illuminate\Support\Str;
 
 class PaymentFactory extends Factory
 {
@@ -26,7 +27,7 @@ class PaymentFactory extends Factory
             'method'            => $method->value,
             'status'            => $status->value,
             'currency' => CurrencyEnum::default()->value,
-            'payment_reference' => $this->faker->uuid(),
+            'payment_reference' => strtoupper(Str::random(12)),
             'paid_at'           => $status->isSuccess() ? $this->faker->dateTimeBetween('-2 months', 'now') : null,
         ];
     }
