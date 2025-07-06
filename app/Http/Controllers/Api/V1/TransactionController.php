@@ -2,23 +2,30 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Enums\CurrencyEnum;
-use App\Enums\PaymentMethodEnum;
-use App\Enums\TransactionStatusEnum;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
 use App\Services\TransactionService;
 use App\Http\Resources\TransactionResource;
 use App\Http\Requests\Transaction\StoreTransactionRequest;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Http\JsonResponse;
 
 class TransactionController extends Controller
 {
     use AuthorizesRequests;
+
+    protected TransactionService $transactionService;
+
+    public function __construct(TransactionService $transactionService)
+    {
+        // Active automatiquement les policies via les méthodes index/show/store/destroy...
+        $this->authorizeResource(Transaction::class, 'transaction');
+        $this->transactionService = $transactionService;
+    }
 
     /**
      * 📄 Lister les transactions de l’utilisateur connecté
@@ -36,11 +43,15 @@ class TransactionController extends Controller
     }
 
     /**
-     * 🔍 Voir les détails d’une transaction
+     * 📄 Voir une transaction (chargement sécurisé du booking)
      */
     public function show(Transaction $transaction): TransactionResource
     {
-        $this->authorize('view', $transaction);
+        $currentUser = Auth::user();
+        // Check if current user is not admin and not owner of the booking
+        if (!$currentUser->is_admin && $transaction->booking->user_id !== $currentUser->id) {
+            abort(403, 'Forbidden');  // Deny access if not authorized (sends HTTP 403)
+        }
 
         return new TransactionResource($transaction);
     }
@@ -48,41 +59,39 @@ class TransactionController extends Controller
     /**
      * ➕ Créer une nouvelle transaction
      */
-    public function store(StoreTransactionRequest $request, TransactionService $service): JsonResponse
+    public function store(StoreTransactionRequest $request): JsonResponse
     {
         $this->authorize('create', Transaction::class);
+
         if (!Auth::user()?->verified_user) {
-            abort(403, 'Votre compte n’est pas encore vérifié.');
+            abort(Response::HTTP_FORBIDDEN, 'Votre compte n’est pas encore vérifié.');
         }
 
-        $transaction = Transaction::create([
-            'user_id'     => Auth::id(),
-            'booking_id'  => $request->booking_id,
-            'amount'      => $request->amount,
-            'currency'    => CurrencyEnum::from($request->currency),
-            'method'      => PaymentMethodEnum::from($request->method),
-            'status'      => TransactionStatusEnum::from($request->status),
-        ]);
+        $transaction = $this->transactionService->create(Auth::user(), $request->validated());
 
         return (new TransactionResource($transaction))
             ->response()
-            ->setStatusCode(Response::HTTP_CREATED); // ✅ force 201 sans casser le format
+            ->setStatusCode(Response::HTTP_CREATED);
     }
-
 
     /**
      * 💸 Demander un remboursement
      */
-    public function refund(Transaction $transaction, Request $request, TransactionService $service): \Illuminate\Http\JsonResponse
+    public function refund(Request $request, Transaction $transaction)
     {
-        $this->authorize('refund', $transaction);
+        $currentUser = Auth::user();
+        if (!$currentUser->is_admin && $transaction->booking->user_id !== $currentUser->id) {
+            abort(403, 'Forbidden');  // Only owner or admin can refund
+        }
 
-        $success = $service->refund($transaction);
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:255'],
+        ]);
+
+        $this->transactionService->refund($transaction, $validated['reason']);
 
         return response()->json([
-            'message' => $success
-                ? 'Transaction remboursée avec succès.'
-                : 'Échec du remboursement.',
-        ], $success ? Response::HTTP_OK : Response::HTTP_UNPROCESSABLE_ENTITY);
+            'message' => 'Transaction remboursée avec succès.',
+        ]);
     }
 }

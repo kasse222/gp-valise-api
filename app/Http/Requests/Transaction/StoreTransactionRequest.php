@@ -7,13 +7,15 @@ use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Rule;
 use App\Enums\CurrencyEnum;
 use App\Enums\PaymentMethodEnum;
+use App\Models\Transaction;
 use Illuminate\Support\Facades\Auth;
 
 class StoreTransactionRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Auth::check(); // Peut être renforcé via middleware ou policy
+
+        return true; // ou Auth::check(), ou hasVerifiedEmail()
     }
 
     public function rules(): array

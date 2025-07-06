@@ -14,36 +14,34 @@ class TransactionResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        // dd($this->amount, gettype($this->amount));
-
         return [
-            'id'       => $this->id,
+            'id'         => $this->id,
 
             // 💰 Montant + devise
-            'amount' => is_numeric($this->amount) ? (float) $this->amount : null,
-            'currency' => [
-                'code'  => optional($this->currency)?->value,
-                'label' => optional($this->currency)?->label(),
+            'amount'     => (float) $this->amount,
+            'currency'   => [
+                'code'  => $this->currency?->value,
+                'label' => $this->currency?->label(),
             ],
 
             // 🧾 Méthode de paiement
-            'method' => [
-                'code'  => optional($this->method)?->value,
-                'label' => optional($this->method)?->label(),
+            'method'     => [
+                'code'  => $this->method?->value,
+                'label' => $this->method?->label(),
             ],
 
             // 📊 Statut enrichi
-            'status' => [
-                'code'       => optional($this->status)?->value,
-                'label'      => optional($this->status)?->label(),
-                'color'      => optional($this->status)?->color(),
-                'is_final'   => optional($this->status)?->isFinal(),
-                'is_success' => optional($this->status)?->isSuccess(),
+            'status'     => [
+                'code'       => $this->status?->value,
+                'label'      => $this->status?->label(),
+                'color'      => $this->status?->color(),
+                'is_final'   => $this->status?->isFinal(),
+                'is_success' => $this->status?->isSuccess(),
             ],
 
             // 🕓 Dates
-            'processed_at' => optional($this->processed_at)?->toDateTimeString(),
-            'created_at'   => optional($this->created_at)?->toDateTimeString(),
+            'processed_at' => $this->processed_at?->toDateTimeString(),
+            'created_at'   => $this->created_at?->toDateTimeString(),
 
             // 🔗 Relations
             'user_id'    => $this->user_id,

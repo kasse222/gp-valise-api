@@ -4,44 +4,57 @@ namespace App\Policies;
 
 use App\Models\User;
 use App\Models\Transaction;
+use Illuminate\Auth\Access\HandlesAuthorization;
 
 class TransactionPolicy
 {
+    use HandlesAuthorization;
     /**
-     * Autorise un utilisateur à voir ses propres transactions.
+     * ✅ Override global pour les admins
      */
-    public function view(User $user, Transaction $transaction): bool
+    public function before(User $user): bool|null
     {
-        return $user->id === $transaction->user_id;
-    }
-    public function viewAny(User $user): bool
-    {
-        return true; // ou une logique plus permissive : $user->isClient() || $user->isVoyageur()
+        return $user->isAdmin() ? true : null;
     }
 
     /**
-     * Autorise la création si l'utilisateur est vérifié.
+     * 🔍 Autorise la vue d’une transaction uniquement si elle appartient à l’utilisateur.
+     */
+    public function view(User $user, Transaction $transaction): bool
+    {
+        // Chargement défensif
+        $booking = $transaction->relationLoaded('booking')
+            ? $transaction->booking
+            : $transaction->load('booking')->booking;
+
+        return $user->is_admin || $transaction->booking->user_id === $user->id;
+    }
+
+    /**
+     * 📄 Autorise la vue de la liste (toutes les transactions de l'utilisateur connecté).
+     */
+    public function viewAny(User $user): bool
+    {
+        return true;
+    }
+
+    /**
+     * ➕ Autorise la création de transaction si utilisateur vérifié.
      */
     public function create(User $user): bool
     {
         return $user->verified_user === true;
     }
 
-
     /**
-     * Autorise le remboursement si remboursable et si propriétaire ou admin.
+     * 💸 Autorise le remboursement si transaction liée à un booking appartenant à l’utilisateur.
      */
     public function refund(User $user, Transaction $transaction): bool
     {
-        return ($user->isAdmin() || $user->id === $transaction->user_id)
-            && $transaction->canBeRefunded();
-    }
+        $booking = $transaction->relationLoaded('booking')
+            ? $transaction->booking
+            : $transaction->load('booking')->booking;
 
-    /**
-     * Accès global pour les admins.
-     */
-    public function before(User $user, string $ability): ?bool
-    {
-        return $user->isAdmin() ? true : null;
+        return $user->is_admin || $transaction->booking->user_id === $user->id;
     }
 }
