@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use App\Enums\CurrencyEnum;
-use App\Enums\TransactionStatusEnum;
 use App\Enums\PaymentMethodEnum;
+use App\Enums\TransactionStatusEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,17 +18,17 @@ class Transaction extends Model
         'booking_id',
         'amount',
         'currency',
-        'status',        // ✅ Enum TransactionStatusEnum
-        'method',        // ✅ Enum PaymentMethodEnum
+        'status',         // ✅ TransactionStatusEnum
+        'method',         // ✅ PaymentMethodEnum
         'processed_at',
     ];
 
     protected $casts = [
-        'amount'       => 'float',
-        'currency' => CurrencyEnum::class,
-        'processed_at' => 'datetime',
-        'status'       => TransactionStatusEnum::class,
-        'method'       => PaymentMethodEnum::class,
+        'amount'        => 'float',
+        'currency'      => CurrencyEnum::class,
+        'status'        => TransactionStatusEnum::class,
+        'method'        => PaymentMethodEnum::class,
+        'processed_at'  => 'datetime',
     ];
 
     /*
@@ -36,7 +36,6 @@ class Transaction extends Model
     | Relations
     |--------------------------------------------------------------------------
     */
-
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -73,8 +72,28 @@ class Transaction extends Model
         return $this->status === TransactionStatusEnum::FAILED;
     }
 
+    public function isRefunded(): bool
+    {
+        return $this->status === TransactionStatusEnum::REFUNDED;
+    }
+
+    public function isCancelable(): bool
+    {
+        return $this->status->isCancelable();
+    }
+
+    public function canBeRefunded(): bool
+    {
+        return $this->status->canBeRefunded();
+    }
+
     public function label(): string
     {
         return "{$this->method->label()} - {$this->amount} {$this->currency}";
+    }
+
+    public function badge(): array
+    {
+        return $this->status->badge();
     }
 }

@@ -70,12 +70,40 @@ enum TransactionStatusEnum: string
                 self::FAILED,
                 self::REFUNDED,
             ],
-            self::COMPLETED => [],
+            self::COMPLETED => [
+                self::REFUNDED,
+            ],
             self::FAILED => [],
             self::REFUNDED => [],
             self::CANCELLED => [],
         ];
 
         return in_array($to, $transitions[$this] ?? [], true);
+    }
+
+    /**
+     * ✅ Peut-on rembourser cette transaction ?
+     */
+    public function canBeRefunded(): bool
+    {
+        return in_array($this, [
+            self::PROCESSING,
+            self::COMPLETED,
+        ], true);
+    }
+
+    /**
+     * ✅ Peut-on encore annuler cette transaction ?
+     */
+    public function isCancelable(): bool
+    {
+        return in_array($this, [
+            self::PENDING,
+            self::PROCESSING,
+        ], true);
+    }
+    public function isSuccess(): bool
+    {
+        return $this === self::COMPLETED || $this === self::REFUNDED;
     }
 }

@@ -13,6 +13,6 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        //
+        // ❌ Ne plus appeler $this->registerPolicies();
     }
 }

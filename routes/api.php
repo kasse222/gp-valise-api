@@ -158,7 +158,13 @@ Route::middleware('auth:sanctum')->prefix('v1')->name('api.v1.')->group(function
         Route::get('/{transaction}', [TransactionController::class, 'show'])->name('show');
         Route::put('/{transaction}', [TransactionController::class, 'update'])->name('update');
         Route::delete('/{transaction}', [TransactionController::class, 'destroy'])->name('destroy');
+
+        // ✅ Route de remboursement sécurisé (auth + verified_user)
+        Route::post('/{transaction}/refund', [TransactionController::class, 'refund'])
+            ->middleware('verified') // Middleware à ajouter (voir ci-dessous)
+            ->name('refund');
     });
+
 
     /*
     |--------------------------------------------------------------------------

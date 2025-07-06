@@ -26,7 +26,7 @@ return new class extends Migration
                 ->nullOnDelete();
 
             // 💰 Montant + devise
-            $table->decimal('amount', 10, 2);
+            $table->float('amount');
             $table->string('currency', 10)
                 ->default(CurrencyEnum::EUR->value);
 

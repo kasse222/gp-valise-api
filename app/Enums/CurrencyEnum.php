@@ -20,6 +20,17 @@ enum CurrencyEnum: string
             self::MAD => 'DH',
         };
     }
+    public function label(): string
+    {
+        return match ($this) {
+            self::EUR => 'Euro',
+            self::USD => 'Dollar US',
+            self::XOF => 'Franc CFA',
+            self::GBP => 'Livre sterling',
+            self::MAD => 'Dirham marocain',
+        };
+    }
+
 
     public static function default(): self
     {

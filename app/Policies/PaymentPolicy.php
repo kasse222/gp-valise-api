@@ -7,6 +7,11 @@ use App\Models\User;
 
 class PaymentPolicy
 {
+    public function viewAny(User $user): bool
+    {
+        return true; // ou une logique : return $user->isAdmin();
+    }
+
     public function view(User $user, Payment $payment): bool
     {
         return $user->id === $payment->user_id;

@@ -7,31 +7,36 @@ use App\Enums\PaymentMethodEnum;
 use App\Enums\PaymentStatusEnum;
 use App\Enums\CurrencyEnum;
 use function Pest\Laravel\actingAs;
+use function Pest\Laravel\deleteJson;
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\patchJson;
+use function Pest\Laravel\postJson;
 
 uses(
     Tests\TestCase::class,
     Illuminate\Foundation\Testing\RefreshDatabase::class
 );
 
-// ✅ it liste les paiements de l’utilisateur
+// 🧱 Initialisation stable : utilisateur sender non admin
+beforeEach(function () {
+    $this->user = User::factory()->sender()->create();
+    actingAs($this->user);
+});
+
+// ✅ Liste ses propres paiements
 it('liste les paiements de l’utilisateur connecté', function () {
-    /** @var \App\Models\User $user */
-    $user = User::factory()->create();
-    Payment::factory()->count(3)->for($user)->create();
+    Payment::factory()->count(3)->for($this->user)->create();
     Payment::factory()->count(2)->create(); // autres utilisateurs
 
-    $response = actingAs($user)->getJson('/api/v1/payments');
+    $response = getJson('/api/v1/payments');
 
     $response->assertOk()
         ->assertJsonCount(3, 'data');
 });
 
-// ✅ it crée un paiement valide
+// ✅ Création d’un paiement valide
 it('crée un paiement avec des données valides', function () {
-    /** @var \App\Models\User $user */
-
-    $user = User::factory()->create();
-    $booking = Booking::factory()->for($user)->create();
+    $booking = Booking::factory()->for($this->user)->create();
 
     $payload = [
         'booking_id' => $booking->id,
@@ -41,29 +46,23 @@ it('crée un paiement avec des données valides', function () {
         'paid_at'    => now()->toDateTimeString(),
     ];
 
-    $response = actingAs($user)->postJson('/api/v1/payments', $payload);
+    $response = postJson('/api/v1/payments', $payload);
 
     $response->assertCreated()
         ->assertJsonPath('data.amount', 125.5)
         ->assertJsonPath('data.method', 'carte')
         ->assertJsonPath('data.currency', 'EUR')
         ->assertJsonPath('data.booking_id', $booking->id)
-        ->assertJsonPath('data.user_id', $user->id)
+        ->assertJsonPath('data.user_id', $this->user->id)
         ->assertJsonPath('data.status', PaymentStatusEnum::EN_ATTENTE->value);
 });
 
-
-
-// ❌ données invalides
+// ❌ Données invalides rejetées
 it('rejette la création si les données sont invalides', function () {
-    /** @var \App\Models\User $user */
-    $user = User::factory()->create();
-
-    $response = actingAs($user)->postJson('/api/v1/payments', [
+    $response = postJson('/api/v1/payments', [
         'booking_id' => 999,
         'amount'     => -20,
         'method'     => 'bitcoin',
-        //   'status'     => 999,
         'currency'   => 'btc',
     ]);
 
@@ -71,36 +70,35 @@ it('rejette la création si les données sont invalides', function () {
         ->assertJsonValidationErrors(['booking_id', 'amount', 'method', 'currency']);
 });
 
-// ✅ show autorisé
+// ✅ Lecture d’un paiement personnel
 it('affiche un paiement appartenant à l’utilisateur', function () {
-    /** @var \App\Models\User $user */
-    $user = User::factory()->create();
-    $payment = Payment::factory()->for($user)->create();
+    $payment = Payment::factory()->for($this->user)->create();
 
-    $response = actingAs($user)->getJson("/api/v1/payments/{$payment->id}");
+    $response = getJson("/api/v1/payments/{$payment->id}");
 
     $response->assertOk()
         ->assertJsonPath('data.id', $payment->id);
 });
 
-// ❌ show interdit
+// ❌ Lecture refusée à un autre utilisateur
 it('rejette l’accès à un paiement appartenant à un autre utilisateur', function () {
-    $payment = Payment::factory()->create();
-    /** @var \App\Models\User $user */
-    $user = User::factory()->create();
+    $owner = User::factory()->sender()->create();
+    $payment = Payment::factory()->for($owner)->create();
 
-    $response = actingAs($user)->getJson("/api/v1/payments/{$payment->id}");
+    $otherUser = User::factory()->sender()->create();
+    expect($otherUser->id)->not()->toBe($owner->id);
+
+    actingAs($otherUser);
+    $response = getJson("/api/v1/payments/{$payment->id}");
 
     $response->assertForbidden();
 });
 
-// ✅ update autorisé
+// ✅ Modification autorisée
 it('modifie un paiement si autorisé', function () {
-    /** @var \App\Models\User $user */
-    $user = User::factory()->create();
-    $payment = Payment::factory()->for($user)->create();
+    $payment = Payment::factory()->for($this->user)->create();
 
-    $response = actingAs($user)->patchJson("/api/v1/payments/{$payment->id}", [
+    $response = patchJson("/api/v1/payments/{$payment->id}", [
         'status' => PaymentStatusEnum::SUCCES->value,
         'method' => PaymentMethodEnum::VIREMENT->value,
     ]);
@@ -110,38 +108,39 @@ it('modifie un paiement si autorisé', function () {
         ->assertJsonPath('data.method', 'virement');
 });
 
-// ❌ update interdit
+// ❌ Modification interdite à un autre utilisateur
 it('rejette la modification par un autre utilisateur', function () {
-    $payment = Payment::factory()->create();
-    /** @var \App\Models\User $user */
-    $user = User::factory()->create();
+    $owner = User::factory()->sender()->create();
+    $payment = Payment::factory()->for($owner)->create();
 
-    $response = actingAs($user)->patchJson("/api/v1/payments/{$payment->id}", [
+    $otherUser = User::factory()->sender()->create();
+    actingAs($otherUser);
+
+    $response = patchJson("/api/v1/payments/{$payment->id}", [
         'status' => PaymentStatusEnum::ECHEC->value,
     ]);
 
     $response->assertForbidden();
 });
 
-// ✅ delete autorisé
+// ✅ Suppression autorisée
 it('supprime un paiement appartenant à l’utilisateur', function () {
-    /** @var \App\Models\User $user */
-    $user = User::factory()->create();
-    $payment = Payment::factory()->for($user)->create();
+    $payment = Payment::factory()->for($this->user)->create();
 
-    $response = actingAs($user)->deleteJson("/api/v1/payments/{$payment->id}");
+    $response = deleteJson("/api/v1/payments/{$payment->id}");
 
     $response->assertOk()
         ->assertJson(['message' => 'Paiement supprimé.']);
 });
 
-// ❌ delete interdit
+// ❌ Suppression interdite
 it('rejette la suppression par un utilisateur non autorisé', function () {
     $payment = Payment::factory()->create();
-    /** @var \App\Models\User $user */
-    $user = User::factory()->create();
 
-    $response = actingAs($user)->deleteJson("/api/v1/payments/{$payment->id}");
+    $otherUser = User::factory()->sender()->create();
+    actingAs($otherUser);
+
+    $response = deleteJson("/api/v1/payments/{$payment->id}");
 
     $response->assertForbidden();
 });
