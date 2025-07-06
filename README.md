@@ -109,10 +109,10 @@
 -   **Framework** : PestPHP
 -   **Environnements** : SQLite en mémoire (CI) + MySQL local (optionnel)
 
-# ✅ Modules testés – v0.3
+# ✅ Modules testés – v0.3 stable
 
-Ce document liste l’ensemble des modules de l’API GP-Valise testés automatiquement avec PestPHP.  
-Statut : **100 % OK** – `91 tests passés / 227 assertions` – Temps total ~0.79s
+Statut : **100 % OK** – `109 tests passés / 269 assertions` – Temps total ~0.88s  
+📁 Tous les tests situés dans `tests/Feature/` et `tests/Unit/`
 
 ---
 
@@ -163,6 +163,20 @@ Statut : **100 % OK** – `91 tests passés / 227 assertions` – Temps total ~0
 -   Accès à un report propre
 -   🔒 Rejet 403 si accès à un report d’un autre utilisateur
 
+## 💸 Payment
+
+-   Liste des paiements de l’utilisateur
+-   Création, modification, suppression si autorisé
+-   🔒 Cas d’erreur : accès interdit à un paiement tiers
+
+## 💰 Transaction
+
+-   Liste filtrée des transactions de l’utilisateur
+-   Affichage d’une transaction sécurisée par `Booking.user_id`
+-   Création avec cohérence `user_id` / `booking_id`
+-   Autorisation conditionnée par `TransactionPolicy::view`
+-   🔒 Tests edge : lien incohérent, accès refusé
+
 ## 🧠 Enums métier
 
 -   `BookingStatusEnum`, `PaymentStatusEnum`, etc.
@@ -183,21 +197,24 @@ Statut : **100 % OK** – `91 tests passés / 227 assertions` – Temps total ~0
 ---
 
 ✅ **Couverture totale validée pour la v0.3**  
-📁 Test suite PestPHP  
-🧪 Tous les tests situés dans `tests/Feature/` et `tests/Unit/`
+🧪 Tests automatisés PestPHP ✔️ CI-ready
 
 ---
 
-### 🎯 À venir
+### 🎯 À venir (v0.4)
 
--   💸 `Payment`, `Transaction`
--   👤 `User` (vérification email/téléphone, changement de mot de passe, upgrade de plan)
--   🚀 `Trip` (CRUD + logique métier, dates, capacité)
--   🧱 Tests d’intégration plus avancés (pagination, withCount, autorisations strictes)
+-   🎫 `Invitation` : création, acceptation, usage unique, token expiration
+-   📍 `Location` : affichage, création, sécurisation accès
+-   📈 Tests d’intégration avancés : pagination, filtres, withCount
+-   🔐 Tests OWASP : endpoints protégés, injection, faille auth
 
 ---
 
-👉 Lancer tous les tests :
+### ▶️ Lancer les tests
+
+`````bash
+./vendor/bin/pest
+
 
 ````bash
 ./vendor/bin/pest
@@ -266,4 +283,4 @@ make seed
 # API         → http://localhost:8000
 # Swagger     → http://localhost:8000/api/documentation
 # PhpMyAdmin  → http://localhost:8080
-````
+`````
