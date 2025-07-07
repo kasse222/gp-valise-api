@@ -104,121 +104,65 @@
 
 ---
 
-## 🧪 Tests automatisés
+## 🧪 Tests automatisés (PestPHP)
 
--   **Framework** : PestPHP
--   **Environnements** : SQLite en mémoire (CI) + MySQL local (optionnel)
+-   **Environnement :** SQLite en mémoire (CI), MySQL local optionnel
+-   **Statut actuel :**
 
-# ✅ Modules testés – v0.3 stable
-
-Statut : **100 % OK** – `109 tests passés / 269 assertions` – Temps total ~0.88s  
-📁 Tous les tests situés dans `tests/Feature/` et `tests/Unit/`
+    -   **109 tests réussis / 269 assertions**
+    -   Temps total : **\~0.88s**
 
 ---
 
-## 🔐 Auth
+## 📌 Modules validés – v0.3 stable (100 % ✅)
 
--   `register`, `login`, `logout`, `/me`
--   🔒 Cas invalides : email existant, mot de passe incorrect, accès sans token
-
-## 👤 User
-
--   Affichage & modification du profil
--   Vérification email & téléphone
--   Changement de mot de passe
--   Upgrade de plan via `PlanService`
--   Refus d’accès au profil d’un autre utilisateur
-
-## 📦 Booking
-
--   CRUD complet (`index`, `store`, `show`, `update`, `destroy`)
--   Transitions métier :
-    -   `confirm`, `cancel`, `complete`
--   Historique de statuts :
-    -   Création + validations (rejet si transition non autorisée)
--   Booking Items :
-    -   Création, update, suppression avec cohérence (booking/trip/luggage)
-
-## 🎒 Luggage
-
--   CRUD : liste, création, mise à jour, suppression
--   Accès sécurisé (policies + tests 403)
--   Actions : `CreateLuggage`, `UpdateLuggage`
-
-## ✈️ Trip
-
--   Liste des trajets, affichage
--   Création, modification, suppression avec tests d’autorisation
-
-## 💼 Plan
-
--   Accès restreint aux plans actifs
--   Création, mise à jour, suppression (admin only)
--   Refus d’accès aux utilisateurs non admin
-
-## 📢 Report
-
--   Liste des reports liés à l’utilisateur connecté
--   Création avec validation du `reason`
--   Accès à un report propre
--   🔒 Rejet 403 si accès à un report d’un autre utilisateur
-
-## 💸 Payment
-
--   Liste des paiements de l’utilisateur
--   Création, modification, suppression si autorisé
--   🔒 Cas d’erreur : accès interdit à un paiement tiers
-
-## 💰 Transaction
-
--   Liste filtrée des transactions de l’utilisateur
--   Affichage d’une transaction sécurisée par `Booking.user_id`
--   Création avec cohérence `user_id` / `booking_id`
--   Autorisation conditionnée par `TransactionPolicy::view`
--   🔒 Tests edge : lien incohérent, accès refusé
-
-## 🧠 Enums métier
-
--   `BookingStatusEnum`, `PaymentStatusEnum`, etc.
--   Logique métier centralisée :
-    -   `canBeCancelled()`
-    -   `canBeDelivered()`
-    -   `canTransitionTo()`
-    -   `isFinal()`
-    -   `label()`, `color()`
-
-## 🚫 Cas d’erreur & sécurité
-
--   Tentatives d’accès non autorisées (`403`)
--   Statuts invalides (`422`)
--   Réservations incohérentes (dates passées, kg dépassé, valise déjà réservée)
--   Rejet des actions interdites par règles métiers ou policies
+| Module              | Couverture fonctionnelle                      | Cas spécifiques testés                                     |
+| ------------------- | --------------------------------------------- | ---------------------------------------------------------- |
+| 🔐 **Auth**         | Register, login, logout, /me                  | Accès non authentifié, validation inputs                   |
+| 👤 **User**         | CRUD profil, sécurité                         | Vérification email/téléphone, changement mdp, accès profil |
+| 📦 **Booking**      | CRUD, transitions (confirm, cancel, complete) | Transitions invalides, historique des statuts              |
+| 🎒 **Luggage**      | CRUD complet                                  | Politiques sécurité (403), accès par utilisateur           |
+| ✈️ **Trip**         | CRUD complet                                  | Autorisation d'accès, validations métier                   |
+| 💼 **Plan**         | CRUD Admin-only                               | Accès restreint, plans actifs                              |
+| 📢 **Report**       | CRUD propre utilisateur                       | Sécurisation accès (403), validation raison                |
+| 💸 **Payment**      | CRUD utilisateur connecté                     | Rejets accès interdits (403)                               |
+| 💰 **Transaction**  | CRUD sécurisé                                 | Validations cohérence, lien user/booking                   |
+| 🧠 **Enums Métier** | Centralisés avec logique métier               | Transitions, états finaux, labels, couleurs                |
 
 ---
 
-✅ **Couverture totale validée pour la v0.3**  
-🧪 Tests automatisés PestPHP ✔️ CI-ready
+## 🔥 Sécurité & validation (OWASP & métier)
+
+-   Tests poussés sur autorisations (403 Forbidden).
+-   Validation métier précise des cas limites (422 Unprocessable Entity).
 
 ---
 
-### 🎯 À venir (v0.4)
+## 🎯 Prochaines étapes identifiées – (v0.4)
 
--   🎫 `Invitation` : création, acceptation, usage unique, token expiration
--   📍 `Location` : affichage, création, sécurisation accès
--   📈 Tests d’intégration avancés : pagination, filtres, withCount
--   🔐 Tests OWASP : endpoints protégés, injection, faille auth
+### 🔖 1. **Invitation** (`Invitation`)
+
+-   Gestion cycle de vie : création, acceptation, token usage unique/expiration.
+
+### 🔖 2. **Location** (`Location`)
+
+-   CRUD sécurisé, accès restreint, contrôles spécifiques.
+
+### 🔖 3. **Tests d'intégration avancés**
+
+-   Pagination, filtres, optimisation SQL (`withCount`, eager loading).
+
+### 🔖 4. **Tests OWASP sécurité avancés**
+
+-   Injection SQL/XSS, rate limiting, endpoints protégés.
 
 ---
 
-### ▶️ Lancer les tests
+## 💻 Commande de lancement des tests (pour rappel rapide) :
 
-`````bash
+```bash
 ./vendor/bin/pest
-
-
-````bash
-./vendor/bin/pest
-
+```
 
 ## 🧱 Sécurité & Accès
 
@@ -283,4 +227,4 @@ make seed
 # API         → http://localhost:8000
 # Swagger     → http://localhost:8000/api/documentation
 # PhpMyAdmin  → http://localhost:8080
-`````
+```
