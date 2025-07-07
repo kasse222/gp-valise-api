@@ -16,6 +16,7 @@ class Invitation extends Model
 
     protected $fillable = [
         'sender_id',         // L’utilisateur qui invite
+        'recipient_id',      // L’utilisateur invité (si déjà inscrit)
         'recipient_email',   // Email de l’invité
         'token',             // Jeton d’invitation unique
         'used_at',           // Date d’utilisation
@@ -31,6 +32,8 @@ class Invitation extends Model
 
     ];
 
+
+
     /*
     |--------------------------------------------------------------------------
     | Relations
@@ -41,6 +44,12 @@ class Invitation extends Model
     {
         return $this->belongsTo(User::class, 'sender_id');
     }
+
+    public function recipient(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'recipient_id');
+    }
+
 
     /*
     |--------------------------------------------------------------------------

@@ -76,6 +76,11 @@ class User extends Authenticatable
     {
         return $this->hasMany(Transaction::class);
     }
+    public function sentInvitations(): HasMany
+    {
+        return $this->hasMany(Invitation::class, 'sender_id');
+    }
+
     /**
      * Vérifie si l'utilisateur est premium.
      */
@@ -136,5 +141,12 @@ class User extends Authenticatable
         return $this->state([
             'role' => UserRoleEnum::ADMIN,
         ]);
+    }
+    /**
+     * Vérifie si l’utilisateur est globalement vérifié (utilisé pour les invitations).
+     */
+    public function isVerified(): bool
+    {
+        return (bool) $this->verified_user;
     }
 }

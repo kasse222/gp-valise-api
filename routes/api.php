@@ -171,11 +171,13 @@ Route::middleware('auth:sanctum')->prefix('v1')->name('api.v1.')->group(function
     |--------------------------------------------------------------------------
     */
     Route::prefix('invitations')->name('invitations.')->group(function () {
-        Route::get('/', [InvitationController::class, 'index'])->name('index');
-        Route::post('/', [InvitationController::class, 'store'])->name('store'); // créer une invitation
-        Route::get('/{invitation}', [InvitationController::class, 'show'])->name('show'); // voir détail
-        Route::post('/{invitation}/accept', [InvitationController::class, 'accept'])->name('accept'); // accepter une invitation
+        Route::get('/', [InvitationController::class, 'index'])->name('index'); // Liste des invitations envoyées
+        Route::post('/', [InvitationController::class, 'store'])->name('store'); // Envoi d'une invitation
+        Route::post('/accept', [InvitationController::class, 'accept'])->name('accept-by-token');
+        Route::get('/{invitation}', [InvitationController::class, 'show'])->name('show'); // Affichage d'une invitation
+        Route::delete('/{invitation}', [InvitationController::class, 'destroy'])->name('destroy'); // Suppression
     });
+
 
 
     // ✏️ Mise à jour ou suppression directe via ID item

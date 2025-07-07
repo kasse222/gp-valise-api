@@ -17,6 +17,7 @@ class InvitationFactory extends Factory
     {
         return [
             'sender_id'       => User::factory()->sender(),
+            'recipient_id'    => User::factory()->expeditor(), // 💡 Ajouter recipient_id proprement
             'recipient_email' => $this->faker->unique()->safeEmail(),
             'token'           => Str::uuid(),
             'used_at'         => null,

@@ -7,32 +7,40 @@ use Illuminate\Support\Facades\Auth;
 
 class UpdateInvitationRequest extends FormRequest
 {
+    /**
+     * 🔐 Seul l’expéditeur ou un admin peut modifier une invitation
+     */
     public function authorize(): bool
     {
-        /** @var \App\Models\User $user */
         $user = Auth::user();
         $invitation = $this->route('invitation');
 
         return $user && $invitation && (
-            $user->isAdmin() || $invitation->sender_id === $user->id
+            $user->is_admin || $user->id === $invitation->sender_id
         );
     }
 
+    /**
+     * ✅ Règles de validation des champs partiellement modifiables
+     */
     public function rules(): array
     {
         return [
-            'recipient_email' => ['sometimes', 'email', 'max:255'],
-            'token'           => ['sometimes', 'string', 'max:255'],
+            'recipient_email' => ['sometimes', 'email:rfc,dns', 'max:255'],
+            'token'           => ['sometimes', 'uuid'],
             'used_at'         => ['nullable', 'date'],
         ];
     }
 
+    /**
+     * 🧾 Messages d’erreur personnalisés
+     */
     public function messages(): array
     {
         return [
-            'recipient_email.email' => 'L’email fourni n’est pas valide.',
-            'token.string'          => 'Le token doit être une chaîne de caractères.',
-            'used_at.date'          => 'La date d’utilisation est invalide.',
+            'recipient_email.email' => 'L’adresse email du destinataire est invalide.',
+            'token.uuid'            => 'Le format du token doit être un UUID valide.',
+            'used_at.date'          => 'La date d’utilisation doit être une date valide.',
         ];
     }
 }

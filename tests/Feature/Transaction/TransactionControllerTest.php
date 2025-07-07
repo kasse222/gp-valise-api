@@ -87,6 +87,7 @@ it('rejette la création si les données sont invalides', function () {
 });
 
 it('rejette la création si l’utilisateur n’est pas vérifié', function () {
+    /** @var \App\Models\User $unverifiedUser */
     $unverifiedUser = User::factory()->create(['verified_user' => false]);
     $booking = Booking::factory()->for($unverifiedUser)->create();
 

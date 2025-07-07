@@ -2,64 +2,97 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Models\Invitation;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Routing\Controller;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
 use App\Actions\Invitation\AcceptInvitation;
 use App\Actions\Invitation\SendInvitation;
-use Illuminate\Routing\Controller;
+use App\Http\Resources\InvitationResource;
 use App\Http\Requests\Invitation\StoreInvitationRequest;
 use App\Http\Requests\Invitation\AcceptInvitationRequest;
-use App\Http\Resources\InvitationResource;
-use App\Models\Invitation;
-use App\Models\User;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
 
 class InvitationController extends Controller
 {
+    use AuthorizesRequests;
+
     /**
-     * 🔍 Liste les invitations envoyées par l'utilisateur
+     * 🔍 Liste les invitations envoyées par l’utilisateur connecté
      */
     public function index(Request $request)
     {
-        $invitations = $request->user()->sentInvitations()->latest()->get();
+        $invitations = $request->user()
+            ->sentInvitations()
+            ->latest()
+            ->get();
 
         return InvitationResource::collection($invitations);
     }
 
     /**
-     * ✉️ Envoie une nouvelle invitation
+     * ✉️ Crée une nouvelle invitation
      */
-    public function store(StoreInvitationRequest $request)
+    public function store(StoreInvitationRequest $request): JsonResponse
     {
         $this->authorize('create', Invitation::class);
 
-        $invitation = SendInvitation::execute($request->user(), $request->validated('recipient_email'));
+        $invitation = SendInvitation::execute(
+            sender: $request->user(),
+            recipientEmail: $request->validated('recipient_email'),
+            message: $request->input('message')
+        );
 
-        return (new InvitationResource($invitation))->response()->setStatusCode(201);
+        return (new InvitationResource($invitation))
+            ->withCanSeeToken()
+            ->response()
+            ->setStatusCode(201);
     }
+
     /**
-     * ✅ Accepter une invitation (via token)
+     * 🔎 Affiche les détails d’une invitation
      */
-    public function accept(AcceptInvitationRequest $request)
+    public function show(Invitation $invitation): InvitationResource
     {
-        $invitation = AcceptInvitation::execute($request->validated('token'));
+        $this->authorize('view', $invitation);
 
-        return response()->json(['message' => 'Invitation acceptée.']);
+        return (new InvitationResource($invitation))
+            ->withCanSeeToken(); // 🧠 Peut être optionnel selon rôle
     }
 
     /**
-     * 🗑 Supprimer une invitation (avant usage)
+     * ✅ Accepte une invitation via token (user non connecté)
      */
-    public function destroy(Invitation $invitation)
+    public function accept(AcceptInvitationRequest $request): JsonResponse
+    {
+        $invitation = AcceptInvitation::execute(
+            $request->validated('token')
+        );
+
+        return response()->json([
+            'message' => 'Invitation acceptée.',
+            'invitation' => new InvitationResource($invitation),
+        ]);
+    }
+
+    /**
+     * 🗑 Supprime une invitation (si non utilisée)
+     */
+    public function destroy(Invitation $invitation): JsonResponse
     {
         $this->authorize('delete', $invitation);
 
         if ($invitation->isUsed()) {
-            return response()->json(['message' => 'Impossible de supprimer une invitation utilisée.'], 400);
+            return response()->json([
+                'message' => 'Impossible de supprimer une invitation déjà utilisée.',
+            ], 400);
         }
 
         $invitation->delete();
 
-        return response()->json(['message' => 'Invitation supprimée.']);
+        return response()->json([
+            'message' => 'Invitation supprimée avec succès.',
+        ]);
     }
 }

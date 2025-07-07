@@ -16,9 +16,19 @@ enum InvitationStatusEnum: int
     public function label(): string
     {
         return match ($this) {
-            self::PENDING => 'En attente',
-            self::USED    => 'Utilisée',
-            self::EXPIRED => 'Expirée',
+            self::PENDING  => 'En attente',
+            self::USED => 'Acceptée',
+            self::EXPIRED => 'Rejetée',
+            default        => 'Inconnue',
+        };
+    }
+    public function color(): string
+    {
+        return match ($this) {
+            self::PENDING    => 'yellow',
+            self::USED   => 'green',
+            self::EXPIRED   => 'red',
+            default          => 'gray',
         };
     }
 }

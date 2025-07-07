@@ -20,6 +20,9 @@ return new class extends Migration
             // 📧 Destinataire
             $table->string('recipient_email')->index();
 
+            $table->foreignId('recipient_id')->nullable()->constrained('users')->nullOnDelete();
+
+
             // 🔐 Token d’invitation
             $table->string('token')->unique();
 

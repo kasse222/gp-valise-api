@@ -9,15 +9,15 @@ use Illuminate\Validation\Rule;
 class AcceptInvitationRequest extends FormRequest
 {
     /**
-     * Autorise uniquement les utilisateurs non connectés
+     * 🔐 Seuls les invités non connectés peuvent accepter une invitation
      */
     public function authorize(): bool
     {
-        return !Auth::check(); // 👤 L’utilisateur ne doit pas être connecté
+        return true; // 👤 Interdit aux utilisateurs connectés
     }
 
     /**
-     * Règles de validation
+     * ✅ Validation des champs
      */
     public function rules(): array
     {
@@ -25,20 +25,25 @@ class AcceptInvitationRequest extends FormRequest
             'token' => [
                 'required',
                 'uuid',
-                Rule::exists('invitations', 'token'), // ✅ vérifie que le token existe en BDD
+                Rule::exists('invitations', 'token')
+                    ->whereNull('used_at')
+                    ->where(function ($query) {
+                        $query->whereNull('expires_at')
+                            ->orWhere('expires_at', '>', now());
+                    }),
             ],
         ];
     }
 
     /**
-     * Messages d'erreurs personnalisés
+     * 🧾 Messages d’erreur personnalisés
      */
     public function messages(): array
     {
         return [
             'token.required' => 'Le lien d’invitation est manquant.',
-            'token.uuid'     => 'Le format du token est invalide.',
-            'token.exists'   => 'Cette invitation est invalide ou a déjà été utilisée.',
+            'token.uuid'     => 'Le format du lien d’invitation est invalide.',
+            'token.exists'   => 'Ce lien est invalide, déjà utilisé ou expiré.',
         ];
     }
 }

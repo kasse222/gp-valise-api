@@ -4,12 +4,22 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Auth;
 
 class InvitationResource extends JsonResource
 {
+    protected bool $canSeeToken = false;
+
     /**
-     * Transform the invitation resource into an array.
+     * Active l’affichage du token dans la Resource
+     */
+    public function withCanSeeToken(): static
+    {
+        $this->canSeeToken = true;
+        return $this;
+    }
+
+    /**
+     * Transforme la ressource Invitation en tableau JSON.
      *
      * @return array<string, mixed>
      */
@@ -18,27 +28,29 @@ class InvitationResource extends JsonResource
         return [
             'id'               => $this->id,
 
-            // 👤 Expéditeur (parrain)
+            // 👤 Expéditeur
             'sender_id'        => $this->sender_id,
+
+            'recipient_id' => $this->recipient_id,
 
             // 📧 Destinataire
             'recipient_email'  => $this->recipient_email,
 
-            // 🔐 Token visible uniquement si admin ou émetteur
-            'token'           => $this->when($this->isAuthorized($request), $this->token),
+            // 🔐 Token affiché uniquement si `withCanSeeToken()` a été appelé
+            'token'            => $this->when($this->canSeeToken, $this->token),
 
-
-            // 🕓 Statuts et dates
+            // 🕓 Dates et statut
             'is_used'          => $this->used_at !== null,
             'used_at'          => optional($this->used_at)?->toDateTimeString(),
             'expires_at'       => optional($this->expires_at)?->toDateTimeString(),
 
             // 🧠 Enum enrichi
-            'status'           => $this->status->value,
-            'status_label'     => $this->status->label(),
-            'status_color'     => $this->status->color(),
+            'status'        => optional($this->status)?->value,
+            'status_label'  => optional($this->status)?->label(),
+            'status_color'  => optional($this->status)?->color(),
 
-            // 💬 Message facultatif
+
+            // 💬 Message
             'message'          => $this->message,
 
             // 📅 Timestamps
