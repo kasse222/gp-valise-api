@@ -10,7 +10,7 @@ use Illuminate\Support\Carbon;
 class AcceptInvitation
 {
     /**
-     * Marque une invitation comme utilisée
+     * Accepte une invitation valide à l’aide du token fourni.
      */
     public static function execute(string $token): Invitation
     {
@@ -19,14 +19,13 @@ class AcceptInvitation
             ->firstOrFail();
 
         DB::transaction(function () use ($invitation) {
-            // 🧠 Logique métier additionnelle possible ici (création de compte, attribution plan...)
-
+            // Logique métier personnalisable : création de compte, attribution de plan, etc.
             $invitation->update([
                 'used_at' => Carbon::now(),
                 'status'  => InvitationStatusEnum::USED,
             ]);
         });
 
-        return $invitation->refresh(); // ✅ pour avoir le modèle à jour
+        return $invitation->refresh();
     }
 }

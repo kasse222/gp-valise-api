@@ -57,12 +57,12 @@ class Invitation extends Model
     |--------------------------------------------------------------------------
     */
 
-    public function scopeAvailable(Builder $query): Builder
+    public function scopeAvailable($query)
     {
         return $query->whereNull('used_at')
+            ->where('status', InvitationStatusEnum::PENDING)
             ->where(function ($q) {
-                $q->whereNull('expires_at')
-                    ->orWhere('expires_at', '>', now());
+                $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
             });
     }
 

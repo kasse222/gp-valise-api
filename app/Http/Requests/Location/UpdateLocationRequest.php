@@ -3,22 +3,26 @@
 namespace App\Http\Requests\Location;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rules\Enum;
+use App\Enums\LocationPositionEnum;
+use App\Enums\LocationTypeEnum;
 
 class UpdateLocationRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Auth::check(); // 🔐 Ou ajouter une Policy spécifique si besoin
+        return $this->user() !== null; // 🔐 Ou appeler la Policy LocationPolicy::update()
     }
 
     public function rules(): array
     {
         return [
-            'country'   => ['sometimes', 'string', 'max:100'],
-            'city'      => ['sometimes', 'string', 'max:100'],
-            'postcode'  => ['nullable', 'string', 'max:20'],
-            'address'   => ['nullable', 'string', 'max:255'],
+            'latitude'    => ['sometimes', 'numeric', 'between:-90,90'],
+            'longitude'   => ['sometimes', 'numeric', 'between:-180,180'],
+            'city'        => ['sometimes', 'string', 'max:100'],
+            'order_index' => ['sometimes', 'integer', 'min:0'],
+            'position'    => ['sometimes', new Enum(LocationPositionEnum::class)],
+            'type'        => ['sometimes', new Enum(LocationTypeEnum::class)],
         ];
     }
 }

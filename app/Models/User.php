@@ -89,6 +89,14 @@ class User extends Authenticatable
         return $this->plan?->type === PlanTypeEnum::PREMIUM
             && $this->plan_expires_at?->isFuture();
     }
+    public function isTrusted(): bool
+    {
+        return in_array($this->role, [
+            UserRoleEnum::TRAVELER,
+            UserRoleEnum::MODERATOR,
+        ]);
+    }
+
 
     /**
      * Vérifie si l'utilisateur a un type de plan donné et actif.

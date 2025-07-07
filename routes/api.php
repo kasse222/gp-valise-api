@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\{
     BookingItemController,
     BookingStatusHistoryController,
     InvitationController,
+    LocationController,
     LuggageController,
     PaymentController,
     PlanController,
@@ -87,6 +88,27 @@ Route::middleware('auth:sanctum')->prefix('v1')->name('api.v1.')->group(function
 
     // ✅ Upgrade d’abonnement (admin uniquement pour le moment)
     Route::post('/plans/{user}/upgrade', [PlanController::class, 'upgradePlan'])->name('plans.upgrade');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | 📍 Routes LOCATIONS (créées côté backend – trip-related)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('locations')->name('locations.')->group(function () {
+        // 🔍 Lecture libre
+        Route::get('/', [LocationController::class, 'index'])->name('index');
+        Route::get('/{location}', [LocationController::class, 'show'])->name('show');
+
+        // ➕ Création d'une nouvelle location (admin ou trusted uniquement)
+        Route::post('/', [LocationController::class, 'store'])->name('store')->middleware(
+            EnsureRole::class . ':' . UserRoleEnum::ADMIN->value . ',' . UserRoleEnum::TRAVELER->value
+        );
+
+        // ✏️ (optionnel) Si tu ajoutes un update ou delete plus tard :
+        // Route::put('/{location}', [LocationController::class, 'update'])->name('update');
+        // Route::delete('/{location}', [LocationController::class, 'destroy'])->name('destroy');
+    });
 
     /*
     |--------------------------------------------------------------------------
