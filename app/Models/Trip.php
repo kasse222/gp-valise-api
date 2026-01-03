@@ -114,6 +114,11 @@ class Trip extends Model
         return max(0, $this->capacity - $this->kgReserved());
     }
 
+    public function isClosed(): bool
+    {
+        return $this->status?->isFinal() ?? false;
+    }
+
     /*
     |--------------------------------------------------------------------------
     | 🔍 Scopes
