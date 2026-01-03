@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\TransactionStatusEnum;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class TransactionService
 {
@@ -34,32 +36,27 @@ class TransactionService
     /**
      * 💸 Rembourse une transaction si elle est éligible
      */
-    public function refund(Transaction $transaction): bool
+    public function refund(Transaction $transaction, ?string $reason = null): Transaction
     {
         if (! $transaction->canBeRefunded()) {
-            return false;
+            throw ValidationException::withMessages([
+                'transaction' => 'Cette transaction ne peut pas être remboursée.',
+            ]);
         }
 
-        return DB::transaction(function () use ($transaction) {
-            try {
-                // Exemple simple : statut + horodatage
-                $transaction->status = 'refunded'; // ✅ idéalement utiliser un Enum
-                $transaction->refunded_at = now();
-                $transaction->save();
+        return DB::transaction(function () use ($transaction, $reason) {
+            $transaction->update([
+                'status'       => TransactionStatusEnum::REFUNDED,
+                'refunded_at'  => now(),
+                'refund_reason' => $reason,
+            ]);
 
-                Log::info("💰 Transaction remboursée", [
-                    'transaction_id' => $transaction->id,
-                    'user_id'        => $transaction->user_id,
-                ]);
+            Log::info("💰 Transaction remboursée", [
+                'transaction_id' => $transaction->id,
+                'user_id'        => $transaction->user_id,
+            ]);
 
-                return true;
-            } catch (\Throwable $e) {
-                Log::error("❌ Échec du remboursement", [
-                    'transaction_id' => $transaction->id,
-                    'error' => $e->getMessage(),
-                ]);
-                return false;
-            }
+            return $transaction;
         });
     }
 }

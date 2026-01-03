@@ -17,7 +17,9 @@ uses(
 );
 
 beforeEach(function () {
-    $this->user = User::factory()->verified()->create();
+    $this->user = User::factory()->verified()->create([
+        'role' => \App\Enums\UserRoleEnum::SENDER->value,
+    ]);
     actingAs($this->user);
 });
 
@@ -40,7 +42,9 @@ it('liste les transactions de l’utilisateur connecté', function () {
 });
 
 it('affiche une transaction appartenant à l’utilisateur', function () {
-    $user = User::factory()->verified()->create();
+    $user = User::factory()->verified()->create([
+        'role' => \App\Enums\UserRoleEnum::SENDER->value,
+    ]);
 
     // Crée une transaction avec un booking explicitement lié au user (méthode fiable)
     $transaction = Transaction::factory()->forUserWithBooking($user)->create();
@@ -51,8 +55,12 @@ it('affiche une transaction appartenant à l’utilisateur', function () {
 });
 
 it('rejette l’accès à une transaction d’un autre utilisateur', function () {
-    $owner = User::factory()->verified()->create();
-    $other = User::factory()->verified()->create();
+    $owner = User::factory()->verified()->create([
+        'role' => \App\Enums\UserRoleEnum::SENDER->value,
+    ]);
+    $other = User::factory()->verified()->create([
+        'role' => \App\Enums\UserRoleEnum::SENDER->value,
+    ]);
 
     $transaction = Transaction::factory()->forUserWithBooking($owner)->create();
 
@@ -105,33 +113,50 @@ it('rejette la création si l’utilisateur n’est pas vérifié', function () 
 });
 
 it('rejette le remboursement par un utilisateur non autorisé', function () {
-    $owner = User::factory()->verified()->create();
-    $other = User::factory()->verified()->create();
+    $owner = User::factory()->verified()->create([
+        'role' => \App\Enums\UserRoleEnum::SENDER->value,
+    ]);
+    $other = User::factory()->verified()->create([
+        'role' => \App\Enums\UserRoleEnum::SENDER->value,
+    ]);
 
     $transaction = Transaction::factory()
         ->forUserWithBooking($owner)
-        ->create();
+        ->create([
+            'status' => TransactionStatusEnum::COMPLETED->value, // ✅ refundable
+        ]);
 
     actingAs($other);
-    $response = postJson("/api/v1/transactions/{$transaction->id}/refund", [
-        'reason' => 'Demande de remboursement complète'
-    ]);
 
-    $response->assertForbidden();
+    postJson("/api/v1/transactions/{$transaction->id}/refund", [
+        'reason' => 'Demande de remboursement complète'
+    ])->assertForbidden();
 });
+
 
 it('autorise le remboursement par le propriétaire', function () {
-    $user = User::factory()->verified()->create();
-    $transaction = Transaction::factory()->forUserWithBooking($user)->create();
-
-    actingAs($user);
-    $response = postJson("/api/v1/transactions/{$transaction->id}/refund", [
-        'reason' => 'Valide'
+    $user = User::factory()->verified()->create([
+        'role' => \App\Enums\UserRoleEnum::SENDER->value,
     ]);
 
-    $response->assertOk()
-        ->assertJsonPath('message', 'Transaction remboursée avec succès.');
+    $transaction = Transaction::factory()
+        ->forUserWithBooking($user)
+        ->create([
+            'status' => TransactionStatusEnum::COMPLETED->value,
+        ]);
+
+    actingAs($user);
+
+    postJson("/api/v1/transactions/{$transaction->id}/refund", [
+        'reason' => 'Valide',
+    ])
+        ->assertOk()
+        ->assertJsonPath('data.status.code', TransactionStatusEnum::REFUNDED->value);
+
+    $transaction->refresh();
+    expect($transaction->status)->toBe(TransactionStatusEnum::REFUNDED);
 });
+
 
 it('valide que le lien user-booking-transaction est cohérent', function () {
     $user = User::factory()->verified()->create();
