@@ -79,6 +79,14 @@ class Booking extends Model
         return $this->hasMany(BookingItem::class);
     }
 
+    /**
+     * Alias de la relation canonique bookingItems (compatibilité).
+     */
+    public function items(): HasMany
+    {
+        return $this->bookingItems();
+    }
+
     public function statusHistories(): HasMany
     {
         return $this->hasMany(BookingStatusHistory::class);

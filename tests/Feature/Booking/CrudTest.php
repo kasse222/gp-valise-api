@@ -46,11 +46,22 @@ it('affiche une réservation spécifique (show)', function () {
         'user_id' => test()->expediteur->id,
         'trip_id' => $trip->id,
     ]);
+    $luggage = Luggage::factory()->create([
+        'user_id' => test()->expediteur->id,
+        'status' => \App\Enums\LuggageStatusEnum::EN_ATTENTE,
+    ]);
+    $item = \App\Models\BookingItem::factory()->create([
+        'booking_id' => $booking->id,
+        'trip_id' => $trip->id,
+        'luggage_id' => $luggage->id,
+    ]);
 
     $response = $this->getJson("/api/v1/bookings/{$booking->id}");
 
     $response->assertOk()
-        ->assertJsonPath('data.id', $booking->id);
+        ->assertJsonPath('data.id', $booking->id)
+        ->assertJsonPath('data.items.0.id', $item->id)
+        ->assertJsonPath('data.items.0.luggage.id', $luggage->id);
 });
 
 it('crée une réservation (store)', function () {
@@ -78,7 +89,7 @@ it('crée une réservation (store)', function () {
 
     $response->assertCreated()
         ->assertJsonPath('data.status', BookingStatusEnum::EN_ATTENTE->value)
-        ->assertJsonPath('data.booking_items.0.luggage.id', $luggage->id);
+        ->assertJsonPath('data.items.0.luggage.id', $luggage->id);
 });
 
 
