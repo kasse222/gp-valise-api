@@ -48,9 +48,13 @@ class TransactionController extends Controller
     public function show(Transaction $transaction): TransactionResource
     {
         $currentUser = Auth::user();
-        // Check if current user is not admin and not owner of the booking
-        if (!$currentUser->is_admin && $transaction->booking->user_id !== $currentUser->id) {
-            abort(403, 'Forbidden');  // Deny access if not authorized (sends HTTP 403)
+        $transaction->loadMissing('booking');
+
+        $ownerId = $transaction->booking?->user_id;
+        $isOwner = $ownerId !== null && $ownerId === $currentUser->id;
+
+        if (! $currentUser->isAdmin() && ! $isOwner) {
+            abort(403);
         }
 
         return new TransactionResource($transaction);
@@ -77,21 +81,29 @@ class TransactionController extends Controller
     /**
      * 💸 Demander un remboursement
      */
-    public function refund(Request $request, Transaction $transaction)
+    public function refund(Request $request, Transaction $transaction): JsonResponse
     {
         $currentUser = Auth::user();
-        if (!$currentUser->is_admin && $transaction->booking->user_id !== $currentUser->id) {
-            abort(403, 'Forbidden');  // Only owner or admin can refund
+
+        $transaction->loadMissing('booking');
+        $ownerId = $transaction->booking?->user_id;
+        $isOwner = $ownerId !== null && $ownerId === $currentUser->id;
+
+        if (! $currentUser->isAdmin() && ! $isOwner) {
+            abort(403);
         }
 
         $validated = $request->validate([
             'reason' => ['required', 'string', 'max:255'],
         ]);
 
-        $this->transactionService->refund($transaction, $validated['reason']);
+        $transaction = $this->transactionService->refund(
+            $transaction,
+            $validated['reason']
+        );
 
-        return response()->json([
-            'message' => 'Transaction remboursée avec succès.',
-        ]);
+        return (new TransactionResource($transaction))
+            ->response()
+            ->setStatusCode(Response::HTTP_OK);
     }
 }

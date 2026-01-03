@@ -112,8 +112,22 @@ class User extends Authenticatable
      */
     public function isAdmin(): bool
     {
-        return $this->role === UserRoleEnum::ADMIN;
+        return $this->role === UserRoleEnum::ADMIN
+            || $this->role === UserRoleEnum::SUPER_ADMIN;
     }
+
+    public function isStaff(): bool
+    {
+        return $this->role?->isStaff() ?? false;
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->role?->isSuperAdmin() ?? false;
+    }
+
+
+
 
     public function isExpeditor(): bool
     {
