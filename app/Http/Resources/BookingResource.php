@@ -14,7 +14,7 @@ class BookingResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $items = $this->whenLoaded('items');
+        $items = $this->whenLoaded('bookingItems', fn() => $this->bookingItems, collect());
 
         return [
             'id'           => $this->id,
@@ -29,7 +29,8 @@ class BookingResource extends JsonResource
 
             // 💬 Détail utilisateur
             'comment'      => $this->comment,
-            'kg_reserved'  => $this->whenLoaded('items', fn() => collect($this->items)->filter()->sum('kg_reserved')),
+            'kg_reserved' => $this->relationLoaded('bookingItems') ? $items->sum('kg_reserved') : 0,
+
 
             // 🕓 Dates de transition
             'confirmed_at' => optional($this->confirmed_at)?->toDateTimeString(),
@@ -42,8 +43,7 @@ class BookingResource extends JsonResource
             // 🔗 Relations
             'trip'         => new TripResource($this->whenLoaded('trip')),
             'user'         => new UserResource($this->whenLoaded('user')),
-            'booking_items' => BookingItemResource::collection($this->whenLoaded('bookingItems')),
-            'items'           => BookingItemResource::collection($this->whenLoaded('items')),
+            'items'           => BookingItemResource::collection($items),
             'status_history' => BookingStatusHistoryResource::collection($this->whenLoaded('statusHistories')),
 
             // 📅 Timestamps

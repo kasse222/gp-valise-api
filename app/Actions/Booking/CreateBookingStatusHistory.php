@@ -42,14 +42,14 @@ class CreateBookingStatusHistory
         }
 
         // 3️⃣ Auteur auto
-        $userId = $data['user_id'] ?? Auth::id();
+        $changedBy = $data['changed_by'] ?? $data['user_id'] ?? Auth::id();
 
         // 4️⃣ Persistance
         return $booking->statusHistories()->create([
-            'old_status' => $old,
-            'new_status' => $new,
-            'reason'     => $data['reason'] ?? 'Mise à jour manuelle du statut',
-            'user_id'    => $userId,
+            'old_status'  => $old,
+            'new_status'  => $new,
+            'reason'      => $data['reason'] ?? 'Mise à jour manuelle du statut',
+            'changed_by'  => $changedBy,
         ]);
     }
 }

@@ -53,7 +53,7 @@ class BookingController extends Controller
         $booking = GetBookingDetails::execute($id);
 
         // Optionnel : $this->authorize('view', $booking);
-        return new BookingResource($booking);
+        return new BookingResource($booking->loadMissing('bookingItems.luggage'));
     }
 
     /**
@@ -67,7 +67,7 @@ class BookingController extends Controller
 
         $booking = UpdateBookingStatus::execute($booking, $newStatus, $request->user());
 
-        return new BookingResource($booking);
+        return new BookingResource($booking->load('bookingItems.luggage'));
     }
 
 
@@ -96,7 +96,7 @@ class BookingController extends Controller
 
         $booking = $action->execute((int) $id);
 
-        return new BookingResource($booking);
+        return new BookingResource($booking->load('bookingItems.luggage'));
     }
 
     /**
@@ -110,7 +110,7 @@ class BookingController extends Controller
 
         $booking = $action->execute((int) $id);
 
-        return new BookingResource($booking);
+        return new BookingResource($booking->loadMissing('bookingItems.luggage'));
     }
 
     /**
@@ -130,7 +130,7 @@ class BookingController extends Controller
         // 4. Réponse avec Resource + message clair
         return response()->json([
             'message' => 'Réservation livrée avec succès.',
-            'booking' => new BookingResource($booking),
+            'booking' => new BookingResource($booking->load('bookingItems.luggage')),
         ]);
     }
 }
