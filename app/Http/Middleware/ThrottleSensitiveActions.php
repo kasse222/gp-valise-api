@@ -13,7 +13,9 @@ class ThrottleSensitiveActions
 
     public function handle(Request $request, Closure $next, string $keyPrefix = 'sensitive', int $maxAttempts = 5, int $decayMinutes = 1): Response
     {
-        $key = $keyPrefix . ':' . $request->ip();
+        $userKey = $request->user()?->id ? 'u:' . $request->user()->id : 'ip:' . $request->ip();
+        $key = $keyPrefix . ':' . $userKey;
+
 
         if ($this->limiter->tooManyAttempts($key, $maxAttempts)) {
             return response()->json([

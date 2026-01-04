@@ -167,3 +167,72 @@ it('valide que le lien user-booking-transaction est cohérent', function () {
         ->and($booking->user_id)->toBe($user->id)
         ->and($booking->id)->toBe($transaction->booking_id);
 });
+
+it('rejette le refund si user non vérifié (403)', function () {
+    $user = User::factory()->create([
+        'role' => \App\Enums\UserRoleEnum::SENDER->value,
+        'verified_user' => false,
+        'kyc_passed_at' => now(), // on met KYC ok pour isoler le middleware verified_user
+    ]);
+    expect($user->verified_user)->toBeFalse();
+
+    $transaction = Transaction::factory()
+        ->forUserWithBooking($user)
+        ->create([
+            'status' => TransactionStatusEnum::COMPLETED->value,
+        ]);
+
+    actingAs($user);
+
+    postJson("/api/v1/transactions/{$transaction->id}/refund", [
+        'reason' => 'Test',
+    ])->assertForbidden();
+});
+
+it('rejette le refund si user sans KYC (403)', function () {
+    $user = User::factory()->create([
+        'role' => \App\Enums\UserRoleEnum::SENDER->value,
+        'verified_user' => true,
+        'kyc_passed_at' => null,
+    ]);
+    expect($user->kyc_passed_at)->toBeNull();
+
+    $transaction = Transaction::factory()
+        ->forUserWithBooking($user)
+        ->create([
+            'status' => TransactionStatusEnum::COMPLETED->value,
+        ]);
+
+    actingAs($user);
+
+    postJson("/api/v1/transactions/{$transaction->id}/refund", [
+        'reason' => 'Test',
+    ])->assertForbidden();
+});
+
+it('throttle refund: 6 appels => 429 au 6e', function () {
+    $user = User::factory()->create([
+        'role' => \App\Enums\UserRoleEnum::SENDER->value,
+        'verified_user' => true,
+        'kyc_passed_at' => now(),
+    ]);
+
+    actingAs($user);
+
+    $transactions = Transaction::factory()
+        ->count(6)
+        ->forUserWithBooking($user)
+        ->create([
+            'status' => TransactionStatusEnum::COMPLETED->value,
+        ]);
+
+    foreach ($transactions->take(5) as $t) {
+        postJson("/api/v1/transactions/{$t->id}/refund", [
+            'reason' => 'Throttle test',
+        ])->assertOk();
+    }
+
+    postJson("/api/v1/transactions/{$transactions->last()->id}/refund", [
+        'reason' => 'Throttle test',
+    ])->assertStatus(429);
+});

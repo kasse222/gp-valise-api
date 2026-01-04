@@ -11,6 +11,9 @@ use function Pest\Laravel\deleteJson;
 use function Pest\Laravel\getJson;
 use function Pest\Laravel\patchJson;
 use function Pest\Laravel\postJson;
+use Illuminate\Support\Facades\RateLimiter;
+use App\Enums\UserRoleEnum;
+
 
 uses(
     Tests\TestCase::class,
@@ -19,9 +22,21 @@ uses(
 
 // 🧱 Initialisation stable : utilisateur sender non admin
 beforeEach(function () {
-    $this->user = User::factory()->sender()->create();
+    // IP stable pour le throttle
+    $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1']);
+
+    // reset throttle (sinon accumulation entre tests)
+    RateLimiter::clear('finance:127.0.0.1');
+
+    $this->user = User::factory()->sender()->create([
+        'role' => UserRoleEnum::SENDER->value,
+        'verified_user' => true,
+        'kyc_passed_at' => now(),
+    ]);
+
     actingAs($this->user);
 });
+
 
 // ✅ Liste ses propres paiements
 it('liste les paiements de l’utilisateur connecté', function () {
