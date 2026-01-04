@@ -1,10 +1,12 @@
 # ✈️ GP-Valise API
 
-![Tests](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)
 [![Swagger](https://img.shields.io/badge/docs-swagger-blue.svg)](http://localhost:8000/api/documentation)
 [![Laravel 12](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com)
 [![Docker](https://img.shields.io/badge/containerized-Docker-blue)](https://www.docker.com/)
-[![Made with ❤️ by Lamine Kasse](https://img.shields.io/badge/made%20by-Lamine%20Kasse-%23ff69b4)](mailto:laminekasse.dev@gmail.com)
+[![Made by Lamine Kasse](https://img.shields.io/badge/made%20by-Lamine%20Kasse-%23ff69b4)](mailto:laminekasse.dev@gmail.com)
+
+API Laravel **API-only** pour une plateforme logistique entre voyageurs et expéditeurs : gestion des trajets, réservations, valises, paiements/transactions, invitations, plans, signalements, etc.
 
 ---
 
@@ -14,60 +16,66 @@
 -   [📦 Modèles implémentés](#-modèles-implémentés)
 -   [🔐 Authentification](#-authentification)
 -   [📦 Réservations & Valises](#-réservations--valises)
+-   [💳 Paiements & Transactions](#-paiements--transactions)
 -   [🧪 Tests automatisés](#-tests-automatisés)
 -   [🧱 Sécurité & Accès](#-sécurité--accès)
 -   [🧬 Données de test (seeders)](#-données-de-test-seeders)
 -   [⚙️ Installation locale (Docker)](#️-installation-locale-docker)
--   [🛠️ Roadmap fonctionnelle](#️-roadmap-fonctionnelle)
+-   [🛣️ Roadmap](#️-roadmap)
 -   [👨‍💻 À propos](#-à-propos)
 
 ---
 
 ## 🚀 Stack technique
 
--   **Laravel 12** (API only)
--   **Sanctum** pour l’authentification
--   **PestPHP** pour les tests automatisés
--   **MySQL 8** – base de données relationnelle
--   **Docker** – dev/test/prod isolés
--   **Swagger (l5-swagger)** – documentation API interactive
--   **GitHub Actions** – CI/CD automatisé
--   **Enums métiers** – statuts, rôles, types, etc.
--   **Actions Laravel** – logique métier séparée
--   **Policies** – sécurité d’accès centralisée
+-   **Laravel 12** (API-only)
+-   **Sanctum** (auth tokens)
+-   **PestPHP** (tests)
+-   **MySQL 8** (prod/dev) + **SQLite in-memory** (tests/CI)
+-   **Docker** (dev/test/prod)
+-   **Swagger (l5-swagger)** (docs interactive)
+-   **GitHub Actions** (CI)
+-   **Enums métiers** (statuts, rôles, types…)
+-   **Actions Laravel** (logique métier isolée)
+-   **Policies** (contrôle d’accès centralisé)
+-   **FormRequests** (validation)
 
 ---
 
 ## 📦 Modèles implémentés
 
-| Modèle                 | Description principale                   |
-| ---------------------- | ---------------------------------------- |
-| `User`                 | Voyageur, Expéditeur, Admin              |
-| `Trip`                 | Trajets proposés                         |
-| `Booking`              | Réservation d’un ou plusieurs colis      |
-| `BookingItem`          | Détail des valises réservées             |
-| `Luggage`              | Valise à envoyer (statut, volume, poids) |
-| `BookingStatusHistory` | Historique des statuts                   |
-| `Payment`              | Paiements utilisateurs                   |
-| `Transaction`          | Enregistrements financiers               |
-| `Report`               | Signalements d’incidents                 |
-| `Location`             | Coordonnées GPS                          |
-| `Plan`                 | Abonnements freemium / premium           |
-| `Invitation`           | Invitations ou liens parrainage          |
+| Modèle                 | Description                                    |
+| ---------------------- | ---------------------------------------------- |
+| `User`                 | Voyageur, Expéditeur, Admin                    |
+| `Trip`                 | Trajets proposés                               |
+| `Booking`              | Réservation (peut contenir plusieurs items)    |
+| `BookingItem`          | Détail des objets/valises réservés             |
+| `Luggage`              | Valise/colis à envoyer (statut, volume, poids) |
+| `BookingStatusHistory` | Historique des statuts                         |
+| `Payment`              | Paiements utilisateurs                         |
+| `Transaction`          | Écritures financières + refund                 |
+| `Report`               | Signalements                                   |
+| `Location`             | Points GPS (départ/étape/arrivée)              |
+| `Plan`                 | Abonnements freemium / premium                 |
+| `Invitation`           | Invitations / parrainage                       |
 
 ---
 
 ## 🔐 Authentification
 
-| Méthode | Endpoint    | Description       |
-| ------- | ----------- | ----------------- |
-| POST    | `/register` | Inscription       |
-| POST    | `/login`    | Connexion         |
-| GET     | `/me`       | Infos utilisateur |
-| POST    | `/logout`   | Déconnexion       |
+> Tous les endpoints API sont préfixés par `/api/v1`.
 
--   Tokens via Sanctum
--   Sécurité : FormRequest + RoleMiddleware + Policy
+| Méthode | Endpoint             | Description         |
+| ------- | -------------------- | ------------------- |
+| POST    | `/api/v1/register`   | Inscription         |
+| POST    | `/api/v1/login`      | Connexion           |
+| GET     | `/api/v1/me`         | Profil connecté     |
+| POST    | `/api/v1/logout`     | Déconnexion         |
+| POST    | `/api/v1/logout-all` | Déconnexion globale |
+
+-   Tokens via **Sanctum**
+-   Validation via **FormRequests**
+-   Accès via **Policies** + middleware de rôle
 
 ---
 
@@ -75,28 +83,28 @@
 
 ### Booking – Endpoints
 
-| Méthode | Route                     | Description              |
-| ------- | ------------------------- | ------------------------ |
-| GET     | `/bookings`               | Liste des réservations   |
-| POST    | `/bookings`               | Créer une réservation    |
-| PUT     | `/bookings/{id}`          | Modifier le statut       |
-| DELETE  | `/bookings/{id}`          | Supprimer la réservation |
-| POST    | `/bookings/{id}/confirm`  | Confirmer                |
-| POST    | `/bookings/{id}/cancel`   | Annuler                  |
-| POST    | `/bookings/{id}/complete` | Marquer comme livrée     |
+| Méthode | Route                                 | Description            |
+| ------- | ------------------------------------- | ---------------------- |
+| GET     | `/api/v1/bookings`                    | Liste des réservations |
+| POST    | `/api/v1/bookings`                    | Créer une réservation  |
+| PUT     | `/api/v1/bookings/{booking}`          | Modifier               |
+| DELETE  | `/api/v1/bookings/{booking}`          | Supprimer              |
+| POST    | `/api/v1/bookings/{booking}/confirm`  | Confirmer              |
+| POST    | `/api/v1/bookings/{booking}/cancel`   | Annuler                |
+| POST    | `/api/v1/bookings/{booking}/complete` | Marquer livrée         |
 
 -   Statuts via `BookingStatusEnum`
--   Transitions historisées
+-   Transitions historisées (`BookingStatusHistory`)
 -   Autorisation via `BookingPolicy`
 
 ### Luggage – Endpoints
 
-| Méthode | Route            | Description          |
-| ------- | ---------------- | -------------------- |
-| GET     | `/luggages`      | Liste de ses valises |
-| POST    | `/luggages`      | Créer une valise     |
-| PUT     | `/luggages/{id}` | Modifier une valise  |
-| DELETE  | `/luggages/{id}` | Supprimer            |
+| Méthode | Route                        | Description       |
+| ------- | ---------------------------- | ----------------- |
+| GET     | `/api/v1/luggages`           | Liste des valises |
+| POST    | `/api/v1/luggages`           | Créer             |
+| PUT     | `/api/v1/luggages/{luggage}` | Modifier          |
+| DELETE  | `/api/v1/luggages/{luggage}` | Supprimer         |
 
 -   Sécurité : `LuggagePolicy`
 -   Validation : FormRequests
@@ -104,106 +112,75 @@
 
 ---
 
-## 🧪 Tests automatisés (PestPHP)
+## 💳 Paiements & Transactions
 
--   **Environnement :** SQLite en mémoire (CI), MySQL local optionnel
+### Payments (CRUD)
+
+| Méthode   | Route                        | Description |
+| --------- | ---------------------------- | ----------- |
+| GET       | `/api/v1/payments`           | Lister      |
+| POST      | `/api/v1/payments`           | Créer       |
+| GET       | `/api/v1/payments/{payment}` | Voir        |
+| PATCH/PUT | `/api/v1/payments/{payment}` | Modifier    |
+| DELETE    | `/api/v1/payments/{payment}` | Supprimer   |
+
+### Transactions (index/show/store + refund dédié)
+
+| Méthode | Route                                       | Description |
+| ------- | ------------------------------------------- | ----------- |
+| GET     | `/api/v1/transactions`                      | Lister      |
+| POST    | `/api/v1/transactions`                      | Créer       |
+| GET     | `/api/v1/transactions/{transaction}`        | Voir        |
+| POST    | `/api/v1/transactions/{transaction}/refund` | Rembourser  |
+
+✅ Le refund est **protégé** par :
+
+-   `verified_user`
+-   `kyc`
+-   `throttle.sensitive:finance,5,1`
+
+---
+
+## 🧪 Tests automatisés
+
+-   **Environnement :** SQLite in-memory (CI), MySQL local optionnel
 -   **Statut actuel :**
-
-    -   **109 tests réussis / 269 assertions**
-    -   Temps total : **\~0.88s**
-
----
-
-## 📌 Modules validés – v0.3 stable (100 % ✅)
-
-| Module              | Couverture fonctionnelle                      | Cas spécifiques testés                                     |
-| ------------------- | --------------------------------------------- | ---------------------------------------------------------- |
-| 🔐 **Auth**         | Register, login, logout, /me                  | Accès non authentifié, validation inputs                   |
-| 👤 **User**         | CRUD profil, sécurité                         | Vérification email/téléphone, changement mdp, accès profil |
-| 📦 **Booking**      | CRUD, transitions (confirm, cancel, complete) | Transitions invalides, historique des statuts              |
-| 🎒 **Luggage**      | CRUD complet                                  | Politiques sécurité (403), accès par utilisateur           |
-| ✈️ **Trip**         | CRUD complet                                  | Autorisation d'accès, validations métier                   |
-| 💼 **Plan**         | CRUD Admin-only                               | Accès restreint, plans actifs                              |
-| 📢 **Report**       | CRUD propre utilisateur                       | Sécurisation accès (403), validation raison                |
-| 💸 **Payment**      | CRUD utilisateur connecté                     | Rejets accès interdits (403)                               |
-| 💰 **Transaction**  | CRUD sécurisé                                 | Validations cohérence, lien user/booking                   |
-| 🧠 **Enums Métier** | Centralisés avec logique métier               | Transitions, états finaux, labels, couleurs                |
+    -   **129 tests / 330 assertions**
+    -   Durée : **~1.37s**
 
 ---
-
-## 🔥 Sécurité & validation (OWASP & métier)
-
--   Tests poussés sur autorisations (403 Forbidden).
--   Validation métier précise des cas limites (422 Unprocessable Entity).
-
----
-
-## 🎯 Prochaines étapes identifiées – (v0.4)
-
-### 🔖 1. **Invitation** (`Invitation`)
-
--   Gestion cycle de vie : création, acceptation, token usage unique/expiration.
-
-### 🔖 2. **Location** (`Location`)
-
--   CRUD sécurisé, accès restreint, contrôles spécifiques.
-
-### 🔖 3. **Tests d'intégration avancés**
-
--   Pagination, filtres, optimisation SQL (`withCount`, eager loading).
-
-### 🔖 4. **Tests OWASP sécurité avancés**
-
--   Injection SQL/XSS, rate limiting, endpoints protégés.
-
----
-
-## 💻 Commande de lancement des tests (pour rappel rapide) :
-
-```bash
-./vendor/bin/pest
-```
 
 ## 🧱 Sécurité & Accès
 
--   `auth:sanctum` obligatoire
--   Policies Laravel actives :
-    -   `BookingPolicy`, `LuggagePolicy`, `PaymentPolicy`, etc.
--   Middleware personnalisés :
-    -   `EnsureRole`, `EnsureKYC`, etc.
--   Enum = source de vérité métier
--   Historique `BookingStatusHistory` immutable
-
-🔒 Prochaines étapes :
-
--   Spatie Laravel Permission
--   Checklist OWASP
--   Token JWT optionnel
+-   `auth:sanctum` obligatoire (routes protégées)
+-   Policies actives :
+    -   `BookingPolicy`, `LuggagePolicy`, `PaymentPolicy`, `TransactionPolicy`, etc.
+-   Middlewares personnalisés :
+    -   `EnsureRole`
+    -   `verified_user`
+    -   `kyc`
+    -   `throttle.sensitive`
+    -   `force.json` (API JSON par défaut)
+-   Enums = source de vérité métier (statuts, transitions, badges)
 
 ---
 
-## 🧬 Données de test (Seeders)
+## 🧬 Données de test (seeders)
 
-| Élément      | Quantité     |
-| ------------ | ------------ |
+| Élément      |     Quantité |
+| ------------ | -----------: |
 | Users        | 15 (3 rôles) |
-| Trips        | 30           |
-| Bookings     | 20           |
-| Luggages     | 40           |
+| Trips        |           30 |
+| Bookings     |           20 |
+| Luggages     |           40 |
 | BookingItems | auto-générés |
-| Payments     | 20           |
-| Reports      | 10           |
-| Locations    | 150          |
-| Transactions | 10           |
-| Invitations  | 5            |
+| Payments     |           20 |
+| Reports      |           10 |
+| Locations    |          150 |
+| Transactions |           10 |
+| Invitations  |            5 |
 
 ---
-
-👨‍💻 À propos
-Projet open source développé avec ❤️ par Lamine Kasse dans le cadre d’une reconversion vers le back-end Laravel/DevOps/API.
-
-GitHub → kasse222
-Email → kasse.lamine.dev@cloud.com
 
 ## ⚙️ Installation locale (Docker)
 
@@ -223,8 +200,34 @@ make key
 make migrate
 make seed
 
-# Interfaces disponibles :
-# API         → http://localhost:8000
-# Swagger     → http://localhost:8000/api/documentation
-# PhpMyAdmin  → http://localhost:8080
+# Interfaces :
+# API        → http://localhost:8000
+# Swagger    → http://localhost:8000/api/documentation
+# PhpMyAdmin → http://localhost:8080
+```
+
+---
+
+## 🛣️ Roadmap
+
+-   [ ] Tests d’intégration avancés : pagination, filtres, eager loading, `withCount`
+-   [ ] Sécurité OWASP avancée : rate limiting global, durcissement endpoints sensibles
+-   [ ] Observabilité : logs structurés, metrics de base (optionnel)
+-   [ ] Durcissement DevOps : Docker prod (multi-stage), healthchecks, backup script
+
+---
+
+## 👨‍💻 À propos
+
+Projet open-source développé par **Lamine Kasse** dans le cadre d’une montée en compétence **Back-End Laravel / API / DevOps**.
+
+-   GitHub : `kasse222`
+-   Email : `laminekasse.dev@gmail.com`
+
+```
+
+### Mini-note importante
+Tu avais **deux emails différents** (gmail + cloud.com). Pour le portfolio, garde **un seul email** (j’ai gardé le Gmail du badge).
+
+Si tu veux, colle-moi ton `README` actuel complet (ou dis-moi où tu veux le mettre), et je te propose aussi une section **“Architecture & choix techniques”** en 8–10 lignes (ultra utile en entretien).
 ```
