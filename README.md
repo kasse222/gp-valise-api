@@ -1,12 +1,13 @@
 # ✈️ GP-Valise API
 
 ![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)
-[![Swagger](https://img.shields.io/badge/docs-swagger-blue.svg)](http://localhost:8000/api/documentation)
 [![Laravel 12](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com)
 [![Docker](https://img.shields.io/badge/containerized-Docker-blue)](https://www.docker.com/)
 [![Made by Lamine Kasse](https://img.shields.io/badge/made%20by-Lamine%20Kasse-%23ff69b4)](mailto:laminekasse.dev@gmail.com)
 
-API Laravel **API-only** pour une plateforme logistique entre voyageurs et expéditeurs : gestion des trajets, réservations, valises, paiements/transactions, invitations, plans, signalements, etc.
+API Laravel **API-only** pour une plateforme logistique entre voyageurs et expéditeurs : gestion des trajets, réservations, valises/colis, paiements/transactions, invitations, plans, signalements, etc.
+
+> 📚 Swagger (local) : `http://localhost:8000/api/documentation`
 
 ---
 
@@ -31,9 +32,9 @@ API Laravel **API-only** pour une plateforme logistique entre voyageurs et expé
 -   **Laravel 12** (API-only)
 -   **Sanctum** (auth tokens)
 -   **PestPHP** (tests)
--   **MySQL 8** (prod/dev) + **SQLite in-memory** (tests/CI)
--   **Docker** (dev/test/prod)
--   **Swagger (l5-swagger)** (docs interactive)
+-   **MySQL 8** (dev) + **SQLite in-memory** (tests/CI)
+-   **Docker** (environnement isolé)
+-   **Swagger (l5-swagger)** (documentation interactive)
 -   **GitHub Actions** (CI)
 -   **Enums métiers** (statuts, rôles, types…)
 -   **Actions Laravel** (logique métier isolée)
@@ -53,7 +54,7 @@ API Laravel **API-only** pour une plateforme logistique entre voyageurs et expé
 | `Luggage`              | Valise/colis à envoyer (statut, volume, poids) |
 | `BookingStatusHistory` | Historique des statuts                         |
 | `Payment`              | Paiements utilisateurs                         |
-| `Transaction`          | Écritures financières + refund                 |
+| `Transaction`          | Écritures financières + remboursement (refund) |
 | `Report`               | Signalements                                   |
 | `Location`             | Points GPS (départ/étape/arrivée)              |
 | `Plan`                 | Abonnements freemium / premium                 |
@@ -133,7 +134,7 @@ API Laravel **API-only** pour une plateforme logistique entre voyageurs et expé
 | GET     | `/api/v1/transactions/{transaction}`        | Voir        |
 | POST    | `/api/v1/transactions/{transaction}/refund` | Rembourser  |
 
-✅ Le refund est **protégé** par :
+✅ Le endpoint **refund** est protégé par :
 
 -   `verified_user`
 -   `kyc`
@@ -206,28 +207,20 @@ make seed
 # PhpMyAdmin → http://localhost:8080
 ```
 
----
+🛣️ Roadmap
 
-## 🛣️ Roadmap
+Tests d’intégration avancés : pagination, filtres, eager loading, withCount
 
--   [ ] Tests d’intégration avancés : pagination, filtres, eager loading, `withCount`
--   [ ] Sécurité OWASP avancée : rate limiting global, durcissement endpoints sensibles
--   [ ] Observabilité : logs structurés, metrics de base (optionnel)
--   [ ] Durcissement DevOps : Docker prod (multi-stage), healthchecks, backup script
+Sécurité OWASP avancée : rate limiting global + durcissement endpoints sensibles
 
----
+Observabilité : logs structurés + événements métiers (optionnel)
 
-## 👨‍💻 À propos
+Durcissement DevOps : Docker prod (multi-stage), healthchecks, stratégie backup/rotation
 
-Projet open-source développé par **Lamine Kasse** dans le cadre d’une montée en compétence **Back-End Laravel / API / DevOps**.
+👨‍💻 À propos
 
--   GitHub : `kasse222`
--   Email : `laminekasse.dev@gmail.com`
+Projet open-source développé par Lamine Kasse dans le cadre d’une montée en compétence Back-End Laravel / API / DevOps.
 
-```
+GitHub : kasse222
 
-### Mini-note importante
-Tu avais **deux emails différents** (gmail + cloud.com). Pour le portfolio, garde **un seul email** (j’ai gardé le Gmail du badge).
-
-Si tu veux, colle-moi ton `README` actuel complet (ou dis-moi où tu veux le mettre), et je te propose aussi une section **“Architecture & choix techniques”** en 8–10 lignes (ultra utile en entretien).
-```
+Email : laminekasse.dev@gmail.com
