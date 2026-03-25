@@ -16,3 +16,83 @@
 - logique métier dans Policy
 - accès DB dans Enum
 - duplication entre Action et Service
+
+## Décisions prises
+
+- `BookingService` supprimé : non utilisé et redondant avec `ReserveBooking`
+- `BookingController` refactoré pour uniformiser les appels aux actions
+- adoption d’une convention : injection d’instance + `execute(...)`
+- usage plus cohérent du route model binding sur le module Booking
+
+## Points à améliorer ensuite
+
+- harmoniser les signatures internes des actions (`id` vs modèle)
+- clarifier le rôle réel des `Services`
+- vérifier que toutes les `Policies` restent centrées sur l’accès
+
+## Audit BookingController
+
+### Points positifs
+
+- Le contrôleur ne contient pas de logique métier lourde.
+- Les cas d’usage métier sont extraits dans des actions dédiées.
+- La policy est globalement bien séparée de la logique métier.
+
+### Points à améliorer
+
+- Les actions sont appelées de manière incohérente (statique vs injection).
+- Les signatures de méthodes ne sont pas uniformes (`id` brut vs route model binding).
+- Une partie du chargement des modèles et relations reste dans le contrôleur.
+- Le sens métier de `index()` n’est pas totalement aligné avec `viewAny()`.
+
+### Décision cible
+
+- Utiliser le route model binding partout où possible.
+- Utiliser les actions en injection d’instance uniquement.
+- Réserver le contrôleur à l’orchestration HTTP.
+
+## Refactor BookingController
+
+### Changements effectués
+
+- Uniformisation des appels aux actions via injection d’instance.
+- Adoption du route model binding pour les méthodes manipulant une réservation existante.
+- Réduction du chargement manuel des modèles dans le contrôleur.
+
+### Bénéfices
+
+- Contrôleur plus cohérent
+- Architecture plus lisible
+- Convention d’appel des actions clarifiée
+
+## TODO – Harmonisation TripController
+
+### À améliorer
+
+#### index()
+
+- Extraire la logique de récupération dans une action (ex: ListTrips)
+- Décider si pagination / filtres doivent être gérés côté Action
+
+#### show()
+
+- Vérifier cohérence avec policies (view)
+- Éventuellement centraliser dans une action (ex: GetTripDetails)
+
+### Pourquoi
+
+- Alignement avec l’architecture basée sur les Actions
+- Réduction de la logique Eloquent dans les Controllers
+
+## Refactor TripController
+
+### Changements effectués
+
+- Création de l’action `UpdateTrip`
+- Harmonisation de `TripController` avec la convention `Controller -> Action`
+- Uniformisation des appels d’actions par injection d’instance
+
+### Convention retenue
+
+- Les use cases métier de création et de modification doivent vivre dans des actions dédiées
+- Le contrôleur ne doit pas exécuter directement les mises à jour métier
