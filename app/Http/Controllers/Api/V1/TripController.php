@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Actions\Trip\CreateTrip;
+use App\Actions\Trip\UpdateTrip;
 use Illuminate\Routing\Controller;
 use App\Http\Requests\Trip\StoreTripRequest;
 use App\Http\Requests\Trip\UpdateTripRequest;
@@ -35,21 +36,23 @@ class TripController extends Controller
     /**
      * ➕ Créer un trajet (voyageur)
      */
-    public function store(StoreTripRequest $request)
+    public function store(StoreTripRequest $request, CreateTrip $action)
     {
-        $trip = CreateTrip::execute($request->user(), $request->validated());
+        $trip = $action->execute($request->user(), $request->validated());
 
-        return response()->json(new TripResource($trip), 201);
+        return (new TripResource($trip))
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
      * ✏️ Modifier un trajet
      */
-    public function update(UpdateTripRequest $request, Trip $trip)
+    public function update(UpdateTripRequest $request, Trip $trip, UpdateTrip $action)
     {
         $this->authorize('update', $trip);
 
-        $trip->update($request->validated());
+        $trip = $action->execute($trip, $request->validated());
 
         return new TripResource($trip);
     }
