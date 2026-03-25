@@ -25,13 +25,13 @@ class BookingController extends Controller
     /**
      * 📦 Lister les réservations de l'utilisateur (voyageur)
      */
-    public function index(Request $request)
+    public function index(Request $request, GetUserBookings $action)
     {
-
-        $bookings = GetUserBookings::execute($request->user());
+        $bookings = $action->execute($request->user());
 
         return BookingResource::collection($bookings);
     }
+
 
     /**
      * 🛒 Réserver une valise pour un trajet
@@ -48,24 +48,28 @@ class BookingController extends Controller
     /**
      * 🔍 Voir une réservation précise
      */
-    public function show(string $id)
+    public function show(Booking $booking, GetBookingDetails $action)
     {
-        $booking = GetBookingDetails::execute($id);
+        $this->authorize('view', $booking);
 
-        // Optionnel : $this->authorize('view', $booking);
+        $booking = $action->execute($booking->id);
+
         return new BookingResource($booking->loadMissing('bookingItems.luggage'));
     }
 
     /**
      * 🔁 Modifier le statut d'une réservation
      */
-    public function update(UpdateBookingRequest $request,  Booking $booking)
-    {
+    public function update(
+        UpdateBookingRequest $request,
+        Booking $booking,
+        UpdateBookingStatus $action
+    ) {
         $this->authorize('update', $booking);
 
         $newStatus = BookingStatusEnum::from($request->validated('status'));
 
-        $booking = UpdateBookingStatus::execute($booking, $newStatus, $request->user());
+        $booking = $action->execute($booking, $newStatus, $request->user());
 
         return new BookingResource($booking->load('bookingItems.luggage'));
     }
@@ -74,13 +78,11 @@ class BookingController extends Controller
     /**
      * ❌ Supprimer une réservation
      */
-    public function destroy(string $id)
+    public function destroy(Booking $booking, DeleteBooking $action)
     {
-        $booking = Booking::with('bookingItems.luggage')->findOrFail($id);
-
         $this->authorize('delete', $booking);
 
-        DeleteBooking::execute($booking);
+        $action->execute($booking);
 
         return response()->json(['message' => 'Réservation supprimée.']);
     }
@@ -88,27 +90,24 @@ class BookingController extends Controller
     /**
      * ✅ Confirmer une réservation
      */
-    public function confirm(string $id, ConfirmBooking $action)
+    public function confirm(Booking $booking, ConfirmBooking $action)
     {
-        $booking = Booking::with('trip')->findOrFail($id);
-
         $this->authorize('confirm', $booking);
 
-        $booking = $action->execute((int) $id);
+        $booking = $action->execute($booking->id);
 
         return new BookingResource($booking->load('bookingItems.luggage'));
     }
 
+
     /**
      * ❌ Annuler une réservation
      */
-    public function cancel(string $id, CancelBooking $action)
+    public function cancel(Booking $booking, CancelBooking $action)
     {
-        $booking = Booking::with(['trip', 'bookingItems.luggage'])->findOrFail($id);
-
         $this->authorize('cancel', $booking);
 
-        $booking = $action->execute((int) $id);
+        $booking = $action->execute($booking->id);
 
         return new BookingResource($booking->loadMissing('bookingItems.luggage'));
     }
@@ -116,18 +115,12 @@ class BookingController extends Controller
     /**
      * 📦 Marquer comme livrée
      */
-    public function complete(string $id, CompleteBooking $action)
+    public function complete(Booking $booking, CompleteBooking $action)
     {
-        // 1. Récupération de la réservation
-        $booking = Booking::findOrFail($id);
-
-        // 2. Vérification d'autorisation via Policy
         $this->authorize('complete', $booking);
 
-        // 3. Exécution de la logique métier dans l'action
         $booking = $action->execute($booking);
 
-        // 4. Réponse avec Resource + message clair
         return response()->json([
             'message' => 'Réservation livrée avec succès.',
             'booking' => new BookingResource($booking->load('bookingItems.luggage')),
