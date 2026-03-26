@@ -60,3 +60,9 @@
 - FormRequest = validation HTTP
 - Action ou Service = logique métier
 - Zéro logique d’autorisation métier inline dans le contrôleur
+
+## TODO Performance – Transaction model
+
+- Réévaluer `protected $with = ['booking']`
+- Vérifier si ce eager loading global reste pertinent à mesure que le volume de transactions augmente
+- Remplacer éventuellement par des chargements explicites ciblés si nécessaire

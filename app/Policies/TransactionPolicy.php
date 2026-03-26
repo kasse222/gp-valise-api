@@ -12,22 +12,9 @@ class TransactionPolicy
     /**
      * ✅ Override global pour les admins
      */
-    public function before(User $user): bool|null
+    public function before(User $user): ?bool
     {
         return $user->isAdmin() ? true : null;
-    }
-
-    /**
-     * 🔍 Autorise la vue d’une transaction uniquement si elle appartient à l’utilisateur.
-     */
-    public function view(User $user, Transaction $transaction): bool
-    {
-        // Chargement défensif
-        $booking = $transaction->relationLoaded('booking')
-            ? $transaction->booking
-            : $transaction->load('booking')->booking;
-
-        return $user->is_admin || $transaction->booking->user_id === $user->id;
     }
 
     /**
@@ -37,6 +24,16 @@ class TransactionPolicy
     {
         return true;
     }
+
+    /**
+     * 🔍 Autorise la vue d’une transaction uniquement si elle appartient à l’utilisateur.
+     */
+    public function view(User $user, Transaction $transaction): bool
+    {
+        return $transaction->booking !== null
+            && $transaction->booking->user_id === $user->id;
+    }
+
 
     /**
      * ➕ Autorise la création de transaction si utilisateur vérifié.
@@ -51,10 +48,7 @@ class TransactionPolicy
      */
     public function refund(User $user, Transaction $transaction): bool
     {
-        $booking = $transaction->relationLoaded('booking')
-            ? $transaction->booking
-            : $transaction->load('booking')->booking;
-
-        return $user->is_admin || $transaction->booking->user_id === $user->id;
+        return $transaction->booking !== null
+            && $transaction->booking->user_id === $user->id;
     }
 }

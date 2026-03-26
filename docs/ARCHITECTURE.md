@@ -96,3 +96,20 @@
 
 - Les use cases métier de création et de modification doivent vivre dans des actions dédiées
 - Le contrôleur ne doit pas exécuter directement les mises à jour métier
+
+## Refactor TransactionController
+
+### Changements visés
+
+- Suppression de la logique d’accès inline dans le contrôleur
+- Extraction du remboursement dans `RefundTransaction`
+- Extraction de la création dans `CreateTransaction`
+- Ajout de `RefundTransactionRequest`
+- Réduction du couplage au `TransactionService`
+
+### Convention appliquée
+
+- Controller = orchestration HTTP
+- Policy = accès
+- FormRequest = validation HTTP
+- Action = use case métier
