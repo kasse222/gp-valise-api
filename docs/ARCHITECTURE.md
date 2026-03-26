@@ -99,13 +99,13 @@
 
 ## Refactor TransactionController
 
-### Changements visés
+## Décisions prises – Transactions
 
-- Suppression de la logique d’accès inline dans le contrôleur
-- Extraction du remboursement dans `RefundTransaction`
-- Extraction de la création dans `CreateTransaction`
-- Ajout de `RefundTransactionRequest`
-- Réduction du couplage au `TransactionService`
+- `TransactionController` refactoré pour supprimer la logique d’accès inline
+- création extraite dans `CreateTransaction`
+- remboursement extrait dans `RefundTransaction`
+- `RefundTransactionRequest` ajouté pour sortir la validation du contrôleur
+- `TransactionService` supprimé car devenu redondant et non utilisé
 
 ### Convention appliquée
 
@@ -113,3 +113,26 @@
 - Policy = accès
 - FormRequest = validation HTTP
 - Action = use case métier
+
+## Règle retenue pour les Services
+
+Un Service ne doit exister que s’il porte une logique transverse :
+
+- multi-modules
+- multi-actions
+- orchestration complexe
+- intégration externe
+
+Un Service ne doit pas exister pour un simple use case métier isolé.
+
+## État actuel
+
+- Booking et Transaction sont mieux alignés avec l’architecture cible :
+    - Controller = orchestration
+    - Action = use case
+- Plan n’est pas encore au même niveau car `PlanService` porte encore directement la logique métier.
+
+## Hypothèse d’évolution
+
+- Booking est le module le plus susceptible d’avoir un vrai Service plus tard si son orchestration devient transverse et complexe.
+- À ce stade, les Actions restent suffisantes.

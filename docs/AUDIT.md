@@ -66,3 +66,26 @@
 - Réévaluer `protected $with = ['booking']`
 - Vérifier si ce eager loading global reste pertinent à mesure que le volume de transactions augmente
 - Remplacer éventuellement par des chargements explicites ciblés si nécessaire
+
+## Règle retenue pour les Services
+
+Un Service ne doit exister que s’il porte une logique transverse :
+
+- multi-modules
+- multi-actions
+- orchestration complexe
+- intégration externe
+
+Un Service ne doit pas exister pour un simple use case métier isolé.
+
+## État actuel
+
+- Booking et Transaction sont mieux alignés avec l’architecture cible :
+    - Controller = orchestration
+    - Action = use case
+- Plan n’est pas encore au même niveau car `PlanService` porte encore directement la logique métier.
+
+## Hypothèse d’évolution
+
+- Booking est le module le plus susceptible d’avoir un vrai Service plus tard si son orchestration devient transverse et complexe.
+- À ce stade, les Actions restent suffisantes.
