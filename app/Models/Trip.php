@@ -101,9 +101,15 @@ class Trip extends Model
 
     public function kgReserved(): float
     {
-        // Évite un `get()` coûteux
         return $this->bookings()
-            ->where('status', BookingStatusEnum::CONFIRMEE)
+            ->where(function ($query) {
+                $query->where('status', BookingStatusEnum::CONFIRMEE->value)
+                    ->orWhere(function ($q) {
+                        $q->where('status', BookingStatusEnum::EN_PAIEMENT->value)
+                            ->whereNotNull('payment_expires_at')
+                            ->where('payment_expires_at', '>', now());
+                    });
+            })
             ->withSum('bookingItems as total_reserved', 'kg_reserved')
             ->get()
             ->sum('total_reserved');
@@ -135,13 +141,23 @@ class Trip extends Model
         return $query->where('status', TripStatusEnum::ACTIVE)
             ->whereDate('date', '>=', now())
             ->whereRaw('
-                (
-                    SELECT COALESCE(SUM(booking_items.kg_reserved), 0)
-                    FROM bookings
-                    JOIN booking_items ON booking_items.booking_id = bookings.id
-                    WHERE bookings.trip_id = trips.id
-                    AND bookings.status = ?
-                ) < trips.capacity
-            ', [BookingStatusEnum::CONFIRMEE->value]);
+            (
+                SELECT COALESCE(SUM(booking_items.kg_reserved), 0)
+                FROM bookings
+                JOIN booking_items ON booking_items.booking_id = bookings.id
+                WHERE bookings.trip_id = trips.id
+                AND (
+                    bookings.status = ?
+                    OR (
+                        bookings.status = ?
+                        AND bookings.payment_expires_at IS NOT NULL
+                        AND bookings.payment_expires_at > NOW()
+                    )
+                )
+            ) < trips.capacity
+        ', [
+                BookingStatusEnum::CONFIRMEE->value,
+                BookingStatusEnum::EN_PAIEMENT->value,
+            ]);
     }
 }

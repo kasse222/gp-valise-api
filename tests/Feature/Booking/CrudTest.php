@@ -88,7 +88,7 @@ it('crée une réservation (store)', function () {
     $response = $this->postJson('/api/v1/bookings', $data);
 
     $response->assertCreated()
-        ->assertJsonPath('data.status', BookingStatusEnum::EN_ATTENTE->value)
+        ->assertJsonPath('data.status', BookingStatusEnum::EN_PAIEMENT->value)
         ->assertJsonPath('data.items.0.luggage.id', $luggage->id);
 });
 

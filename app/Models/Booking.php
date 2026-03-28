@@ -21,14 +21,16 @@ class Booking extends Model
         'confirmed_at',
         'completed_at',
         'cancelled_at',
+        'payment_expires_at',
         'comment',
     ];
 
     protected $casts = [
-        'status'         => BookingStatusEnum::class,
-        'confirmed_at'   => 'datetime',
-        'completed_at'   => 'datetime',
-        'cancelled_at'   => 'datetime',
+        'status'             => BookingStatusEnum::class,
+        'confirmed_at'       => 'datetime',
+        'completed_at'       => 'datetime',
+        'cancelled_at'       => 'datetime',
+        'payment_expires_at' => 'datetime',
     ];
 
 
