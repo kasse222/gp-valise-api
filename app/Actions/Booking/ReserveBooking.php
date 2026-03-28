@@ -33,9 +33,10 @@ class ReserveBooking
 
             // ✅ Création de la réservation (plus de luggage_id ici)
             $booking = Booking::create([
-                'user_id' => $user->id,
-                'trip_id' => $trip->id,
-                'status'  => BookingStatusEnum::EN_ATTENTE,
+                'user_id'            => $user->id,
+                'trip_id'            => $trip->id,
+                'status'             => BookingStatusEnum::EN_PAIEMENT,
+                'payment_expires_at' => now()->addMinutes(15),
             ]);
 
             // 🔁 Création des booking items
