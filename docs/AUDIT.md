@@ -2,7 +2,7 @@
 
 ## 1. État général
 
-- Tests : ✅ OK (**130 passés, 333 assertions**)
+- Tests : ✅ OK (**131 passés, 343 assertions**)
 - API : fonctionnelle et testée (Feature + Unit)
 - Docker : environnement stable (dev + testing)
 - Seeders / Factories : opérationnels et cohérents
@@ -159,28 +159,27 @@ Sinon → Action
 
 ---
 
-## 8. Prochain chantier (🔥 important)
+## 8. Batch automatique — ExpirePendingBookings
 
-### ExpirePendingBookings (batch)
+### Objectif
 
-Objectif :
+Traiter automatiquement les bookings expirés en attente de paiement.
 
-- traiter automatiquement les bookings expirés
+### Réalisation
 
-À implémenter :
+- création d’une commande dédiée `bookings:expire-pending`
+- ajout d’une action batch dédiée
+- traitement par `chunkById()` pour la scalabilité
+- réutilisation de l’action métier unitaire `ExpirePendingBooking`
+- libération automatique des valises liées
+- intégration au scheduler Laravel
 
-- scan des bookings `EN_PAIEMENT`
-- `payment_expires_at < now()`
-- appel de `ExpirePendingBooking`
-- libération des valises
+### Résultat
 
-### Points techniques
-
-- utiliser `chunk()` (scalabilité)
-- garantir idempotence
-- éviter double traitement (concurrence)
-
----
+- batch fonctionnel
+- exécution automatique planifiée
+- couverture de test ajoutée
+- base prête pour montée en charge et monitoring
 
 ## 9. Synthèse
 
@@ -214,10 +213,10 @@ Le projet GP-Valise n’est plus un simple projet CRUD.
 
 ## 11. Étapes suivantes
 
-- Batch `ExpirePendingBookings`
-- Alignement Transaction → Action-based
-- Refactor TripController
-- Préparation intégration paiement réel (Stripe / PSP)
-- Gestion concurrence et idempotence
+- sécurisation concurrence / idempotence du batch
+- alignement Transaction → Action-based complet
+- refactor TripController
+- préparation intégration paiement réel (Stripe / PSP)
+- monitoring / observabilité des tâches planifiées
 
 ---
