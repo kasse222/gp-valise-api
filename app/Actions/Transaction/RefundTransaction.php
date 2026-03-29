@@ -21,16 +21,17 @@ class RefundTransaction
         return DB::transaction(function () use ($transaction, $reason) {
             $transaction->update([
                 'status' => TransactionStatusEnum::REFUNDED,
-                'refunded_at' => now(),
-                'refund_reason' => $reason,
+                'processed_at' => now(),
             ]);
 
             Log::info('💰 Transaction remboursée', [
                 'transaction_id' => $transaction->id,
+                'booking_id' => $transaction->booking_id,
                 'user_id' => $transaction->user_id,
+                'reason' => $reason,
             ]);
 
-            return $transaction;
+            return $transaction->fresh();
         });
     }
 }

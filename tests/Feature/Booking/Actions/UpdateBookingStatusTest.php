@@ -18,9 +18,10 @@ it('met à jour le statut si autorisé', function () {
     $trip = Trip::factory()->for($voyageur)->create();
 
     $booking = Booking::factory()->create([
-        'status' => BookingStatusEnum::EN_ATTENTE,
-        'user_id' => $expediteur->id, // <- c’est bien l’expéditeur
-        'trip_id' => $trip->id,       // <- et le trip appartient au voyageur
+        'status' => BookingStatusEnum::EN_PAIEMENT,
+        'payment_expires_at' => now()->addMinutes(15),
+        'user_id' => $expediteur->id,
+        'trip_id' => $trip->id,
     ]);
 
     $booking->refresh();

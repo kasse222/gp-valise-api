@@ -1,138 +1,113 @@
 # 🧠 ARCHITECTURE GP-VALISE
 
-## Responsabilités
+## 1. Principe directeur
 
-- Controller = orchestration HTTP uniquement
-- FormRequest = validation d’entrée HTTP
-- Policy = autorisation / contrôle d’accès
-- Action = un cas d’usage métier complet
-- Validator = validation métier réutilisable, hors HTTP
-- Enum = règles d’état et transitions
-- Service = orchestration transverse rare, utilisée seulement si plusieurs actions partagent la même logique
+GP-Valise suit une architecture orientée cas d’usage.
 
-## Interdits
+Chaque couche a une responsabilité claire et limitée.
 
-- logique métier dans Controller
-- logique métier dans Policy
-- accès DB dans Enum
-- duplication entre Action et Service
+### Répartition des responsabilités
 
-## Décisions prises
+- `Controller` = orchestration HTTP uniquement
+- `FormRequest` = validation d’entrée HTTP
+- `Policy` = autorisation / contrôle d’accès
+- `Action` = un cas d’usage métier complet
+- `Validator` = validation métier réutilisable hors HTTP
+- `Enum` = règles d’état, transitions et comportement métier pur
+- `Service` = orchestration transverse rare
 
-- `BookingService` supprimé : non utilisé et redondant avec `ReserveBooking`
-- `BookingController` refactoré pour uniformiser les appels aux actions
-- adoption d’une convention : injection d’instance + `execute(...)`
-- usage plus cohérent du route model binding sur le module Booking
+---
 
-## Points à améliorer ensuite
+## 2. Interdits
 
-- harmoniser les signatures internes des actions (`id` vs modèle)
-- clarifier le rôle réel des `Services`
-- vérifier que toutes les `Policies` restent centrées sur l’accès
+Les règles suivantes structurent le projet :
 
-## Audit BookingController
+- pas de logique métier dans les `Controllers`
+- pas de logique métier dans les `Policies`
+- pas d’accès base de données dans les `Enums`
+- pas de duplication entre `Action` et `Service`
+- pas de `Service` pour un use case métier simple et isolé
 
-### Points positifs
+---
 
-- Le contrôleur ne contient pas de logique métier lourde.
-- Les cas d’usage métier sont extraits dans des actions dédiées.
-- La policy est globalement bien séparée de la logique métier.
+## 3. Convention d’architecture retenue
 
-### Points à améliorer
+### Convention principale
 
-- Les actions sont appelées de manière incohérente (statique vs injection).
-- Les signatures de méthodes ne sont pas uniformes (`id` brut vs route model binding).
-- Une partie du chargement des modèles et relations reste dans le contrôleur.
-- Le sens métier de `index()` n’est pas totalement aligné avec `viewAny()`.
+- injection d’instance dans le contrôleur
+- appel uniforme des use cases via `execute(...)`
 
-### Décision cible
+### Cible
 
-- Utiliser le route model binding partout où possible.
-- Utiliser les actions en injection d’instance uniquement.
-- Réserver le contrôleur à l’orchestration HTTP.
+Le flux standard doit être :
 
-## Refactor BookingController
+`Controller -> Action -> Model / Enum / Validator`
 
-### Changements effectués
+avec :
 
-- Uniformisation des appels aux actions via injection d’instance.
-- Adoption du route model binding pour les méthodes manipulant une réservation existante.
-- Réduction du chargement manuel des modèles dans le contrôleur.
+- `Policy` pour l’accès
+- `FormRequest` pour la validation HTTP
+- `Resource` pour la réponse API
 
-### Bénéfices
+---
 
-- Contrôleur plus cohérent
-- Architecture plus lisible
-- Convention d’appel des actions clarifiée
+## 4. Décisions déjà prises
 
-## TODO – Harmonisation TripController
+## 📦 Booking lifecycle (règle métier)
 
-### À améliorer
+1. Création → EN_PAIEMENT
+    - bloque temporairement les kg
+    - définit payment_expires_at
 
-#### index()
+2. Paiement réussi → CONFIRMEE
+    - confirme la réservation
+    - kg définitivement utilisés
 
-- Extraire la logique de récupération dans une action (ex: ListTrips)
-- Décider si pagination / filtres doivent être gérés côté Action
+3. Paiement échoué / expiré
+    - booking annulé
+    - kg libérés
+    - luggage remis EN_ATTENTE
 
-#### show()
+4. Livraison → COMPLETEE
 
-- Vérifier cohérence avec policies (view)
-- Éventuellement centraliser dans une action (ex: GetTripDetails)
+### Booking
 
-### Pourquoi
+- `BookingService` supprimé
+- `BookingController` refactoré
+- usage plus cohérent du route model binding
+- actions appelées par injection d’instance
 
-- Alignement avec l’architecture basée sur les Actions
-- Réduction de la logique Eloquent dans les Controllers
+### Plan de refactor TransactionController
 
-## Refactor TripController
+1. Supprimer authorize inline
+2. Ajouter TransactionPolicy::refund()
+3. Créer RefundTransactionRequest
+4. Créer RefundTransaction Action
+5. Supprimer TransactionService
+6. Injecter Action dans Controller
 
-### Changements effectués
+### Trip
 
-- Création de l’action `UpdateTrip`
-- Harmonisation de `TripController` avec la convention `Controller -> Action`
-- Uniformisation des appels d’actions par injection d’instance
+- `UpdateTrip` créé
+- début d’alignement du module avec la convention `Controller -> Action`
 
-### Convention retenue
+---
 
-- Les use cases métier de création et de modification doivent vivre dans des actions dédiées
-- Le contrôleur ne doit pas exécuter directement les mises à jour métier
+## 5. État actuel
 
-## Refactor TransactionController
+### Modules bien alignés
 
-## Décisions prises – Transactions
+- Booking
+- Transaction
 
-- `TransactionController` refactoré pour supprimer la logique d’accès inline
-- création extraite dans `CreateTransaction`
-- remboursement extrait dans `RefundTransaction`
-- `RefundTransactionRequest` ajouté pour sortir la validation du contrôleur
-- `TransactionService` supprimé car devenu redondant et non utilisé
+### Modules partiellement alignés
 
-### Convention appliquée
+- Trip
 
-- Controller = orchestration HTTP
-- Policy = accès
-- FormRequest = validation HTTP
-- Action = use case métier
+### Modules encore à refactorer
 
-## Règle retenue pour les Services
+- Plan
+- Report
+- Trip (suppression complète de `TripService` si encore présent)
 
-Un Service ne doit exister que s’il porte une logique transverse :
-
-- multi-modules
-- multi-actions
-- orchestration complexe
-- intégration externe
-
-Un Service ne doit pas exister pour un simple use case métier isolé.
-
-## État actuel
-
-- Booking et Transaction sont mieux alignés avec l’architecture cible :
-    - Controller = orchestration
-    - Action = use case
-- Plan n’est pas encore au même niveau car `PlanService` porte encore directement la logique métier.
-
-## Hypothèse d’évolution
-
-- Booking est le module le plus susceptible d’avoir un vrai Service plus tard si son orchestration devient transverse et complexe.
-- À ce stade, les Actions restent suffisantes.
+---

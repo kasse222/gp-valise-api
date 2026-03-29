@@ -20,20 +20,28 @@ return new class extends Migration
                 ->constrained()
                 ->cascadeOnDelete();
 
-            // ✅ On utilise une string simple pour l’enum, pas l’objet lui-même
             $table->string('status', 30)
-                ->default(BookingStatusEnum::EN_ATTENTE->value) // valeur string ici (ex: 'en_attente')
-                ->comment('Statut de réservation (enum casté dans le modèle BookingStatusEnum)');
+                ->default(BookingStatusEnum::EN_ATTENTE->value)
+                ->comment('Statut de réservation (enum casté)');
 
+            // ⏱️ timestamps métier
             $table->timestamp('confirmed_at')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->timestamp('cancelled_at')->nullable();
+            $table->timestamp('expired_at')->nullable();
+
+            // 🔥 NOUVEAU : paiement
+            $table->timestamp('payment_expires_at')->nullable();
 
             $table->text('comment')->nullable();
 
             $table->softDeletes();
             $table->timestamps();
 
+            // 🔥 index important pour batch expiration
+            $table->index(['status', 'payment_expires_at']);
+
+            // index existant
             $table->index(['user_id', 'trip_id', 'status']);
         });
     }

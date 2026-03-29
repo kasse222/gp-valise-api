@@ -21,6 +21,8 @@ class Booking extends Model
         'confirmed_at',
         'completed_at',
         'cancelled_at',
+        'expired_at',
+        'payment_expires_at',
         'comment',
     ];
 
@@ -29,6 +31,8 @@ class Booking extends Model
         'confirmed_at'   => 'datetime',
         'completed_at'   => 'datetime',
         'cancelled_at'   => 'datetime',
+        'expired_at'      => 'datetime',
+        'payment_expires_at' => 'datetime',
     ];
 
 
@@ -132,14 +136,14 @@ class Booking extends Model
         };
 
         $oldStatus = $this->status;
-        $this->status = $newStatus->value; // 👈 fix ici
+        $this->status = $newStatus; // 👈 fix ici
         $this->save();
 
 
         $this->statusHistories()->create([
             'old_status' => $oldStatus,
             'new_status' => $newStatus,
-            'changed_by' => $changer?->id ?? auth::id(),
+            'changed_by' => $changer?->id,
             'reason'     => $reason ?? 'Changement programmatique',
 
         ]);
@@ -163,7 +167,7 @@ class Booking extends Model
                 && $user->id === $this->user_id => true,
 
             // Voyageur peut confirmer
-            $this->status === BookingStatusEnum::EN_ATTENTE
+            $this->status === BookingStatusEnum::EN_PAIEMENT
                 && $newStatus === BookingStatusEnum::CONFIRMEE
                 && $user->id === $this->trip->user_id => true,
 
@@ -220,5 +224,17 @@ class Booking extends Model
     public function reports(): \Illuminate\Database\Eloquent\Relations\MorphMany
     {
         return $this->morphMany(Report::class, 'reportable');
+    }
+
+    public function isPaymentExpired(): bool
+    {
+        return $this->status === BookingStatusEnum::EN_PAIEMENT
+            && $this->payment_expires_at !== null
+            && $this->payment_expires_at->isPast();
+    }
+    public function isAwaitingPayment(): bool
+    {
+        return $this->status === BookingStatusEnum::EN_PAIEMENT
+            && $this->payment_expires_at?->isFuture();
     }
 }

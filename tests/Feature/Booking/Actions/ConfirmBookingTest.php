@@ -34,7 +34,8 @@ it('confirme une réservation avec succès si la capacité le permet', function 
         ->for($expediteur)
         ->for($trip)
         ->create([
-            'status' => BookingStatusEnum::EN_ATTENTE,
+            'status' => BookingStatusEnum::EN_PAIEMENT,
+            'payment_expires_at' => now()->addMinutes(15),
             'confirmed_at' => null,
             'cancelled_at' => null,
         ]);

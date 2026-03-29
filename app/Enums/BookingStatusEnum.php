@@ -4,47 +4,79 @@ namespace App\Enums;
 
 enum BookingStatusEnum: int
 {
-    case EN_ATTENTE       = 0;
-    case EN_PAIEMENT      = 1;
-    case PAIEMENT_ECHOUE  = 2;
-    case ACCEPTE          = 3;
-    case REFUSE           = 4;
-    case CONFIRMEE        = 5;
-    case LIVREE           = 6;
-    case TERMINE          = 7;
-    case ANNULE           = 8;
-    case REMBOURSEE       = 9;
-    case EXPIREE          = 10;
-    case EN_LITIGE        = 11;
-    case SUSPENDUE        = 12;
+    case EN_ATTENTE      = 0;
+    case EN_PAIEMENT     = 1;
+    case PAIEMENT_ECHOUE = 2;
+    case ACCEPTE         = 3;
+    case REFUSE          = 4;
+    case CONFIRMEE       = 5;
+    case LIVREE          = 6;
+    case TERMINE         = 7;
+    case ANNULE          = 8;
+    case REMBOURSEE      = 9;
+    case EXPIREE         = 10;
+    case EN_LITIGE       = 11;
+    case SUSPENDUE       = 12;
 
     private const TRANSITIONS = [
-        self::EN_ATTENTE->value       => [self::EN_PAIEMENT->value, self::ACCEPTE->value, self::REFUSE->value, self::ANNULE->value, self::CONFIRMEE->value],
-        self::EN_PAIEMENT->value      => [self::PAIEMENT_ECHOUE->value, self::CONFIRMEE->value, self::ANNULE->value],
-        self::PAIEMENT_ECHOUE->value  => [self::EN_PAIEMENT->value, self::ANNULE->value],
-        self::ACCEPTE->value          => [self::CONFIRMEE->value, self::ANNULE->value],
-        self::CONFIRMEE->value        => [self::LIVREE->value, self::EN_LITIGE->value, self::TERMINE->value],
-        self::EN_LITIGE->value        => [self::TERMINE->value, self::ANNULE->value],
-        // etc.
-    ];
+        self::EN_ATTENTE->value => [
+            self::EN_PAIEMENT->value,
+            self::ACCEPTE->value,
+            self::REFUSE->value,
+            self::ANNULE->value,
+        ],
 
+        self::EN_PAIEMENT->value => [
+            self::PAIEMENT_ECHOUE->value,
+            self::CONFIRMEE->value,
+            self::ANNULE->value,
+            self::EXPIREE->value, // ✅ ajout critique
+        ],
+
+        self::PAIEMENT_ECHOUE->value => [
+            self::EN_PAIEMENT->value,
+            self::ANNULE->value,
+        ],
+
+        self::ACCEPTE->value => [
+            self::CONFIRMEE->value,
+            self::ANNULE->value,
+        ],
+
+        self::CONFIRMEE->value => [
+            self::LIVREE->value,
+            self::EN_LITIGE->value,
+            self::TERMINE->value,
+        ],
+
+        self::LIVREE->value => [
+            self::TERMINE->value,
+            self::EN_LITIGE->value,
+        ],
+
+        self::EN_LITIGE->value => [
+            self::TERMINE->value,
+            self::ANNULE->value,
+            self::REMBOURSEE->value,
+        ],
+    ];
 
     public function label(): string
     {
         return match ($this) {
-            self::EN_ATTENTE       => 'En attente',
-            self::EN_PAIEMENT      => 'En paiement',
-            self::PAIEMENT_ECHOUE  => 'Paiement échoué',
-            self::ACCEPTE          => 'Acceptée',
-            self::REFUSE           => 'Refusée',
-            self::CONFIRMEE        => 'Confirmée',
-            self::LIVREE           => 'Livrée',
-            self::TERMINE          => 'Terminée',
-            self::ANNULE           => 'Annulée',
-            self::REMBOURSEE       => 'Remboursée',
-            self::EXPIREE          => 'Expirée',
-            self::EN_LITIGE        => 'En litige',
-            self::SUSPENDUE        => 'Suspendue',
+            self::EN_ATTENTE      => 'En attente',
+            self::EN_PAIEMENT     => 'En paiement',
+            self::PAIEMENT_ECHOUE => 'Paiement échoué',
+            self::ACCEPTE         => 'Acceptée',
+            self::REFUSE          => 'Refusée',
+            self::CONFIRMEE       => 'Confirmée',
+            self::LIVREE          => 'Livrée',
+            self::TERMINE         => 'Terminée',
+            self::ANNULE          => 'Annulée',
+            self::REMBOURSEE      => 'Remboursée',
+            self::EXPIREE         => 'Expirée',
+            self::EN_LITIGE       => 'En litige',
+            self::SUSPENDUE       => 'Suspendue',
         };
     }
 
@@ -75,7 +107,6 @@ enum BookingStatusEnum: int
         ];
     }
 
-    // 🔐 Logique métier
     public function isFinal(): bool
     {
         return in_array($this, [
@@ -98,17 +129,18 @@ enum BookingStatusEnum: int
 
     public function canBeCancelled(): bool
     {
-        return !in_array($this, [
+        return ! in_array($this, [
             self::TERMINE,
             self::ANNULE,
             self::REMBOURSEE,
+            self::EXPIREE,
         ], true);
     }
 
     public function canBeConfirmed(): bool
     {
         return in_array($this, [
-            self::EN_ATTENTE,
+            self::EN_PAIEMENT,
             self::ACCEPTE,
         ], true);
     }
@@ -117,7 +149,6 @@ enum BookingStatusEnum: int
     {
         return in_array($this, [
             self::CONFIRMEE,
-            self::LIVREE,
         ], true);
     }
 
@@ -134,6 +165,7 @@ enum BookingStatusEnum: int
         return in_array($this, [
             self::ANNULE,
             self::PAIEMENT_ECHOUE,
+            self::EXPIREE,
         ], true);
     }
 
@@ -152,14 +184,12 @@ enum BookingStatusEnum: int
         return self::TRANSITIONS[$this->value] ?? [];
     }
 
-    // 🛠️ Utilitaires
     public static function values(): array
     {
         return array_column(self::cases(), 'value');
     }
 
-    // 👁 Pour usage explicite dans les scopes ou tests
-    public static function confirmed(): string
+    public static function confirmed(): int
     {
         return self::CONFIRMEE->value;
     }
