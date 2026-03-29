@@ -1,5 +1,6 @@
 # ✈️ GP-Valise API
 
+Ce projet va au-delà d’un CRUD classique en intégrant une logique métier avancée, des traitements batch automatisés et une architecture orientée production.
 ![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)
 [![Laravel 12](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com)
 [![Docker](https://img.shields.io/badge/containerized-Docker-blue)](https://www.docker.com/)
@@ -13,33 +14,33 @@ API Laravel **API-only** pour une plateforme logistique entre voyageurs et expé
 
 ## 🧭 Sommaire
 
--   [🚀 Stack technique](#-stack-technique)
--   [📦 Modèles implémentés](#-modèles-implémentés)
--   [🔐 Authentification](#-authentification)
--   [📦 Réservations & Valises](#-réservations--valises)
--   [💳 Paiements & Transactions](#-paiements--transactions)
--   [🧪 Tests automatisés](#-tests-automatisés)
--   [🧱 Sécurité & Accès](#-sécurité--accès)
--   [🧬 Données de test (seeders)](#-données-de-test-seeders)
--   [⚙️ Installation locale (Docker)](#️-installation-locale-docker)
--   [🛣️ Roadmap](#️-roadmap)
--   [👨‍💻 À propos](#-à-propos)
+- [🚀 Stack technique](#-stack-technique)
+- [📦 Modèles implémentés](#-modèles-implémentés)
+- [🔐 Authentification](#-authentification)
+- [📦 Réservations & Valises](#-réservations--valises)
+- [💳 Paiements & Transactions](#-paiements--transactions)
+- [🧪 Tests automatisés](#-tests-automatisés)
+- [🧱 Sécurité & Accès](#-sécurité--accès)
+- [🧬 Données de test (seeders)](#-données-de-test-seeders)
+- [⚙️ Installation locale (Docker)](#️-installation-locale-docker)
+- [🛣️ Roadmap](#️-roadmap)
+- [👨‍💻 À propos](#-à-propos)
 
 ---
 
 ## 🚀 Stack technique
 
--   **Laravel 12** (API-only)
--   **Sanctum** (auth tokens)
--   **PestPHP** (tests)
--   **MySQL 8** (dev) + **SQLite in-memory** (tests/CI)
--   **Docker** (environnement isolé)
--   **Swagger (l5-swagger)** (documentation interactive)
--   **GitHub Actions** (CI)
--   **Enums métiers** (statuts, rôles, types…)
--   **Actions Laravel** (logique métier isolée)
--   **Policies** (contrôle d’accès centralisé)
--   **FormRequests** (validation)
+- **Laravel 12** (API-only)
+- **Sanctum** (auth tokens)
+- **PestPHP** (tests)
+- **MySQL 8** (dev) + **SQLite in-memory** (tests/CI)
+- **Docker** (environnement isolé)
+- **Swagger (l5-swagger)** (documentation interactive)
+- **GitHub Actions** (CI)
+- **Enums métiers** (statuts, rôles, types…)
+- **Actions Laravel** (logique métier isolée)
+- **Policies** (contrôle d’accès centralisé)
+- **FormRequests** (validation)
 
 ---
 
@@ -62,6 +63,39 @@ API Laravel **API-only** pour une plateforme logistique entre voyageurs et expé
 
 ---
 
+## 🧱 Architecture
+
+Le projet suit une architecture orientée cas d’usage :
+
+- Controller → orchestration HTTP
+- Action → logique métier
+- Policy → contrôle d’accès
+- FormRequest → validation
+- Enum → règles métier (state machine)
+
+👉 Cette approche permet une séparation claire des responsabilités et une meilleure maintenabilité.
+
+## 🧠 Core Business Logic (Booking Lifecycle)
+
+Le cœur du projet repose sur une gestion avancée des réservations (booking lifecycle) :
+
+1. Création → `EN_PAIEMENT`
+    - bloque temporairement les ressources (kg)
+    - définit `payment_expires_at`
+
+2. Paiement réussi → `CONFIRMEE`
+    - réservation validée
+    - capacité définitivement utilisée
+
+3. Expiration automatique
+    - booking → `EXPIREE`
+    - ressources libérées (valises → `EN_ATTENTE`)
+    - capacité restaurée
+
+4. Livraison → `LIVREE` puis `TERMINE`
+
+👉 Ce flow garantit la cohérence métier et évite les conflits de capacité.
+
 ## 🔐 Authentification
 
 > Tous les endpoints API sont préfixés par `/api/v1`.
@@ -74,9 +108,9 @@ API Laravel **API-only** pour une plateforme logistique entre voyageurs et expé
 | POST    | `/api/v1/logout`     | Déconnexion         |
 | POST    | `/api/v1/logout-all` | Déconnexion globale |
 
--   Tokens via **Sanctum**
--   Validation via **FormRequests**
--   Accès via **Policies** + middleware de rôle
+- Tokens via **Sanctum**
+- Validation via **FormRequests**
+- Accès via **Policies** + middleware de rôle
 
 ---
 
@@ -94,9 +128,9 @@ API Laravel **API-only** pour une plateforme logistique entre voyageurs et expé
 | POST    | `/api/v1/bookings/{booking}/cancel`   | Annuler                |
 | POST    | `/api/v1/bookings/{booking}/complete` | Marquer livrée         |
 
--   Statuts via `BookingStatusEnum`
--   Transitions historisées (`BookingStatusHistory`)
--   Autorisation via `BookingPolicy`
+- Statuts via `BookingStatusEnum`
+- Transitions historisées (`BookingStatusHistory`)
+- Autorisation via `BookingPolicy`
 
 ### Luggage – Endpoints
 
@@ -107,9 +141,9 @@ API Laravel **API-only** pour une plateforme logistique entre voyageurs et expé
 | PUT     | `/api/v1/luggages/{luggage}` | Modifier          |
 | DELETE  | `/api/v1/luggages/{luggage}` | Supprimer         |
 
--   Sécurité : `LuggagePolicy`
--   Validation : FormRequests
--   Enum : `LuggageStatusEnum`
+- Sécurité : `LuggagePolicy`
+- Validation : FormRequests
+- Enum : `LuggageStatusEnum`
 
 ---
 
@@ -136,33 +170,33 @@ API Laravel **API-only** pour une plateforme logistique entre voyageurs et expé
 
 ✅ Le endpoint **refund** est protégé par :
 
--   `verified_user`
--   `kyc`
--   `throttle.sensitive:finance,5,1`
+- `verified_user`
+- `kyc`
+- `throttle.sensitive:finance,5,1`
 
 ---
 
 ## 🧪 Tests automatisés
 
--   **Environnement :** SQLite in-memory (CI), MySQL local optionnel
--   **Statut actuel :**
-    -   **129 tests / 330 assertions**
-    -   Durée : **~1.37s**
+- **Environnement :** SQLite in-memory (CI), MySQL local optionnel
+- **Statut actuel :**
+    - 131 tests / 343 assertions
+    - Durée : **~1.37s**
 
 ---
 
 ## 🧱 Sécurité & Accès
 
--   `auth:sanctum` obligatoire (routes protégées)
--   Policies actives :
-    -   `BookingPolicy`, `LuggagePolicy`, `PaymentPolicy`, `TransactionPolicy`, etc.
--   Middlewares personnalisés :
-    -   `EnsureRole`
-    -   `verified_user`
-    -   `kyc`
-    -   `throttle.sensitive`
-    -   `force.json` (API JSON par défaut)
--   Enums = source de vérité métier (statuts, transitions, badges)
+- `auth:sanctum` obligatoire (routes protégées)
+- Policies actives :
+    - `BookingPolicy`, `LuggagePolicy`, `PaymentPolicy`, `TransactionPolicy`, etc.
+- Middlewares personnalisés :
+    - `EnsureRole`
+    - `verified_user`
+    - `kyc`
+    - `throttle.sensitive`
+    - `force.json` (API JSON par défaut)
+- Enums = source de vérité métier (statuts, transitions, badges)
 
 ---
 
@@ -182,6 +216,26 @@ API Laravel **API-only** pour une plateforme logistique entre voyageurs et expé
 | Invitations  |            5 |
 
 ---
+
+## ⏱️ Batch & Scheduler
+
+Le projet intègre un système de traitement automatique des réservations expirées :
+
+- Commande : `bookings:expire-pending`
+- Exécution via **Laravel Scheduler**
+- Traitement par batch (`chunkById`)
+- Gestion des erreurs + logs
+
+### Fonctionnement
+
+Toutes les X minutes :
+
+- scan des bookings `EN_PAIEMENT`
+- si `payment_expires_at < now()`
+- passage en `EXPIREE`
+- libération des ressources
+
+👉 Ce mécanisme simule un comportement réel de système SaaS.
 
 ## ⚙️ Installation locale (Docker)
 
