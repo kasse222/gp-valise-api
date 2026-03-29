@@ -2,90 +2,222 @@
 
 ## 1. État général
 
-- Tests : OK (129 passés, 330 assertions)
-- API : fonctionnelle
-- Docker : OK
-- Seeders : OK
+- Tests : ✅ OK (**130 passés, 333 assertions**)
+- API : fonctionnelle et testée (Feature + Unit)
+- Docker : environnement stable (dev + testing)
+- Seeders / Factories : opérationnels et cohérents
 
 ---
 
-## 2. Incident résolu pendant la baseline
+## 2. Incident de baseline (résolu)
 
-- La suite de tests échouait massivement au départ.
-- Cause probable : cache Laravel/bootstrap incohérent ou stale.
-- Action corrective : `php artisan optimize:clear`
-- Résultat : restauration complète de la suite de tests.
+### Problème
+
+- Échec massif de la suite de tests au démarrage du sprint
+
+### Cause probable
+
+- Cache Laravel / bootstrap incohérent (état stale)
+
+### Action corrective
+
+```bash
+php artisan optimize:clear
+```
+
+### Résultat
+
+- Suite de tests entièrement restaurée
+- Environnement stabilisé
 
 ---
 
-## 3. Première conclusion
+## 3. Conclusion initiale
 
-- La base projet est saine.
-- Les prochains audits peuvent maintenant porter sur l’architecture, la séparation des responsabilités et les conventions.
+- La base projet est saine
+- Les tests couvrent efficacement les cas métier
+- Le projet est prêt pour un audit architectural avancé
 
-## TODO – Harmonisation TripController
+---
 
-### À améliorer
+## 4. Évolution majeure — Flow métier Booking (🔥)
 
-#### index()
+### 🎯 Objectif
 
-- Extraire la logique de récupération dans une action (ex: ListTrips)
-- Décider si pagination / filtres doivent être gérés côté Action
+Passer d’un CRUD simple à un **cycle de vie métier réaliste** pour les réservations.
 
-#### show()
+### 🧠 Décisions métier
 
-- Vérifier cohérence avec policies (view)
-- Éventuellement centraliser dans une action (ex: GetTripDetails)
+- Un booking ne peut plus être confirmé directement après création
+- Introduction du statut `EN_PAIEMENT`
+- Confirmation uniquement après paiement + validation métier
+- Expiration automatique possible si paiement non effectué
+- Libération des ressources (valises) en cas d’expiration
 
-### Pourquoi
+### 🔁 Nouveau flow
 
-- Alignement avec l’architecture basée sur les Actions
-- Réduction de la logique Eloquent dans les Controllers
+```
+EN_ATTENTE → EN_PAIEMENT → CONFIRMEE
+                     ↓
+                  EXPIREE
+```
 
-## TODO – Audit / refactor TransactionController
+### ⚙️ Refactors réalisés
 
-### Problèmes identifiés
+- `ReserveBooking` aligné avec le nouveau flow
+- Ajout de `ExpirePendingBooking`
+- Renforcement de `BookingStatusEnum` (source de vérité métier)
+- Suppression des transitions incohérentes (ex: EN_ATTENTE → CONFIRMEE)
+- Mise à jour complète des tests métier
 
-- Mélange entre `authorizeResource`, `authorize()` manuel et contrôles d’accès inline (`abort(403)`).
-- Logique d’autorisation encore présente dans le contrôleur (`show`, `refund`).
-- Usage répétitif de `Auth::user()` au lieu d’un passage explicite du user.
-- Validation inline dans `refund()` à extraire dans une FormRequest dédiée.
-- Contrôleur encore trop couplé à `TransactionService`.
-- Convention architecture non alignée avec les autres modules refactorés.
+### 📈 Impact
 
-### Objectif de refactor
+- Cohérence métier forte
+- Réduction des incohérences possibles
+- Préparation du système pour la scalabilité (batch, paiement réel)
 
-- Controller = orchestration HTTP uniquement
-- Policy = accès uniquement
-- FormRequest = validation HTTP
-- Action ou Service = logique métier
-- Zéro logique d’autorisation métier inline dans le contrôleur
+---
 
-## TODO Performance – Transaction model
+## 5. Architecture — état actuel
 
-- Réévaluer `protected $with = ['booking']`
-- Vérifier si ce eager loading global reste pertinent à mesure que le volume de transactions augmente
-- Remplacer éventuellement par des chargements explicites ciblés si nécessaire
+### ✅ Convention respectée
 
-## Règle retenue pour les Services
+- Controller = orchestration HTTP
+- FormRequest = validation d’entrée
+- Policy = contrôle d’accès
+- Action = cas d’usage métier
+- Enum = règles métier + transitions
+- Validator = règles métier réutilisables
 
-Un Service ne doit exister que s’il porte une logique transverse :
+### 📌 Règle sur les Services
 
-- multi-modules
-- multi-actions
+Un Service existe uniquement si :
+
+- logique transverse multi-modules
 - orchestration complexe
 - intégration externe
 
-Un Service ne doit pas exister pour un simple use case métier isolé.
+Sinon → Action
 
-## État actuel
+---
 
-- Booking et Transaction sont mieux alignés avec l’architecture cible :
-    - Controller = orchestration
-    - Action = use case
-- Plan n’est pas encore au même niveau car `PlanService` porte encore directement la logique métier.
+## 6. Modules analysés
 
-## Hypothèse d’évolution
+### 🟢 Booking (avancé)
 
-- Booking est le module le plus susceptible d’avoir un vrai Service plus tard si son orchestration devient transverse et complexe.
-- À ce stade, les Actions restent suffisantes.
+- Architecture propre
+- Enum riche (state machine)
+- Actions découplées
+- Tests complets
+- Gestion du paiement + expiration intégrée
+
+👉 Module le plus mature actuellement
+
+---
+
+### 🟡 Transaction (en cours d’alignement)
+
+#### Problèmes identifiés
+
+- Mélange entre `authorizeResource` et contrôles inline
+- Couplage initial avec `TransactionService`
+- Validation partiellement inline
+
+#### Objectif
+
+- Alignement complet avec :
+    - Action
+    - FormRequest
+    - Policy
+
+---
+
+### 🟡 Trip (à harmoniser)
+
+#### À faire
+
+- Extraire `index()` → `ListTrips`
+- Extraire `show()` → `GetTripDetails`
+- Uniformiser avec le pattern Action
+
+---
+
+### 🟡 Plan
+
+- `PlanService` contient encore de la logique métier directe
+- Non aligné avec la stratégie Action-first
+
+---
+
+## 7. Performance & technique
+
+### Transaction Model
+
+- `protected $with = ['booking']` à surveiller
+- Peut devenir coûteux à grande échelle
+- À remplacer potentiellement par eager loading ciblé
+
+---
+
+## 8. Prochain chantier (🔥 important)
+
+### ExpirePendingBookings (batch)
+
+Objectif :
+
+- traiter automatiquement les bookings expirés
+
+À implémenter :
+
+- scan des bookings `EN_PAIEMENT`
+- `payment_expires_at < now()`
+- appel de `ExpirePendingBooking`
+- libération des valises
+
+### Points techniques
+
+- utiliser `chunk()` (scalabilité)
+- garantir idempotence
+- éviter double traitement (concurrence)
+
+---
+
+## 9. Synthèse
+
+### ✅ Points forts
+
+- Architecture claire et cohérente
+- Séparation des responsabilités respectée
+- Tests fiables et complets
+- Évolution vers un vrai modèle métier (DDD light)
+
+### ⚠️ Points à améliorer
+
+- Harmonisation complète des controllers
+- Finalisation du module Transaction
+- Clarification du rôle des Services
+- Mise en place des traitements batch
+
+---
+
+## 10. Position actuelle du projet
+
+Le projet GP-Valise n’est plus un simple projet CRUD.
+
+👉 Il devient :
+
+- une API métier cohérente
+- un système avec règles fortes (state machine)
+- une base crédible pour un SaaS réel
+
+---
+
+## 11. Étapes suivantes
+
+- Batch `ExpirePendingBookings`
+- Alignement Transaction → Action-based
+- Refactor TripController
+- Préparation intégration paiement réel (Stripe / PSP)
+- Gestion concurrence et idempotence
+
+---
