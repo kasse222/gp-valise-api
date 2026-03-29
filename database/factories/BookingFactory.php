@@ -20,6 +20,7 @@ class BookingFactory extends Factory
             'confirmed_at' => null,
             'completed_at' => null,
             'cancelled_at' => null,
+            'expired_at' => null,
             'payment_expires_at' => null,
         ];
 
@@ -28,15 +29,20 @@ class BookingFactory extends Factory
 
             BookingStatusEnum::CONFIRMEE => $timestamps['confirmed_at'] = now(),
 
-            BookingStatusEnum::LIVREE,
+            BookingStatusEnum::LIVREE => [
+                $timestamps['confirmed_at'] = now()->subDays(2),
+                $timestamps['completed_at'] = now()->subHour(),
+            ],
+
             BookingStatusEnum::TERMINE => [
                 $timestamps['confirmed_at'] = now()->subDays(2),
                 $timestamps['completed_at'] = now(),
             ],
 
             BookingStatusEnum::ANNULE,
-            BookingStatusEnum::REMBOURSEE,
-            BookingStatusEnum::EXPIREE => $timestamps['cancelled_at'] = now()->subDay(),
+            BookingStatusEnum::REMBOURSEE => $timestamps['cancelled_at'] = now()->subDay(),
+
+            BookingStatusEnum::EXPIREE => $timestamps['expired_at'] = now()->subMinutes(5),
 
             default => null,
         };
@@ -55,6 +61,9 @@ class BookingFactory extends Factory
         return $this->state(fn() => [
             'status' => BookingStatusEnum::CONFIRMEE,
             'confirmed_at' => now(),
+            'completed_at' => null,
+            'cancelled_at' => null,
+            'expired_at' => null,
             'payment_expires_at' => null,
         ]);
     }
@@ -63,6 +72,10 @@ class BookingFactory extends Factory
     {
         return $this->state(fn() => [
             'status' => BookingStatusEnum::EN_PAIEMENT,
+            'confirmed_at' => null,
+            'completed_at' => null,
+            'cancelled_at' => null,
+            'expired_at' => null,
             'payment_expires_at' => now()->addMinutes(15),
         ]);
     }
@@ -71,7 +84,35 @@ class BookingFactory extends Factory
     {
         return $this->state(fn() => [
             'status' => BookingStatusEnum::EN_PAIEMENT,
+            'confirmed_at' => null,
+            'completed_at' => null,
+            'cancelled_at' => null,
+            'expired_at' => null,
             'payment_expires_at' => now()->subMinutes(15),
+        ]);
+    }
+
+    public function expired(): static
+    {
+        return $this->state(fn() => [
+            'status' => BookingStatusEnum::EXPIREE,
+            'confirmed_at' => null,
+            'completed_at' => null,
+            'cancelled_at' => null,
+            'expired_at' => now()->subMinutes(5),
+            'payment_expires_at' => null,
+        ]);
+    }
+
+    public function cancelled(): static
+    {
+        return $this->state(fn() => [
+            'status' => BookingStatusEnum::ANNULE,
+            'confirmed_at' => null,
+            'completed_at' => null,
+            'cancelled_at' => now()->subDay(),
+            'expired_at' => null,
+            'payment_expires_at' => null,
         ]);
     }
 }

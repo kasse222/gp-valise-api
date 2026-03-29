@@ -64,11 +64,11 @@ avec :
     - kg définitivement utilisés
 
 3. Paiement échoué / expiré
-    - booking annulé
+    - booking → PAIEMENT_ECHOUE ou EXPIREE selon le cas
     - kg libérés
     - luggage remis EN_ATTENTE
 
-4. Livraison → COMPLETEE
+4. Livraison → LIVREE puis TERMINE
 
 ### Booking
 
@@ -76,6 +76,10 @@ avec :
 - `BookingController` refactoré
 - usage plus cohérent du route model binding
 - actions appelées par injection d’instance
+- flow paiement introduit : `EN_ATTENTE -> EN_PAIEMENT -> CONFIRMEE`
+- expiration automatique des bookings en attente de paiement
+- commande batch planifiée via scheduler Laravel
+- tests métier et batch alignés
 
 ### Plan de refactor TransactionController
 
@@ -99,6 +103,7 @@ avec :
 
 - Booking
 - Transaction
+- Booking est désormais batch-ready
 
 ### Modules partiellement alignés
 
