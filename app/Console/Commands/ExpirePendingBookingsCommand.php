@@ -16,7 +16,7 @@ class ExpirePendingBookingsCommand extends Command
 
         $this->info(
             "RunExpirePendingBookingsBatch terminé. " .
-                "Traités: {$result['processed']}, " .
+                "Scannés: {$result['scanned']}, " .
                 "Expirés: {$result['expired']}, " .
                 "Ignorés: {$result['skipped']}, " .
                 "Erreurs: {$result['failed']}"
