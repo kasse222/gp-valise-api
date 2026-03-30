@@ -99,14 +99,23 @@ class Trip extends Model
         return ($this->kgReserved() + $kg) <= $this->capacity;
     }
 
+    //(status = CONFIRMEE) OR (status = EN_PAIEMENT AND payment_expires_at > now())
     public function kgReserved(): float
     {
-        // Évite un `get()` coûteux
-        return $this->bookings()
-            ->where('status', BookingStatusEnum::CONFIRMEE)
-            ->withSum('bookingItems as total_reserved', 'kg_reserved')
-            ->get()
-            ->sum('total_reserved');
+        $now = now();
+
+        return (float) $this->bookingItems()
+            ->whereHas('booking', function ($query) use ($now) {
+                $query->where(function ($q) use ($now) {
+                    $q->where('status', BookingStatusEnum::CONFIRMEE->value)
+                        ->orWhere(function ($subQuery) use ($now) {
+                            $subQuery->where('status', BookingStatusEnum::EN_PAIEMENT->value)
+                                ->whereNotNull('payment_expires_at')
+                                ->where('payment_expires_at', '>', $now);
+                        });
+                });
+            })
+            ->sum('kg_reserved');
     }
 
     public function kgDisponible(): float
