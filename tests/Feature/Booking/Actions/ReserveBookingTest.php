@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Booking\ReserveBooking;
+use App\Enums\BookingStatusEnum;
 use App\Enums\LuggageStatusEnum;
 use App\Models\Booking;
 use App\Models\Luggage;
@@ -13,15 +14,18 @@ uses(Tests\TestCase::class, Illuminate\Foundation\Testing\RefreshDatabase::class
 
 beforeEach(function () {
     $this->expediteur = User::factory()->sender()->create();
-    Auth::login($this->expediteur); // simulate logged-in user
+    Auth::login($this->expediteur);
 });
 
 it('crée une réservation avec une valise disponible', function () {
     $this->actingAs($this->expediteur);
-    $trip = Trip::factory()->create(['capacity' => 30]); // Capacité 30 kg
+
+    $trip = Trip::factory()->create(['capacity' => 30]);
+
     $luggage = Luggage::factory()->for($this->expediteur)->create([
         'status' => LuggageStatusEnum::EN_ATTENTE,
     ]);
+
     $validated = [
         'trip_id' => $trip->id,
         'items' => [
@@ -33,20 +37,24 @@ it('crée une réservation avec une valise disponible', function () {
         ],
     ];
 
-    $booking = app(ReserveBooking::class)->execute($validated);
+    $booking = app(ReserveBooking::class)->execute($this->expediteur, $validated);
 
-    expect($booking)->toBeInstanceOf(Booking::class);
-    expect($booking->trip_id)->toBe($trip->id);
-    expect($booking->user_id)->toBe($this->expediteur->id);
-    expect($booking->bookingItems)->toHaveCount(1);
-    expect($booking->bookingItems->first()->luggage_id)->toBe($luggage->id);
+    expect($booking)->toBeInstanceOf(Booking::class)
+        ->and($booking->trip_id)->toBe($trip->id)
+        ->and($booking->user_id)->toBe($this->expediteur->id)
+        ->and($booking->status)->toBe(BookingStatusEnum::EN_PAIEMENT)
+        ->and($booking->payment_expires_at)->not->toBeNull()
+        ->and($booking->bookingItems)->toHaveCount(1)
+        ->and($booking->bookingItems->first()->luggage_id)->toBe($luggage->id);
 
     $luggage->refresh();
+
     expect($luggage->status)->toBe(LuggageStatusEnum::RESERVEE);
 });
 
 it('rejette une valise déjà réservée', function () {
     $trip = Trip::factory()->create(['capacity' => 30]);
+
     $luggage = Luggage::factory()->for($this->expediteur)->create([
         'status' => LuggageStatusEnum::RESERVEE,
     ]);
@@ -63,11 +71,13 @@ it('rejette une valise déjà réservée', function () {
     ];
 
     $this->expectException(ValidationException::class);
-    app(ReserveBooking::class)->execute($validated);
+
+    app(ReserveBooking::class)->execute($this->expediteur, $validated);
 });
 
 it('rejette si la capacité est dépassée', function () {
-    $trip = Trip::factory()->create(['capacity' => 5]); // ← Capacité trop faible
+    $trip = Trip::factory()->create(['capacity' => 5]);
+
     $luggage = Luggage::factory()->for($this->expediteur)->create([
         'status' => LuggageStatusEnum::EN_ATTENTE,
     ]);
@@ -84,5 +94,6 @@ it('rejette si la capacité est dépassée', function () {
     ];
 
     $this->expectException(ValidationException::class);
-    app(ReserveBooking::class)->execute($validated);
+
+    app(ReserveBooking::class)->execute($this->expediteur, $validated);
 });

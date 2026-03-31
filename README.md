@@ -180,8 +180,8 @@ Le cœur du projet repose sur une gestion avancée des réservations (booking li
 
 - **Environnement :** SQLite in-memory (CI), MySQL local optionnel
 - **Statut actuel :**
-    - 131 tests / 343 assertions
-    - Durée : **~1.37s**
+    - 136 tests / 353 assertions
+    - Durée : **~6.44s**
 
 ---
 

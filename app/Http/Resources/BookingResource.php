@@ -36,6 +36,9 @@ class BookingResource extends JsonResource
             'confirmed_at' => optional($this->confirmed_at)?->toDateTimeString(),
             'completed_at' => optional($this->completed_at)?->toDateTimeString(),
             'cancelled_at' => optional($this->cancelled_at)?->toDateTimeString(),
+            'payment_expires_at' => $this->payment_expires_at?->toISOString(),
+            'expired_at' => $this->expired_at?->toISOString(),
+
 
             // 🔐 Sécurité (est-ce ma réservation ?)
             // 'is_mine'      => $this->user_id === auth()?->id(),
