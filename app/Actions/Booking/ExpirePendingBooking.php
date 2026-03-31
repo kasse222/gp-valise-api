@@ -12,29 +12,22 @@ class ExpirePendingBooking
 {
     public function execute(Booking $booking): Booking
     {
-        $booking->refresh();
-
-        if ($booking->status !== BookingStatusEnum::EN_PAIEMENT) {
-            throw ValidationException::withMessages([
-                'booking' => "Seules les réservations en attente de paiement peuvent expirer.",
-            ]);
-        }
-
-        if ($booking->payment_expires_at === null || $booking->payment_expires_at->isFuture()) {
-            throw ValidationException::withMessages([
-                'booking' => "Cette réservation n'est pas encore expirée.",
-            ]);
-        }
-
         return DB::transaction(function () use ($booking) {
-            $booking->loadMissing('bookingItems.luggage');
+            $booking = Booking::query()
+                ->with('bookingItems.luggage')
+                ->lockForUpdate()
+                ->findOrFail($booking->id);
 
-            foreach ($booking->bookingItems as $item) {
-                if ($item->luggage) {
-                    $item->luggage->update([
-                        'status' => LuggageStatusEnum::EN_ATTENTE,
-                    ]);
-                }
+            if ($booking->status !== BookingStatusEnum::EN_PAIEMENT) {
+                return $booking->fresh(['bookingItems.luggage', 'statusHistories']);
+            }
+
+            if ($booking->payment_expires_at === null || $booking->payment_expires_at->isFuture()) {
+                return $booking->fresh(['bookingItems.luggage', 'statusHistories']);
+            }
+
+            if (! $booking->canTransitionTo(BookingStatusEnum::EXPIREE)) {
+                return $booking->fresh(['bookingItems.luggage', 'statusHistories']);
             }
 
             $booking->transitionTo(
@@ -43,9 +36,13 @@ class ExpirePendingBooking
                 'Expiration automatique du paiement'
             );
 
-            $booking->update([
-                'payment_expires_at' => null,
-            ]);
+            foreach ($booking->bookingItems as $item) {
+                if ($item->luggage) {
+                    $item->luggage->update([
+                        'status' => LuggageStatusEnum::EN_ATTENTE,
+                    ]);
+                }
+            }
 
             return $booking->fresh(['bookingItems.luggage', 'statusHistories']);
         });
