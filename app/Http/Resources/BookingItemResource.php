@@ -27,6 +27,7 @@ class BookingItemResource extends JsonResource
             'luggage'      => new LuggageResource($this->whenLoaded('luggage')),
             'trip'         => new TripResource($this->whenLoaded('trip')),
 
+
             // 🕓 Dates formatées avec fallback
             'created_at'   => optional($this->created_at)?->toDateTimeString(),
             'updated_at'   => optional($this->updated_at)?->toDateTimeString(),

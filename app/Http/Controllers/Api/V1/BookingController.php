@@ -38,7 +38,7 @@ class BookingController extends Controller
      */
     public function store(StoreBookingRequest $request, ReserveBooking $action)
     {
-        $booking = $action->execute($request->validated());
+        $booking = $action->execute($request->user(), $request->validated());
 
         return (new BookingResource($booking->load('bookingItems.luggage')))
             ->response()
