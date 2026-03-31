@@ -127,7 +127,7 @@ class Booking extends Model
             throw new \DomainException("❌ Transition non autorisée de {$this->status->value} → {$newStatus->value}");
         }
 
-        // Timestamps associés
+        // Timestamps associés au changement de statut
         match ($newStatus) {
             BookingStatusEnum::CONFIRMEE => $this->confirmed_at = now(),
             BookingStatusEnum::TERMINE   => $this->completed_at = now(),
@@ -135,17 +135,20 @@ class Booking extends Model
             default                      => null,
         };
 
-        $oldStatus = $this->status;
-        $this->status = $newStatus; // 👈 fix ici
-        $this->save();
+        if ($newStatus === BookingStatusEnum::EXPIREE) {
+            $this->expired_at = now();
+            $this->payment_expires_at = null;
+        }
 
+        $oldStatus = $this->status;
+        $this->status = $newStatus;
+        $this->save();
 
         $this->statusHistories()->create([
             'old_status' => $oldStatus,
             'new_status' => $newStatus,
             'changed_by' => $changer?->id,
-            'reason'     => $reason ?? 'Changement programmatique',
-
+            'reason' => $reason ?? 'Changement programmatique',
         ]);
     }
 
