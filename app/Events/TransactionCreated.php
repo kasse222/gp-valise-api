@@ -2,16 +2,16 @@
 
 namespace App\Events;
 
-use App\Models\Booking;
+use App\Models\Transaction;
+use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 
-class BookingExpired implements ShouldDispatchAfterCommit
+class TransactionCreated implements ShouldDispatchAfterCommit
 {
     use Dispatchable, SerializesModels;
 
     public function __construct(
-        public Booking $booking
+        public Transaction $transaction
     ) {}
 }
