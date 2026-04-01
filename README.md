@@ -1,6 +1,18 @@
 # ✈️ GP-Valise API
 
-Ce projet va au-delà d’un CRUD classique en intégrant une logique métier avancée, des traitements batch automatisés et une architecture orientée production.
+# ✈️ GP-Valise API
+
+Backend API Laravel pour une plateforme logistique entre voyageurs et expéditeurs.
+
+Ce projet implémente un système de réservation de capacité (kg) avec :
+
+- gestion de concurrence (lockForUpdate)
+- logique idempotente (safe retry)
+- expiration automatique via scheduler
+- architecture event-driven
+
+🎯 Objectif : construire une API robuste, scalable et proche des contraintes réelles de production.
+
 ![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)
 [![Laravel 12](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com)
 [![Docker](https://img.shields.io/badge/containerized-Docker-blue)](https://www.docker.com/)
