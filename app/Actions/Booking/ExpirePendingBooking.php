@@ -4,9 +4,9 @@ namespace App\Actions\Booking;
 
 use App\Enums\BookingStatusEnum;
 use App\Enums\LuggageStatusEnum;
+use App\Events\BookingExpired;
 use App\Models\Booking;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 class ExpirePendingBooking
 {
@@ -44,7 +44,11 @@ class ExpirePendingBooking
                 }
             }
 
-            return $booking->fresh(['bookingItems.luggage', 'statusHistories']);
+            $booking = $booking->fresh(['bookingItems.luggage', 'statusHistories']);
+
+            event(new BookingExpired($booking));
+
+            return $booking;
         });
     }
 }
