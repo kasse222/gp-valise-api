@@ -4,197 +4,212 @@
 
 Mettre en place un système de réservation robuste capable de :
 
-- gérer la concurrence (multi-requests simultanées)
-- éviter le surbooking
-- garantir la cohérence métier
-- être idempotent (safe en cas de retry)
+- gérer la concurrence entre requêtes simultanées,
+- éviter le surbooking,
+- garantir la cohérence métier,
+- rester idempotent en cas de retry, replay batch ou double exécution.
 
 ---
 
-# 📦 1. Booking Lifecycle (Flow métier)
+## 📦 1. Sous-flow métier couvert par ce document
 
-Le cycle de vie d’un booking est basé sur un modèle orienté paiement :
+Ce document se concentre sur le sous-flow critique du paiement et de l’expiration d’un booking :
 
-```
-
+```text
 EN_PAIEMENT → CONFIRMEE
-↓
-EXPIREE
-
+      ↓
+   EXPIREE
 ```
 
-## Règles métier
+### Règles métier
 
-- Un booking est créé directement en `EN_PAIEMENT`
-- La capacité est bloquée temporairement
-- Si paiement réussi → `CONFIRMEE`
-- Si délai dépassé → `EXPIREE`
-- En cas d’expiration → libération des ressources (valises)
+- un booking est créé en `EN_PAIEMENT`,
+- la capacité est bloquée temporairement,
+- si le paiement aboutit, le booking passe en `CONFIRMEE`,
+- si le délai de paiement est dépassé, le booking passe en `EXPIREE`,
+- une expiration libère les ressources réservées.
+
+> Le modèle global de `BookingStatusEnum` est plus riche, mais ce document cible le cœur du flow paiement/expiration.
 
 ---
 
-# ⚖️ 2. Capacity Semantics
+## ⚖️ 2. Capacity semantics
 
-## Règle
+### Règle métier
 
-Un trip considère comme "occupé" :
+Un trip considère comme occupés :
 
-- `CONFIRMEE` ✔️
-- `EN_PAIEMENT` non expiré ✔️
+- les bookings `CONFIRMEE`,
+- les bookings `EN_PAIEMENT` dont `payment_expires_at` n’est pas dépassé.
 
-Ne compte pas :
+Ne comptent pas :
 
-- `EN_PAIEMENT` expiré ❌
-- `ANNULE`, `REFUSE`, etc. ❌
+- les bookings `EN_PAIEMENT` expirés,
+- les bookings finaux non actifs (`ANNULE`, `REFUSE`, `EXPIREE`, etc.).
 
-## Implémentation
+### Implémentation
 
-Méthode clé :
+La capacité réservée est calculée dans :
 
 ```php
 Trip::kgReserved()
 ```
 
-👉 utilisée dans :
+et utilisée dans :
 
 ```php
 Trip::canAcceptKg()
 ```
 
+Cette règle aligne enfin le calcul de capacité avec le métier : `EN_PAIEMENT` bloque temporairement les kg, `EXPIREE` les libère.
+
 ---
 
-# 🔒 3. Concurrence & Locking
+## 🔒 3. Concurrence & locking
 
-## Problème
+### Risque
 
-Sans protection :
+Sans verrouillage transactionnel :
 
-- 2 requêtes lisent la même capacité
-- les deux passent
-- surbooking
+- deux requêtes lisent la même capacité disponible,
+- les deux passent la validation,
+- la capacité est dépassée.
 
-## Solution
+### Réponse technique
 
-### Transaction + verrouillage
+Les opérations critiques sont exécutées dans :
 
 ```php
 DB::transaction(...)
 ```
 
-### Lock sur Trip
+avec verrouillage pessimiste :
+
+#### verrou sur le Trip
 
 ```php
 ->lockForUpdate()
 ```
 
-👉 protège la capacité globale
+Il protège la décision sur la capacité globale.
 
-### Lock sur Luggage
+#### verrou sur les Luggages
 
 ```php
 ->whereIn(...)->lockForUpdate()
 ```
 
-👉 empêche double réservation de la même valise
+Il empêche la double réservation concurrente d’une même valise.
+
+### Principe
+
+> Une règle métier lue sans verrou peut devenir fausse immédiatement après lecture.
 
 ---
 
-## 🧠 Principe
+## 🔁 4. Idempotence
 
-> Une règle métier lue sans verrou peut devenir fausse immédiatement après.
+### Risques réels
 
----
+- retry HTTP,
+- double clic utilisateur,
+- batch rejoué,
+- scheduler exécuté plusieurs fois,
+- job relancé après incident.
 
-# 🔁 4. Idempotence
+### Stratégie
 
-## Problème
-
-- retry HTTP
-- double appel API
-- cron / batch exécuté plusieurs fois
-
-👉 sans idempotence → incohérences
-
----
-
-## Solution
-
-### 1. Relecture DB sous transaction
+#### 1. Relecture en base sous transaction
 
 ```php
-Booking::lockForUpdate()->find(...)
+Booking::query()->lockForUpdate()->find(...)
 ```
 
-### 2. Guards métier
+#### 2. Guards métier
 
 ```php
-if ($booking->status !== EN_PAIEMENT) return;
-```
-
-```php
-if ($booking->payment_expires_at->isFuture()) return;
+if ($booking->status !== BookingStatusEnum::EN_PAIEMENT) {
+    return $booking;
+}
 ```
 
 ```php
-if (! $booking->canTransitionTo(EXPIREE)) return;
+if ($booking->payment_expires_at === null || $booking->payment_expires_at->isFuture()) {
+    return $booking;
+}
 ```
 
+```php
+if (! $booking->canTransitionTo(BookingStatusEnum::EXPIREE)) {
+    return $booking;
+}
+```
+
+### Résultat attendu
+
+- 1re exécution : effet métier réel,
+- 2e exécution : aucun effet secondaire supplémentaire,
+- état final stable.
+
+L’objectif n’est pas seulement d’éviter l’erreur, mais d’éviter de **rejouer les side effects**.
+
 ---
 
-## Résultat
+## 🧪 5. Tests couverts
 
-- exécution 1 → effet réel
-- exécution 2 → aucun effet secondaire
+Les tests vérifient notamment :
 
-👉 système stable
+- la bonne sémantique de capacité,
+- le blocage des kg en `EN_PAIEMENT` non expiré,
+- la libération des valises à expiration,
+- l’absence de double historique lors d’une seconde expiration,
+- la stabilité de `expired_at` et de `payment_expires_at`,
+- la cohérence du flow batch d’expiration.
 
----
-
-# 🧪 5. Tests
-
-## Coverage
-
-- Capacity semantics
-- Concurrency-safe reservation
-- Expiration logic
-- Idempotence
-
-## Exemple clé
+Exemple d’idempotence :
 
 ```php
 ExpirePendingBooking::execute($booking);
 ExpirePendingBooking::execute($booking);
 ```
 
-👉 vérifie :
+Attendu :
 
-- pas de double expiration
-- pas de double historique
-- timestamps inchangés
-
----
-
-# 🧠 6. Architecture
-
-## Pattern utilisé
-
-```
-Controller → Action → Model
-```
-
-### Rôles
-
-- Controller → orchestration HTTP
-- Action → logique métier
-- Model → règles métier + transitions
-- Enum → états + transitions
-- Policy → accès
+- pas de double expiration,
+- pas de double historique,
+- pas de side effects répétés.
 
 ---
 
-# 🔧 7. transitionTo()
+## 🧠 6. Architecture retenue
 
-Centralisation des effets métier :
+Pattern principal :
+
+```text
+Controller → Action → Model / Enum
+```
+
+### Répartition des responsabilités
+
+- `Controller` → orchestration HTTP
+- `Action` → use case métier
+- `Model` → orchestration d’état et relations métier
+- `Enum` → états, transitions et comportements métier purs
+- `Policy` → contrôle d’accès
+
+Cette structure suit l’architecture cible du projet GP-Valise.
+
+---
+
+## 🔧 7. Centralisation des effets métier
+
+Les timestamps liés aux transitions sont centralisés dans :
+
+```php
+Booking::transitionTo()
+```
+
+Exemple pour `EXPIREE` :
 
 ```php
 if ($newStatus === BookingStatusEnum::EXPIREE) {
@@ -203,78 +218,33 @@ if ($newStatus === BookingStatusEnum::EXPIREE) {
 }
 ```
 
-👉 évite duplication dans les actions
+Cela évite de dupliquer la logique dans plusieurs Actions et garantit un changement d’état cohérent.
 
 ---
 
-# 🚀 8. Résultat final
+## 🚀 8. Résultat
 
-## ✅ Booking Flow
+### Booking flow
 
-- EN_PAIEMENT → CONFIRMEE / EXPIREE
+- `EN_PAIEMENT -> CONFIRMEE`
+- `EN_PAIEMENT -> EXPIREE`
 
-## ✅ Concurrence
+### Concurrence
 
-- lockForUpdate() sur Trip
-- lockForUpdate() sur Luggage
+- verrouillage sur `Trip`
+- verrouillage sur `Luggage`
+- validation de capacité dans la transaction
 
-## ✅ Idempotence
+### Idempotence
 
+- relecture DB sous verrou
 - guards métier
-- relecture DB
-- test idempotent
+- replays sans effets secondaires supplémentaires
 
-## ✅ Tests
+### Robustesse
 
-- 136+ tests passés
-- couverture métier solide
-
----
-
-# 💡 9. Points clés à retenir
-
-- la concurrence casse les systèmes naïfs
-- les transactions doivent encapsuler les décisions métier
-- l’idempotence est obligatoire en production
-- la logique métier doit être centralisée
+- batch d’expiration cohérent,
+- ressources libérées correctement,
+- comportement stable sous retry et sous charge.
 
 ---
-
-# 🔮 10. Extensions futures
-
-- paiement réel (Stripe)
-- idempotency key (API)
-- queue + retry safe
-- monitoring / logs métier
-- optimisation SQL (index)
-
----
-
-# 🧠 Conclusion
-
-Ce module n’est plus un CRUD.
-
-👉 C’est un système métier robuste :
-
-- cohérent
-- sécurisé
-- scalable
-
-```
-
-
-
----
-
-# 🧠 Mini conseil (important)
-
-Ce document :
-
-👉 tu peux le réutiliser pour :
-
-- README GitHub
-- LinkedIn
-- entretien technique
-
----
-```
