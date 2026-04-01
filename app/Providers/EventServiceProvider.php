@@ -8,6 +8,8 @@ use App\Events\TransactionRefunded;
 use App\Listeners\LogBookingExpired;
 use App\Listeners\LogTransactionCreated;
 use App\Listeners\LogTransactionRefunded;
+
+
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 class EventServiceProvider extends ServiceProvider
@@ -16,7 +18,6 @@ class EventServiceProvider extends ServiceProvider
         BookingExpired::class => [
             LogBookingExpired::class,
         ],
-
         TransactionCreated::class => [
             LogTransactionCreated::class,
         ],
