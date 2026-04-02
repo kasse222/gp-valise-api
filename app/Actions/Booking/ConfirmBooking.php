@@ -4,45 +4,62 @@ namespace App\Actions\Booking;
 
 use App\Enums\BookingStatusEnum;
 use App\Models\Booking;
-use App\Status\BookingStatus;
-use Illuminate\Support\Facades\Auth;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+
+use App\Events\BookingConfirmed;
 
 class ConfirmBooking
 {
-    public function execute(int $bookingId): Booking
+    public function execute(int $bookingId, User $user): Booking
     {
-        $user = Auth::user();
-        $booking = Booking::with(['trip', 'bookingItems'])->findOrFail($bookingId);
+        $booking = DB::transaction(function () use ($bookingId, $user) {
+            $booking = Booking::query()
+                ->with(['trip', 'bookingItems'])
+                ->lockForUpdate()
+                ->findOrFail($bookingId);
 
-        // 🔐 Vérifie l'autorisation métier
-        if (! $booking->canBeUpdatedTo(BookingStatusEnum::CONFIRMEE, $user)) {
-            throw ValidationException::withMessages([
-                'booking' => 'Confirmation non autorisée ou transition invalide.',
-            ]);
-        }
+            $trip = $booking->trip()
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        // 📦 Vérifie la capacité du trajet
-        $totalKgReserved = $booking->trip->bookings()
-            ->where('status', BookingStatusEnum::CONFIRMEE)
-            ->with('bookingItems')
-            ->get()
-            ->flatMap->bookingItems
-            ->sum('kg_reserved');
+            if (! $booking->canBeUpdatedTo(BookingStatusEnum::CONFIRMEE, $user)) {
+                throw ValidationException::withMessages([
+                    'booking' => 'Confirmation non autorisée ou transition invalide.',
+                ]);
+            }
 
-        $tripCapacity = $booking->trip->capacity;
-        $thisBookingKg = $booking->bookingItems->sum('kg_reserved');
+            $thisBookingKg = (float) $booking->bookingItems->sum('kg_reserved');
 
-        if (($totalKgReserved + $thisBookingKg) > $tripCapacity) {
-            throw ValidationException::withMessages([
-                'trip' => 'Capacité du trajet insuffisante pour confirmer cette réservation.',
-            ]);
-        }
+            $occupiedKg = $trip->kgReserved();
 
-        // ✅ Transition vers 'confirmée'
-        $booking->transitionTo(BookingStatusEnum::CONFIRMEE, $user, 'Confirmation par le voyageur');
+            if (
+                $booking->status === BookingStatusEnum::EN_PAIEMENT
+                && $booking->payment_expires_at !== null
+                && $booking->payment_expires_at->isFuture()
+            ) {
+                $occupiedKg -= $thisBookingKg;
+            }
 
+            if (($occupiedKg + $thisBookingKg) > $trip->capacity) {
+                throw ValidationException::withMessages([
+                    'trip' => 'Capacité du trajet insuffisante pour confirmer cette réservation.',
+                ]);
+            }
 
-        return $booking->fresh(['bookingItems.luggage', 'trip']);
+            $booking->transitionTo(
+                BookingStatusEnum::CONFIRMEE,
+                $user,
+                'Confirmation par le voyageur'
+            );
+
+            return $booking->fresh(['bookingItems.luggage', 'trip']);
+        });
+
+        // 🔥 IMPORTANT : dispatch après commit
+        event(new BookingConfirmed($booking));
+
+        return $booking;
     }
 }
