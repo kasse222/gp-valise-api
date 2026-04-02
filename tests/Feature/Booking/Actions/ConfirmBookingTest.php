@@ -1,35 +1,35 @@
 <?php
 
-
 use App\Actions\Booking\ConfirmBooking;
 use App\Enums\BookingStatusEnum;
+use App\Enums\UserRoleEnum;
+use App\Events\BookingConfirmed;
 use App\Models\Booking;
 use App\Models\BookingItem;
 use App\Models\Trip;
 use App\Models\User;
-use Laravel\Sanctum\Sanctum;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 
-uses(Tests\TestCase::class, Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(Tests\TestCase::class, RefreshDatabase::class);
 
 it('confirme une réservation avec succès si la capacité le permet', function () {
-    // 🧑 Voyageur (propriétaire du trip)
+    Event::fake();
+
     $voyageur = User::factory()->create([
-        'role' => \App\Enums\UserRoleEnum::TRAVELER,
+        'role' => UserRoleEnum::TRAVELER,
     ]);
 
-    // 📦 Trajet avec 100 kg dispo
     $trip = Trip::factory()
         ->for($voyageur)
         ->create([
             'capacity' => 100,
         ]);
 
-    // 👤 Réservataire (expéditeur)
     $expediteur = User::factory()->create([
-        'role' => \App\Enums\UserRoleEnum::SENDER,
+        'role' => UserRoleEnum::SENDER,
     ]);
 
-    // 🧳 Réservation EN_ATTENTE avec aucun timestamp incohérent
     $booking = Booking::factory()
         ->for($expediteur)
         ->for($trip)
@@ -40,19 +40,19 @@ it('confirme une réservation avec succès si la capacité le permet', function 
             'cancelled_at' => null,
         ]);
 
-    // 📌 Éléments réservés totalisant 20kg
     BookingItem::factory()->for($booking)->create([
         'kg_reserved' => 20,
+        'trip_id' => $trip->id,
     ]);
 
-    // 🎭 Authentification en tant que voyageur
-    Sanctum::actingAs($voyageur);
+    $result = app(ConfirmBooking::class)->execute($booking->id, $voyageur);
 
-    // 🚀 Exécution de la logique métier
-    $result = (new ConfirmBooking())->execute($booking->id);
+    expect($result->confirmed_at)->not->toBeNull()
+        ->and($result->cancelled_at)->toBeNull()
+        ->and($result->status)->toBe(BookingStatusEnum::CONFIRMEE);
 
-    // ✅ Vérifications
-    expect($result->confirmed_at)->not()->toBeNull();
-    expect($result->cancelled_at)->toBeNull();
-    expect($result->status)->toBe(BookingStatusEnum::CONFIRMEE);
+    Event::assertDispatched(BookingConfirmed::class, function (BookingConfirmed $event) use ($booking) {
+        return $event->booking->id === $booking->id
+            && $event->booking->status === BookingStatusEnum::CONFIRMEE;
+    });
 });
