@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Events\BookingCompleted;
 use App\Events\BookingConfirmed;
 use App\Events\BookingExpired;
 use App\Events\TransactionCreated;
 use App\Events\TransactionRefunded;
+use App\Listeners\LogBookingCompleted;
 use App\Listeners\LogBookingConfirmed;
 use App\Listeners\LogBookingExpired;
 use App\Listeners\LogTransactionCreated;
@@ -31,5 +33,9 @@ class EventServiceProvider extends ServiceProvider
         BookingConfirmed::class => [
             LogBookingConfirmed::class,
         ],
+        BookingCompleted::class => [
+            LogBookingCompleted::class,
+        ],
+
     ];
 }
