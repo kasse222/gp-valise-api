@@ -11,5 +11,7 @@ class BookingCanceled implements ShouldDispatchAfterCommit
 {
     use Dispatchable, SerializesModels;
 
-    public function __construct(public Booking $booking) {}
+    public function __construct(
+        public Booking $booking
+    ) {}
 }

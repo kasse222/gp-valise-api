@@ -9,7 +9,7 @@ class LogBookingExpired
 {
     public function handle(BookingExpired $event): void
     {
-        Log::info('Booking expired', [
+        Log::info('Booking.expired', [
             'booking_id' => $event->booking->id,
             'user_id' => $event->booking->user_id,
             'trip_id' => $event->booking->trip_id,

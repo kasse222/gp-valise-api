@@ -11,7 +11,7 @@ class LogBookingCanceled
     {
         $booking = $event->booking;
 
-        Log::info('Booking canceled', [
+        Log::info('Booking.canceled', [
             'booking_id' => $booking->id,
             'user_id' => $booking->user_id,
             'trip_id' => $booking->trip_id,
