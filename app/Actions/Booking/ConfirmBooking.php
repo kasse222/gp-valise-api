@@ -12,19 +12,20 @@ use App\Events\BookingConfirmed;
 
 class ConfirmBooking
 {
-    public function execute(int $bookingId, User $user): Booking
+    public function execute(Booking $booking, User $actor): Booking
     {
-        $booking = DB::transaction(function () use ($bookingId, $user) {
+        $booking = DB::transaction(function () use ($booking, $actor) {
+
             $booking = Booking::query()
-                ->with(['trip', 'bookingItems'])
+                ->with(['trip', 'bookingItems.luggage'])
                 ->lockForUpdate()
-                ->findOrFail($bookingId);
+                ->findOrFail($booking->id);
 
             $trip = $booking->trip()
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (! $booking->canBeUpdatedTo(BookingStatusEnum::CONFIRMEE, $user)) {
+            if (! $booking->canBeUpdatedTo(BookingStatusEnum::CONFIRMEE, $actor)) {
                 throw ValidationException::withMessages([
                     'booking' => 'Confirmation non autorisée ou transition invalide.',
                 ]);
@@ -34,6 +35,7 @@ class ConfirmBooking
 
             $occupiedKg = $trip->kgReserved();
 
+            // ⚠️ Ajustement pour éviter double comptage
             if (
                 $booking->status === BookingStatusEnum::EN_PAIEMENT
                 && $booking->payment_expires_at !== null
@@ -44,20 +46,19 @@ class ConfirmBooking
 
             if (($occupiedKg + $thisBookingKg) > $trip->capacity) {
                 throw ValidationException::withMessages([
-                    'trip' => 'Capacité du trajet insuffisante pour confirmer cette réservation.',
+                    'trip' => 'Capacité du trajet insuffisante.',
                 ]);
             }
 
             $booking->transitionTo(
                 BookingStatusEnum::CONFIRMEE,
-                $user,
+                $actor,
                 'Confirmation par le voyageur'
             );
 
             return $booking->fresh(['bookingItems.luggage', 'trip']);
         });
 
-        // 🔥 IMPORTANT : dispatch après commit
         event(new BookingConfirmed($booking));
 
         return $booking;
