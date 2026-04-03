@@ -94,26 +94,6 @@ it('crée une réservation (store)', function () {
 
 
 
-
-
-it('met à jour une réservation (update)', function () {
-    $trip = Trip::factory()->create();
-    $booking = Booking::factory()->create([
-        'user_id' => test()->expediteur->id,
-        'trip_id' => $trip->id,
-        'status' => BookingStatusEnum::EN_ATTENTE,
-    ]);
-
-    $data = [
-        'status' => BookingStatusEnum::ANNULE->value,
-    ];
-
-    $response = $this->putJson("/api/v1/bookings/{$booking->id}", $data);
-
-    $response->assertOk()
-        ->assertJsonPath('data.status', BookingStatusEnum::ANNULE->value);
-});
-
 it('supprime une réservation (destroy)', function () {
     $trip = Trip::factory()->create();
 

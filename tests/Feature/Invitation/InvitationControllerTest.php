@@ -29,15 +29,14 @@ it('liste les invitations envoyées par l’utilisateur connecté', function () 
         ->assertJsonCount(3, 'data');
 });
 
-// ✅ Envoie une invitation valide
 it('envoie une invitation valide', function () {
-    $recipient = User::factory()->create();
+    $email = 'recipient@gmail.com';
 
     postJson('/api/v1/invitations', [
-        'recipient_email' => $recipient->email,
+        'recipient_email' => $email,
     ])
         ->assertCreated()
-        ->assertJsonPath('data.recipient_email', $recipient->email)
+        ->assertJsonPath('data.recipient_email', $email)
         ->assertJsonStructure(['data' => ['token']]);
 });
 

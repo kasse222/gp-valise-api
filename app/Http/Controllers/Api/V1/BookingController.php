@@ -9,10 +9,7 @@ use App\Actions\Booking\DeleteBooking;
 use App\Actions\Booking\GetBookingDetails;
 use App\Actions\Booking\GetUserBookings;
 use App\Actions\Booking\ReserveBooking;
-use App\Actions\Booking\UpdateBookingStatus;
-use App\Enums\BookingStatusEnum;
 use App\Http\Requests\Booking\StoreBookingRequest;
-use App\Http\Requests\Booking\UpdateBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -55,23 +52,6 @@ class BookingController extends Controller
         $booking = $action->execute($booking->id);
 
         return new BookingResource($booking->loadMissing('bookingItems.luggage'));
-    }
-
-    /**
-     * 🔁 Modifier le statut d'une réservation
-     */
-    public function update(
-        UpdateBookingRequest $request,
-        Booking $booking,
-        UpdateBookingStatus $action
-    ) {
-        $this->authorize('update', $booking);
-
-        $newStatus = BookingStatusEnum::from($request->validated('status'));
-
-        $booking = $action->execute($booking, $newStatus, $request->user());
-
-        return new BookingResource($booking->load('bookingItems.luggage'));
     }
 
     /**
