@@ -2,6 +2,7 @@
 
 namespace App\Actions\Transaction;
 
+use App\Enums\BookingStatusEnum;
 use App\Events\TransactionCreated;
 use App\Models\Booking;
 use App\Models\Transaction;
@@ -26,6 +27,18 @@ class CreateTransaction
             if ((int) $booking->user_id !== (int) $user->id) {
                 throw ValidationException::withMessages([
                     'booking_id' => 'Ce booking ne vous appartient pas.',
+                ]);
+            }
+
+            if ($booking->status !== BookingStatusEnum::EN_PAIEMENT) {
+                throw ValidationException::withMessages([
+                    'booking_id' => 'Ce booking n’est pas dans un état permettant un paiement.',
+                ]);
+            }
+
+            if ($booking->payment_expires_at === null || $booking->payment_expires_at->isPast()) {
+                throw ValidationException::withMessages([
+                    'booking_id' => 'Le délai de paiement de ce booking a expiré.',
                 ]);
             }
 

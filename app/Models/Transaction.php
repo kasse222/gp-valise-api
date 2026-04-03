@@ -31,7 +31,7 @@ class Transaction extends Model
         'processed_at'  => 'datetime',
     ];
 
-    protected $with = ['booking'];
+
 
 
     /*

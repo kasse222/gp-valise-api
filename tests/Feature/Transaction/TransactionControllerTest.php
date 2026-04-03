@@ -70,7 +70,10 @@ it('rejette l’accès à une transaction d’un autre utilisateur', function ()
 });
 
 it('crée une transaction avec des données valides', function () {
-    $booking = Booking::factory()->for($this->user)->create();
+    $booking = Booking::factory()->for($this->user)->create([
+        'status' => \App\Enums\BookingStatusEnum::EN_PAIEMENT,
+        'payment_expires_at' => now()->addMinutes(15),
+    ]);
 
     $payload = [
         'booking_id' => $booking->id,
@@ -96,8 +99,14 @@ it('rejette la création si les données sont invalides', function () {
 
 it('rejette la création si l’utilisateur n’est pas vérifié', function () {
     /** @var \App\Models\User $unverifiedUser */
-    $unverifiedUser = User::factory()->create(['verified_user' => false]);
-    $booking = Booking::factory()->for($unverifiedUser)->create();
+    $unverifiedUser = User::factory()->create([
+        'verified_user' => false,
+    ]);
+
+    $booking = Booking::factory()->for($unverifiedUser)->create([
+        'status' => \App\Enums\BookingStatusEnum::EN_PAIEMENT,
+        'payment_expires_at' => now()->addMinutes(15),
+    ]);
 
     actingAs($unverifiedUser);
 
