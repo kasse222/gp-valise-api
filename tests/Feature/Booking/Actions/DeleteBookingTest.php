@@ -36,7 +36,7 @@ it('supprime une réservation et remet les bagages en attente', function () {
     ]);
 
     // 🚀 Exécution
-    DeleteBooking::execute($booking);
+    app(DeleteBooking::class)->execute($booking);
 
     // ✅ Vérifications
     expect(Booking::find($booking->id))->toBeNull();

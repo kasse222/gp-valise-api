@@ -26,7 +26,7 @@ it('récupère les détails d’une réservation avec ses relations', function (
     Transaction::factory()->for($booking)->create();
     BookingStatusHistory::factory()->for($booking)->create();
 
-    $result = GetBookingDetails::execute($booking->id);
+    $result = app(GetBookingDetails::class)->execute($booking->id);
 
     expect($result)->toBeInstanceOf(Booking::class);
     expect($result->relationLoaded('bookingItems'))->toBeTrue();
