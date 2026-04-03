@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Actions\Payment\CreatePayment;
+use App\Actions\Payment\GetPaymentDetails;
+use App\Actions\Payment\ListPayments;
 use App\Actions\Payment\UpdatePayment;
 use App\Http\Requests\Payment\StorePaymentRequest;
 use App\Http\Requests\Payment\UpdatePaymentRequest;
@@ -18,31 +20,25 @@ class PaymentController extends Controller
 
     public function __construct()
     {
-        // 🔐 Active automatiquement authorize('view', $payment), etc.
         $this->authorizeResource(Payment::class, 'payment');
     }
 
     /**
      * 💳 Lister les paiements de l’utilisateur connecté
      */
-    public function index(Request $request)
+    public function index(Request $request, ListPayments $action)
     {
-        $payments = $request->user()
-            ->payments()
-            ->latest()
-            ->paginate(10);
+        $payments = $action->execute($request->user());
 
         return PaymentResource::collection($payments);
     }
 
     /**
      * 💰 Créer un nouveau paiement
-     *
-     * @authorize create
      */
-    public function store(StorePaymentRequest $request)
+    public function store(StorePaymentRequest $request, CreatePayment $action)
     {
-        $payment = CreatePayment::execute($request->user(), $request->validated());
+        $payment = $action->execute($request->user(), $request->validated());
 
         return PaymentResource::make($payment)
             ->response()
@@ -51,36 +47,33 @@ class PaymentController extends Controller
 
     /**
      * 🔍 Afficher un paiement spécifique
-     *
-     * @authorize view
      */
-    public function show(Payment $payment)
+    public function show(Payment $payment, GetPaymentDetails $action)
     {
+        $payment = $action->execute($payment);
+
         return new PaymentResource($payment);
     }
 
     /**
      * ✏️ Modifier un paiement
-     *
-     * @authorize update
      */
-    public function update(UpdatePaymentRequest $request, Payment $payment)
+    public function update(UpdatePaymentRequest $request, Payment $payment, UpdatePayment $action)
     {
-
-        $payment = UpdatePayment::execute($payment, $request->validated());
+        $payment = $action->execute($payment, $request->validated());
 
         return new PaymentResource($payment);
     }
 
     /**
      * ❌ Supprimer un paiement
-     *
-     * @authorize delete
      */
     public function destroy(Payment $payment)
     {
         $payment->delete();
 
-        return response()->json(['message' => 'Paiement supprimé.']);
+        return response()->json([
+            'message' => 'Paiement supprimé.',
+        ]);
     }
 }

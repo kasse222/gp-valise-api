@@ -9,11 +9,12 @@ use Illuminate\Support\Str;
 
 class CreatePayment
 {
-    public static function execute(User $user, array $data): Payment
+    public function execute(User $user, array $data): Payment
     {
-        return $user->payments()->create(array_merge([
+        return $user->payments()->create([
             'status' => PaymentStatusEnum::EN_ATTENTE,
             'payment_reference' => strtoupper(Str::random(12)),
-        ], $data));
+            ...$data,
+        ]);
     }
 }
