@@ -3,6 +3,7 @@
 namespace App\Actions\Booking;
 
 use App\Enums\BookingStatusEnum;
+use App\Events\BookingCanceled;
 use App\Models\Booking;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -12,7 +13,7 @@ class CancelBooking
 {
     public function execute(Booking $booking, User $actor): Booking
     {
-        return DB::transaction(function () use ($booking, $actor) {
+        $booking = DB::transaction(function () use ($booking, $actor) {
             $booking = Booking::query()
                 ->with(['bookingItems.luggage', 'trip'])
                 ->lockForUpdate()
@@ -32,5 +33,9 @@ class CancelBooking
 
             return $booking->fresh(['bookingItems.luggage', 'trip']);
         });
+
+        event(new BookingCanceled($booking));
+
+        return $booking;
     }
 }
