@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Actions\Booking\CompleteBooking;
 use App\Actions\Booking\CancelBooking;
+use App\Actions\Booking\CompleteBooking;
 use App\Actions\Booking\ConfirmBooking;
 use App\Actions\Booking\DeleteBooking;
 use App\Actions\Booking\GetBookingDetails;
@@ -16,14 +16,15 @@ use App\Http\Requests\Booking\UpdateBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
-use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
 
 class BookingController extends Controller
 {
     use AuthorizesRequests;
+
     /**
-     * 📦 Lister les réservations de l'utilisateur (voyageur)
+     * 📦 Lister les réservations de l'utilisateur
      */
     public function index(Request $request, GetUserBookings $action)
     {
@@ -31,7 +32,6 @@ class BookingController extends Controller
 
         return BookingResource::collection($bookings);
     }
-
 
     /**
      * 🛒 Réserver une valise pour un trajet
@@ -74,7 +74,6 @@ class BookingController extends Controller
         return new BookingResource($booking->load('bookingItems.luggage'));
     }
 
-
     /**
      * ❌ Supprimer une réservation
      */
@@ -84,30 +83,31 @@ class BookingController extends Controller
 
         $action->execute($booking);
 
-        return response()->json(['message' => 'Réservation supprimée.']);
+        return response()->json([
+            'message' => 'Réservation supprimée.',
+        ]);
     }
 
     /**
      * ✅ Confirmer une réservation
      */
-    public function confirm(Booking $booking, ConfirmBooking $action)
+    public function confirm(Request $request, Booking $booking, ConfirmBooking $action)
     {
         $this->authorize('confirm', $booking);
 
-        $booking = $action->execute($booking->id);
+        $booking = $action->execute($booking, $request->user());
 
         return new BookingResource($booking->load('bookingItems.luggage'));
     }
 
-
     /**
      * ❌ Annuler une réservation
      */
-    public function cancel(Booking $booking, CancelBooking $action)
+    public function cancel(Request $request, Booking $booking, CancelBooking $action)
     {
         $this->authorize('cancel', $booking);
 
-        $booking = $action->execute($booking->id);
+        $booking = $action->execute($booking, $request->user());
 
         return new BookingResource($booking->loadMissing('bookingItems.luggage'));
     }
@@ -115,11 +115,11 @@ class BookingController extends Controller
     /**
      * 📦 Marquer comme livrée
      */
-    public function complete(Booking $booking, CompleteBooking $action)
+    public function complete(Request $request, Booking $booking, CompleteBooking $action)
     {
         $this->authorize('complete', $booking);
 
-        $booking = $action->execute($booking);
+        $booking = $action->execute($booking, $request->user());
 
         return response()->json([
             'message' => 'Réservation livrée avec succès.',
