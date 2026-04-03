@@ -4,21 +4,29 @@ namespace App\Actions\Booking;
 
 use App\Models\Booking;
 use App\Enums\LuggageStatusEnum;
+use Illuminate\Support\Facades\DB;
 
 class DeleteBooking
 {
-    public static function execute(Booking $booking): void
+    public function execute(Booking $booking): void
     {
-        foreach ($booking->bookingItems as $item) {
-            if ($item->luggage) {
-                $item->luggage->update([
-                    'status' => LuggageStatusEnum::EN_ATTENTE
-                ]);
+        DB::transaction(function () use ($booking) {
+            $booking = Booking::query()
+                ->with('bookingItems.luggage')
+                ->lockForUpdate()
+                ->findOrFail($booking->id);
+
+            foreach ($booking->bookingItems as $item) {
+                if ($item->luggage) {
+                    $item->luggage->update([
+                        'status' => LuggageStatusEnum::EN_ATTENTE,
+                    ]);
+                }
+
+                $item->delete();
             }
 
-            $item->delete();
-        }
-
-        $booking->delete();
+            $booking->delete();
+        });
     }
 }

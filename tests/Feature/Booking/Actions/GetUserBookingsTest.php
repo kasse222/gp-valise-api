@@ -32,7 +32,8 @@ it('retourne les réservations liées aux trajets du voyageur', function () {
     BookingStatusHistory::factory()->for($booking)->create();
 
     // 🚀 Appel de l’action
-    $result = GetUserBookings::execute($voyageur);
+    $result = app(GetUserBookings::class)->execute($voyageur);
+
 
     // 🎯 On isole le booking attendu
     $target = $result->firstWhere('id', $booking->id);
@@ -63,7 +64,8 @@ it('retourne les propres réservations de l’expéditeur', function () {
 
     BookingStatusHistory::factory()->for($booking)->create();
 
-    $result = GetUserBookings::execute($expediteur);
+    $result = app(GetUserBookings::class)->execute($expediteur);
+
     $target = $result->firstWhere('id', $booking->id);
 
 
@@ -78,7 +80,6 @@ it('retourne les propres réservations de l’expéditeur', function () {
 it('retourne une liste vide si aucun booking', function () {
     $user = User::factory()->sender()->create();
 
-    $result = GetUserBookings::execute($user);
-
+    $result = app(GetUserBookings::class)->execute($user);
     expect($result)->toBeEmpty();
 });

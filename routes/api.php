@@ -147,7 +147,7 @@ Route::prefix('v1')
             Route::post('items', [BookingItemController::class, 'store'])->name('items.store');
 
             Route::get('status-histories', [BookingStatusHistoryController::class, 'index'])->name('status_histories.index');
-            Route::post('status-histories', [BookingStatusHistoryController::class, 'store'])->name('status_histories.store');
+            //   Route::post('status-histories', [BookingStatusHistoryController::class, 'store'])->name('status_histories.store');
 
             // ⚠️ Si cette route est un doublon, garde-en une seule :
             Route::post('status', [BookingStatusHistoryController::class, 'store'])->name('status.store');
