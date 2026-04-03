@@ -15,7 +15,7 @@ class LogTransactionRefunded
             'user_id' => $event->transaction->user_id,
             'reason' => $event->reason,
             'status' => $event->transaction->status?->value,
-            'processed_at' => $event->transaction->processed_at,
+            'processed_at' => $event->transaction->processed_at?->toISOString(),
         ]);
     }
 }
