@@ -3,14 +3,16 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Actions\Trip\CreateTrip;
+use App\Actions\Trip\GetTripDetails;
+use App\Actions\Trip\ListTrips;
 use App\Actions\Trip\UpdateTrip;
-use Illuminate\Routing\Controller;
 use App\Http\Requests\Trip\StoreTripRequest;
 use App\Http\Requests\Trip\UpdateTripRequest;
 use App\Http\Resources\TripResource;
 use App\Models\Trip;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
 
 class TripController extends Controller
 {
@@ -19,18 +21,21 @@ class TripController extends Controller
     /**
      * 📦 Lister les trajets
      */
-    public function index(Request $request)
+    public function index(ListTrips $action)
     {
-        $trips = Trip::with(['user'])->latest()->paginate(10);
+        $trips = $action->execute();
+
         return TripResource::collection($trips);
     }
 
     /**
      * 🔍 Voir un trajet spécifique
      */
-    public function show(Trip $trip)
+    public function show(Trip $trip, GetTripDetails $action)
     {
-        return new TripResource($trip->load(['user']));
+        $trip = $action->execute($trip);
+
+        return new TripResource($trip);
     }
 
     /**
