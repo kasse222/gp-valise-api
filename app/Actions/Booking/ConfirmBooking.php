@@ -7,7 +7,6 @@ use App\Models\Booking;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-
 use App\Events\BookingConfirmed;
 
 class ConfirmBooking
@@ -15,9 +14,8 @@ class ConfirmBooking
     public function execute(Booking $booking, User $actor): Booking
     {
         $booking = DB::transaction(function () use ($booking, $actor) {
-
             $booking = Booking::query()
-                ->with(['trip', 'bookingItems.luggage'])
+                ->with(['trip', 'bookingItems.luggage', 'transaction'])
                 ->lockForUpdate()
                 ->findOrFail($booking->id);
 
@@ -31,11 +29,16 @@ class ConfirmBooking
                 ]);
             }
 
+            if (! $booking->hasSuccessfulChargeTransaction()) {
+                throw ValidationException::withMessages([
+                    'booking' => 'Le booking ne peut pas être confirmé sans paiement validé.',
+                ]);
+            }
+
             $thisBookingKg = (float) $booking->bookingItems->sum('kg_reserved');
 
             $occupiedKg = $trip->kgReserved();
 
-            // ⚠️ Ajustement pour éviter double comptage
             if (
                 $booking->status === BookingStatusEnum::EN_PAIEMENT
                 && $booking->payment_expires_at !== null
@@ -56,7 +59,7 @@ class ConfirmBooking
                 'Confirmation par le voyageur'
             );
 
-            return $booking->fresh(['bookingItems.luggage', 'trip']);
+            return $booking->fresh(['bookingItems.luggage', 'trip', 'transaction']);
         });
 
         event(new BookingConfirmed($booking));

@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\BookingStatusEnum;
+use App\Enums\TransactionStatusEnum;
+use App\Enums\TransactionTypeEnum;
 use App\Models\BookingStatusHistory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -239,5 +241,14 @@ class Booking extends Model
     {
         return $this->status === BookingStatusEnum::EN_PAIEMENT
             && $this->payment_expires_at?->isFuture();
+    }
+
+    public function hasSuccessfulChargeTransaction(): bool
+    {
+        $transaction = $this->transaction;
+
+        return $transaction !== null
+            && $transaction->type === TransactionTypeEnum::CHARGE
+            && $transaction->status === TransactionStatusEnum::COMPLETED;
     }
 }
