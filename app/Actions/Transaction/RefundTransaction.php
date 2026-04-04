@@ -3,6 +3,7 @@
 namespace App\Actions\Transaction;
 
 use App\Enums\TransactionStatusEnum;
+use App\Enums\TransactionTypeEnum;
 use App\Events\TransactionRefunded;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ class RefundTransaction
 
             $transaction->update([
                 'status' => TransactionStatusEnum::REFUNDED,
+                'type' => TransactionTypeEnum::REFUND,
                 'processed_at' => $now,
             ]);
 

@@ -17,6 +17,11 @@ class TransactionResource extends JsonResource
         return [
             'id'         => $this->id,
 
+            'type' => [
+                'code' => $this->type?->value,
+                'label' => $this->type?->label(),
+            ],
+
             // 💰 Montant + devise
             'amount'     => (float) $this->amount,
             'currency'   => [

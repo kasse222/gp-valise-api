@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\CurrencyEnum;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\TransactionStatusEnum;
+use App\Enums\TransactionTypeEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,6 +17,7 @@ class Transaction extends Model
     protected $fillable = [
         'user_id',
         'booking_id',
+        'type',
         'amount',
         'currency',
         'status',         // ✅ TransactionStatusEnum
@@ -24,6 +26,7 @@ class Transaction extends Model
     ];
 
     protected $casts = [
+        'type'          => TransactionTypeEnum::class,
         'amount'        => 'float',
         'currency'      => CurrencyEnum::class,
         'status'        => TransactionStatusEnum::class,
@@ -98,5 +101,22 @@ class Transaction extends Model
     public function badge(): array
     {
         return $this->status->badge();
+    }
+
+
+
+    public function isCharge(): bool
+    {
+        return $this->type === TransactionTypeEnum::CHARGE;
+    }
+
+    public function isRefund(): bool
+    {
+        return $this->type === TransactionTypeEnum::REFUND;
+    }
+
+    public function isPayout(): bool
+    {
+        return $this->type === TransactionTypeEnum::PAYOUT;
     }
 }
