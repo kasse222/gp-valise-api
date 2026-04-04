@@ -3,6 +3,7 @@
 namespace App\Actions\Transaction;
 
 use App\Enums\BookingStatusEnum;
+use App\Enums\TransactionTypeEnum;
 use App\Events\TransactionCreated;
 use App\Models\Booking;
 use App\Models\Transaction;
@@ -51,6 +52,7 @@ class CreateTransaction
             return $user->transactions()->create([
                 ...$data,
                 'booking_id' => $booking->id,
+                'type' => TransactionTypeEnum::CHARGE,
             ])->fresh();
         });
 
