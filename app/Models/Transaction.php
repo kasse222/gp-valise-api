@@ -20,28 +20,26 @@ class Transaction extends Model
         'type',
         'amount',
         'currency',
-        'status',         // ✅ TransactionStatusEnum
-        'method',         // ✅ PaymentMethodEnum
+        'status',
+        'method',
         'processed_at',
     ];
 
     protected $casts = [
-        'type'          => TransactionTypeEnum::class,
-        'amount'        => 'float',
-        'currency'      => CurrencyEnum::class,
-        'status'        => TransactionStatusEnum::class,
-        'method'        => PaymentMethodEnum::class,
-        'processed_at'  => 'datetime',
+        'type' => TransactionTypeEnum::class,
+        'amount' => 'float',
+        'currency' => CurrencyEnum::class,
+        'status' => TransactionStatusEnum::class,
+        'method' => PaymentMethodEnum::class,
+        'processed_at' => 'datetime',
     ];
-
-
-
 
     /*
     |--------------------------------------------------------------------------
     | Relations
     |--------------------------------------------------------------------------
     */
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -93,18 +91,6 @@ class Transaction extends Model
         return $this->status->canBeRefunded();
     }
 
-    public function label(): string
-    {
-        return "{$this->method->label()} - {$this->amount} {$this->currency}";
-    }
-
-    public function badge(): array
-    {
-        return $this->status->badge();
-    }
-
-
-
     public function isCharge(): bool
     {
         return $this->type === TransactionTypeEnum::CHARGE;
@@ -118,5 +104,20 @@ class Transaction extends Model
     public function isPayout(): bool
     {
         return $this->type === TransactionTypeEnum::PAYOUT;
+    }
+
+    public function isFee(): bool
+    {
+        return $this->type === TransactionTypeEnum::FEE;
+    }
+
+    public function label(): string
+    {
+        return "{$this->type->label()} - {$this->amount} {$this->currency->value}";
+    }
+
+    public function badge(): array
+    {
+        return $this->status->badge();
     }
 }
