@@ -277,4 +277,49 @@ class Booking extends Model
             ->where('type', TransactionTypeEnum::FEE)
             ->exists();
     }
+    public function hasRefundTransaction(): bool
+    {
+        return $this->transactions()
+            ->where('type', TransactionTypeEnum::REFUND)
+            ->exists();
+    }
+
+    public function canTriggerRefund(): bool
+    {
+        // ❌ pas de payout autorisé
+        if ($this->hasPayoutTransaction()) {
+            return false;
+        }
+
+        // ❌ pas de charge → pas de refund
+        if (! $this->hasSuccessfulChargeTransaction()) {
+            return false;
+        }
+
+        // ❌ déjà remboursé
+        if ($this->hasRefundTransaction()) {
+            return false;
+        }
+
+        // ✅ statuts autorisés
+        return in_array($this->status, [
+            BookingStatusEnum::ANNULE,
+            BookingStatusEnum::EXPIREE,
+            BookingStatusEnum::PAIEMENT_ECHOUE,
+            BookingStatusEnum::EN_LITIGE,
+        ], true);
+    }
+    public function refundableAmount(): float
+    {
+        $charge = $this->transactions()
+            ->where('type', TransactionTypeEnum::CHARGE)
+            ->where('status', TransactionStatusEnum::COMPLETED)
+            ->sum('amount');
+
+        $refunds = $this->transactions()
+            ->where('type', TransactionTypeEnum::REFUND)
+            ->sum('amount');
+
+        return max(0, $charge - $refunds);
+    }
 }
