@@ -64,7 +64,7 @@ it('dispatch BookingDelivered lorsqu une réservation est livrée', function () 
     });
 });
 
-it('crée automatiquement un payout pending lorsqu une réservation est livrée', function () {
+it('crée automatiquement un payout pending et une commission lorsqu une réservation est livrée', function () {
     $voyageur = User::factory()->create();
 
     $trip = Trip::factory()->create([
@@ -96,10 +96,20 @@ it('crée automatiquement un payout pending lorsqu une réservation est livrée'
         ->where('type', TransactionTypeEnum::PAYOUT)
         ->first();
 
+    $fee = Transaction::query()
+        ->where('booking_id', $booking->id)
+        ->where('type', TransactionTypeEnum::FEE)
+        ->first();
+
     expect($payout)->not->toBeNull()
         ->and($payout->user_id)->toBe($voyageur->id)
         ->and($payout->status)->toBe(TransactionStatusEnum::PENDING)
-        ->and($payout->amount)->toBe(120.50);
+        ->and($payout->amount)->toBe(102.42);
+
+    expect($fee)->not->toBeNull()
+        ->and($fee->user_id)->toBe($voyageur->id)
+        ->and($fee->status)->toBe(TransactionStatusEnum::COMPLETED)
+        ->and($fee->amount)->toBe(18.08);
 });
 
 it('ne crée pas de deuxième payout si un payout existe déjà', function () {
@@ -132,7 +142,7 @@ it('ne crée pas de deuxième payout si un payout existe déjà', function () {
         'booking_id' => $booking->id,
         'type' => TransactionTypeEnum::PAYOUT,
         'status' => TransactionStatusEnum::PENDING,
-        'amount' => 120.50,
+        'amount' => 102.42,
         'processed_at' => null,
     ]);
 

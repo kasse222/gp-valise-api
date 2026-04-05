@@ -267,6 +267,14 @@ class Booking extends Model
     {
         return $this->status === BookingStatusEnum::LIVREE
             && $this->hasSuccessfulChargeTransaction()
-            && ! $this->hasPayoutTransaction();
+            && ! $this->hasPayoutTransaction()
+            && ! $this->hasFeeTransaction();
+    }
+
+    public function hasFeeTransaction(): bool
+    {
+        return $this->transactions()
+            ->where('type', TransactionTypeEnum::FEE)
+            ->exists();
     }
 }
