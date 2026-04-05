@@ -12,6 +12,7 @@ use App\Listeners\LogTransactionCreated;
 use App\Listeners\LogTransactionRefunded;
 use App\Events\BookingCanceled;
 use App\Events\BookingDelivered;
+use App\Listeners\CreatePayoutAfterBookingDelivered;
 use App\Listeners\LogBookingCanceled;
 use App\Listeners\LogBookingDelivered;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -35,6 +36,7 @@ class EventServiceProvider extends ServiceProvider
         ],
         BookingDelivered::class => [
             LogBookingDelivered::class,
+            CreatePayoutAfterBookingDelivered::class,
         ],
         BookingCanceled::class => [
             LogBookingCanceled::class,
