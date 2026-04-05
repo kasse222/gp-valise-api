@@ -15,7 +15,7 @@ class ConfirmBooking
     {
         $booking = DB::transaction(function () use ($booking, $actor) {
             $booking = Booking::query()
-                ->with(['trip', 'bookingItems.luggage', 'transaction'])
+                ->with(['trip', 'bookingItems.luggage'])
                 ->lockForUpdate()
                 ->findOrFail($booking->id);
 

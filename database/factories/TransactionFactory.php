@@ -8,6 +8,7 @@ use App\Models\Booking;
 use App\Enums\CurrencyEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\PaymentMethodEnum;
+use App\Enums\TransactionTypeEnum;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class TransactionFactory extends Factory
@@ -19,6 +20,7 @@ class TransactionFactory extends Factory
         return [
             'user_id'      => User::factory(),
             'booking_id'   => Booking::factory(),
+            'type'         => TransactionTypeEnum::CHARGE->value,
             'amount'       => fake()->randomFloat(2, 10, 300),
             'currency'     => CurrencyEnum::EUR->value,
             'status'       => TransactionStatusEnum::PENDING->value,
