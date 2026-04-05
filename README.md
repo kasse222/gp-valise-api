@@ -1,292 +1,344 @@
-# ✈️ GP-Valise API
-
-# ✈️ GP-Valise API
+# ✈️ GP-Valise API — Backend Marketplace Logistique (Laravel)
 
 Backend API Laravel pour une plateforme logistique entre voyageurs et expéditeurs.
 
-Ce projet implémente un système de réservation de capacité (kg) avec :
+GP-Valise modélise un cas réel de marketplace logistique : un voyageur publie un trajet avec une capacité disponible, un expéditeur réserve des kg pour faire transporter un bagage ou un colis, puis le système orchestre réservation, paiement, expiration, livraison et flux financiers.
 
-- gestion de concurrence (lockForUpdate)
-- logique idempotente (safe retry)
-- expiration automatique via scheduler
-- architecture event-driven
+Le projet a été conçu comme une API métier robuste, avec un focus sur :
 
-🎯 Objectif : construire une API robuste, scalable et proche des contraintes réelles de production.
+- cohérence métier
+- concurrence
+- idempotence
+- séparation claire des responsabilités
+- préparation progressive à un modèle escrow / marketplace
 
 ![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)
 [![Laravel 12](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com)
 [![Docker](https://img.shields.io/badge/containerized-Docker-blue)](https://www.docker.com/)
+[![Tests](https://img.shields.io/badge/tests-149%20passing-brightgreen)](#tests)
 [![Made by Lamine Kasse](https://img.shields.io/badge/made%20by-Lamine%20Kasse-%23ff69b4)](mailto:laminekasse.dev@gmail.com)
 
-API Laravel **API-only** pour une plateforme logistique entre voyageurs et expéditeurs : gestion des trajets, réservations, valises/colis, paiements/transactions, invitations, plans, signalements, etc.
-
-> 📚 Swagger (local) : `http://localhost:8000/api/documentation`
+> Documentation Swagger locale : `http://localhost:8000/api/documentation`
 
 ---
 
-## 🧭 Sommaire
+## Sommaire
 
-- [🚀 Stack technique](#-stack-technique)
-- [📦 Modèles implémentés](#-modèles-implémentés)
-- [🔐 Authentification](#-authentification)
-- [📦 Réservations & Valises](#-réservations--valises)
-- [💳 Paiements & Transactions](#-paiements--transactions)
-- [🧪 Tests automatisés](#-tests-automatisés)
-- [🧱 Sécurité & Accès](#-sécurité--accès)
-- [🧬 Données de test (seeders)](#-données-de-test-seeders)
-- [⚙️ Installation locale (Docker)](#️-installation-locale-docker)
-- [🛣️ Roadmap](#️-roadmap)
-- [👨‍💻 À propos](#-à-propos)
+- [Vision produit](#vision-produit)
+- [Stack technique](#stack-technique)
+- [Architecture](#architecture)
+- [Modules principaux](#modules-principaux)
+- [Booking lifecycle](#booking-lifecycle)
+- [Transactions, payout et refund](#transactions-payout-et-refund)
+- [Concurrence et idempotence](#concurrence-et-idempotence)
+- [Sécurité](#sécurité)
+- [Tests](#tests)
+- [Installation locale](#installation-locale)
+- [Roadmap](#roadmap)
+- [Auteur](#auteur)
 
 ---
 
-## 🚀 Stack technique
+## Vision produit
+
+GP-Valise est une API backend pour une plateforme logistique de confiance entre :
+
+- **voyageur** : publie un trajet avec une capacité disponible
+- **expéditeur** : réserve de la capacité pour faire transporter un bagage ou un colis
+- **admin** : supervise les flux, les litiges et les opérations sensibles
+
+L’objectif n’est pas seulement de créer des réservations, mais de garantir un système cohérent sur trois axes :
+
+- **logistique** : trajets, capacité, étapes, bagages, livraison
+- **confiance** : rôles, vérification, KYC, signalements, litiges
+- **finance** : charge, payout, refund, traçabilité transactionnelle
+
+---
+
+## Stack technique
 
 - **Laravel 12** (API-only)
-- **Sanctum** (auth tokens)
-- **PestPHP** (tests)
-- **MySQL 8** (dev) + **SQLite in-memory** (tests/CI)
-- **Docker** (environnement isolé)
-- **Swagger (l5-swagger)** (documentation interactive)
+- **Sanctum** (authentification token)
+- **PestPHP** (tests automatisés)
+- **MySQL 8** (développement)
+- **SQLite in-memory** (tests / CI)
+- **Docker** (environnement local)
 - **GitHub Actions** (CI)
-- **Enums métiers** (statuts, rôles, types…)
-- **Actions Laravel** (logique métier isolée)
-- **Policies** (contrôle d’accès centralisé)
-- **FormRequests** (validation)
+- **Swagger / l5-swagger** (documentation API)
+- **Enums métier** (source de vérité des statuts)
+- **Actions** (cas d’usage métier)
+- **Policies** (contrôle d’accès)
+- **FormRequests** (validation HTTP)
 
 ---
 
-## 📦 Modèles implémentés
-
-| Modèle                 | Description                                    |
-| ---------------------- | ---------------------------------------------- |
-| `User`                 | Voyageur, Expéditeur, Admin                    |
-| `Trip`                 | Trajets proposés                               |
-| `Booking`              | Réservation (peut contenir plusieurs items)    |
-| `BookingItem`          | Détail des objets/valises réservés             |
-| `Luggage`              | Valise/colis à envoyer (statut, volume, poids) |
-| `BookingStatusHistory` | Historique des statuts                         |
-| `Payment`              | Paiements utilisateurs                         |
-| `Transaction`          | Écritures financières + remboursement (refund) |
-| `Report`               | Signalements                                   |
-| `Location`             | Points GPS (départ/étape/arrivée)              |
-| `Plan`                 | Abonnements freemium / premium                 |
-| `Invitation`           | Invitations / parrainage                       |
-
----
-
-## 🧱 Architecture
+## Architecture
 
 Le projet suit une architecture orientée cas d’usage :
 
-- Controller → orchestration HTTP
-- Action → logique métier
-- Policy → contrôle d’accès
-- FormRequest → validation
-- Enum → règles métier (state machine)
+```text
+Controller → Action → Model / Enum / Validator
+```
 
-👉 Cette approche permet une séparation claire des responsabilités et une meilleure maintenabilité.
+### Répartition des responsabilités
 
-## 🧠 Core Business Logic (Booking Lifecycle)
+- **Controller** : orchestration HTTP uniquement
+- **Action** : logique métier d’un use case
+- **Policy** : autorisation / contrôle d’accès
+- **FormRequest** : validation d’entrée
+- **Enum** : états, transitions, comportements métier purs
+- **Validator** : règles métier réutilisables
+- **Service** : orchestration transverse rare
 
-Le cœur du projet repose sur une gestion avancée des réservations (booking lifecycle) :
+### Principes appliqués
 
-1. Création → `EN_PAIEMENT`
-    - bloque temporairement les ressources (kg)
-    - définit `payment_expires_at`
-
-2. Paiement réussi → `CONFIRMEE`
-    - réservation validée
-    - capacité définitivement utilisée
-
-3. Expiration automatique
-    - booking → `EXPIREE`
-    - ressources libérées (valises → `EN_ATTENTE`)
-    - capacité restaurée
-
-4. Livraison → `LIVREE` puis `TERMINE`
-
-👉 Ce flow garantit la cohérence métier et évite les conflits de capacité.
-
-## 🔐 Authentification
-
-> Tous les endpoints API sont préfixés par `/api/v1`.
-
-| Méthode | Endpoint             | Description         |
-| ------- | -------------------- | ------------------- |
-| POST    | `/api/v1/register`   | Inscription         |
-| POST    | `/api/v1/login`      | Connexion           |
-| GET     | `/api/v1/me`         | Profil connecté     |
-| POST    | `/api/v1/logout`     | Déconnexion         |
-| POST    | `/api/v1/logout-all` | Déconnexion globale |
-
-- Tokens via **Sanctum**
-- Validation via **FormRequests**
-- Accès via **Policies** + middleware de rôle
+- pas de logique métier dans les controllers
+- pas de logique métier dans les policies
+- pas d’accès base de données dans les enums
+- centralisation progressive des règles dans les modèles et actions
 
 ---
 
-## 📦 Réservations & Valises
+## Modules principaux
 
-### Booking – Endpoints
+Le backend couvre aujourd’hui les modules suivants :
 
-| Méthode | Route                                 | Description            |
-| ------- | ------------------------------------- | ---------------------- |
-| GET     | `/api/v1/bookings`                    | Liste des réservations |
-| POST    | `/api/v1/bookings`                    | Créer une réservation  |
-| PUT     | `/api/v1/bookings/{booking}`          | Modifier               |
-| DELETE  | `/api/v1/bookings/{booking}`          | Supprimer              |
-| POST    | `/api/v1/bookings/{booking}/confirm`  | Confirmer              |
-| POST    | `/api/v1/bookings/{booking}/cancel`   | Annuler                |
-| POST    | `/api/v1/bookings/{booking}/complete` | Marquer livrée         |
-
-- Statuts via `BookingStatusEnum`
-- Transitions historisées (`BookingStatusHistory`)
-- Autorisation via `BookingPolicy`
-
-### Luggage – Endpoints
-
-| Méthode | Route                        | Description       |
-| ------- | ---------------------------- | ----------------- |
-| GET     | `/api/v1/luggages`           | Liste des valises |
-| POST    | `/api/v1/luggages`           | Créer             |
-| PUT     | `/api/v1/luggages/{luggage}` | Modifier          |
-| DELETE  | `/api/v1/luggages/{luggage}` | Supprimer         |
-
-- Sécurité : `LuggagePolicy`
-- Validation : FormRequests
-- Enum : `LuggageStatusEnum`
+- **User**
+- **Trip**
+- **Booking**
+- **BookingItem**
+- **Luggage**
+- **BookingStatusHistory**
+- **Payment**
+- **Transaction**
+- **Location**
+- **Report**
+- **Plan**
+- **Invitation**
 
 ---
 
-## 💳 Paiements & Transactions
+## Booking lifecycle
 
-### Payments (CRUD)
+Le cœur du projet repose sur un cycle de vie métier réaliste des réservations.
 
-| Méthode   | Route                        | Description |
-| --------- | ---------------------------- | ----------- |
-| GET       | `/api/v1/payments`           | Lister      |
-| POST      | `/api/v1/payments`           | Créer       |
-| GET       | `/api/v1/payments/{payment}` | Voir        |
-| PATCH/PUT | `/api/v1/payments/{payment}` | Modifier    |
-| DELETE    | `/api/v1/payments/{payment}` | Supprimer   |
+### Flow principal
 
-### Transactions (index/show/store + refund dédié)
+```text
+EN_ATTENTE → EN_PAIEMENT → CONFIRMEE
+                     ↓
+                  EXPIREE
+```
 
-| Méthode | Route                                       | Description |
-| ------- | ------------------------------------------- | ----------- |
-| GET     | `/api/v1/transactions`                      | Lister      |
-| POST    | `/api/v1/transactions`                      | Créer       |
-| GET     | `/api/v1/transactions/{transaction}`        | Voir        |
-| POST    | `/api/v1/transactions/{transaction}/refund` | Rembourser  |
+Puis :
 
-✅ Le endpoint **refund** est protégé par :
+```text
+CONFIRMEE → LIVREE → TERMINE
+```
 
-- `verified_user`
-- `kyc`
-- `throttle.sensitive:finance,5,1`
+Et en cas de problème :
 
----
+```text
+LIVREE / TERMINE → EN_LITIGE → REMBOURSEE
+```
 
-## 🧪 Tests automatisés
+### Règles clés
 
-- **Environnement :** SQLite in-memory (CI), MySQL local optionnel
-- **Statut actuel :**
-    - 136 tests / 353 assertions
-    - Durée : **~6.44s**
+- une réservation n’est plus confirmable directement après création
+- un booking passe en `EN_PAIEMENT`
+- la capacité est bloquée temporairement
+- si le paiement réussit et que les conditions métier sont réunies, le booking passe en `CONFIRMEE`
+- si le délai de paiement expire, le booking passe en `EXPIREE`
+- l’expiration libère les ressources réservées
+- les transitions sensibles sont historisées
 
----
+### Batch automatique
 
-## 🧱 Sécurité & Accès
-
-- `auth:sanctum` obligatoire (routes protégées)
-- Policies actives :
-    - `BookingPolicy`, `LuggagePolicy`, `PaymentPolicy`, `TransactionPolicy`, etc.
-- Middlewares personnalisés :
-    - `EnsureRole`
-    - `verified_user`
-    - `kyc`
-    - `throttle.sensitive`
-    - `force.json` (API JSON par défaut)
-- Enums = source de vérité métier (statuts, transitions, badges)
-
----
-
-## 🧬 Données de test (seeders)
-
-| Élément      |     Quantité |
-| ------------ | -----------: |
-| Users        | 15 (3 rôles) |
-| Trips        |           30 |
-| Bookings     |           20 |
-| Luggages     |           40 |
-| BookingItems | auto-générés |
-| Payments     |           20 |
-| Reports      |           10 |
-| Locations    |          150 |
-| Transactions |           10 |
-| Invitations  |            5 |
-
----
-
-## ⏱️ Batch & Scheduler
-
-Le projet intègre un système de traitement automatique des réservations expirées :
-
-- Commande : `bookings:expire-pending`
-- Exécution via **Laravel Scheduler**
-- Traitement par batch (`chunkById`)
-- Gestion des erreurs + logs
-
-### Fonctionnement
-
-Toutes les X minutes :
-
-- scan des bookings `EN_PAIEMENT`
-- si `payment_expires_at < now()`
-- passage en `EXPIREE`
-- libération des ressources
-
-👉 Ce mécanisme simule un comportement réel de système SaaS.
-
-## ⚙️ Installation locale (Docker)
+Le projet intègre une commande batch dédiée :
 
 ```bash
-# Cloner le projet
+php artisan bookings:expire-pending
+```
+
+Elle permet de :
+
+- scanner les bookings `EN_PAIEMENT` expirés
+- appliquer la transition vers `EXPIREE`
+- libérer les valises liées
+- garantir un comportement idempotent et stable
+
+---
+
+## Transactions, payout et refund
+
+La couche financière distingue clairement :
+
+- **Payment** : vue métier du cycle de paiement
+- **Transaction** : mouvement financier unitaire et traçable
+
+### Types de transactions pris en charge
+
+- `CHARGE`
+- `PAYOUT`
+- `REFUND`
+- `FEE`
+
+### Payout
+
+Après livraison :
+
+- un payout peut être préparé seulement si une charge complétée existe
+- le système empêche les doubles payouts
+- une commission plateforme peut être générée
+
+### Refund v1
+
+Le remboursement actuellement implémenté suit des règles strictes :
+
+- refund **manuel**
+- refund **total**
+- refund **unique**
+- refund **autorisé seulement en litige**
+- refund **bloqué si un payout existe**
+- refund basé sur **le montant**
+- transition métier cohérente vers `REMBOURSEE`
+
+Ce choix permet de garder un flow simple, sûr et testable, avant d’introduire plus tard :
+
+- refund partiel
+- plusieurs refunds
+- compensation après payout
+- arbitrage avancé
+
+---
+
+## Concurrence et idempotence
+
+Le projet traite explicitement les problèmes de concurrence et de retry.
+
+### Ce qui est géré
+
+- surbooking évité via verrouillage pessimiste
+- double réservation de bagage évitée
+- expiration batch rejouable sans side effects multiples
+- refund sécurisé contre les doubles exécutions concurrentes
+
+### Techniques utilisées
+
+- `DB::transaction(...)`
+- `lockForUpdate()`
+- guards métier idempotents
+- recalcul et relecture sous transaction
+
+### Exemple de logique robuste
+
+- verrou sur le trip pour protéger la capacité
+- verrou sur les bagages pour éviter une réservation concurrente
+- verrou sur les transactions d’un booking pour éviter un double refund
+
+---
+
+## Sécurité
+
+Le projet applique plusieurs couches de sécurité :
+
+- `auth:sanctum`
+- `Policies` par ressource
+- middleware de rôle
+- `verified_user`
+- `kyc`
+- `throttle.sensitive`
+
+Le endpoint refund est notamment protégé par :
+
+- utilisateur vérifié
+- KYC
+- throttling
+- policy dédiée
+- règles métier dans l’action
+
+---
+
+## Tests
+
+Le projet dispose actuellement d’une suite de tests verte :
+
+- **149 tests**
+- **406 assertions**
+- durée locale observée : **~6 secondes**
+
+### Couverture fonctionnelle
+
+Les tests couvrent notamment :
+
+- authentification
+- CRUD des modules principaux
+- booking lifecycle
+- expiration batch
+- concurrence métier
+- payout
+- refund manuel en litige
+- contrôle d’accès
+- throttling des opérations sensibles
+
+---
+
+## Installation locale
+
+```bash
 git clone https://github.com/kasse222/gp-valise-api.git
 cd gp-valise-api
 
-# Copier l’environnement
 make copy-env
-
-# Lancer Docker
 make up
-
-# Générer la clé + migrations + seeds
 make key
 make migrate
 make seed
-
-# Interfaces :
-# API        → http://localhost:8000
-# Swagger    → http://localhost:8000/api/documentation
-# PhpMyAdmin → http://localhost:8080
 ```
 
-🛣️ Roadmap
+### Interfaces locales
 
-Tests d’intégration avancés : pagination, filtres, eager loading, withCount
+- API : `http://localhost:8000`
+- Swagger : `http://localhost:8000/api/documentation`
+- PhpMyAdmin : `http://localhost:8080`
 
-Sécurité OWASP avancée : rate limiting global + durcissement endpoints sensibles
+### Tests
 
-Observabilité : logs structurés + événements métiers (optionnel)
+```bash
+make test
+```
 
-Durcissement DevOps : Docker prod (multi-stage), healthchecks, stratégie backup/rotation
+---
 
-👨‍💻 À propos
+## Roadmap
 
-Projet open-source développé par Lamine Kasse dans le cadre d’une montée en compétence Back-End Laravel / API / DevOps.
+### Court terme
 
-GitHub : kasse222
+- enrichir le README et la documentation d’architecture
+- finaliser l’alignement de certains modules partiellement refactorés
+- améliorer l’observabilité et les logs métier
+- renforcer encore les tests edge cases
 
-Email : laminekasse.dev@gmail.com
+### Moyen terme
+
+- refund partiel
+- plusieurs refunds
+- compensation après payout
+- intégration PSP réel (Stripe / webhook)
+- durcissement Docker prod / CI/CD / monitoring
+
+---
+
+## Auteur
+
+Projet développé par **Lamine Kasse** dans le cadre d’une montée en compétence avancée en :
+
+- Laravel
+- architecture backend
+- API design
+- logique métier
+- Docker / CI
+- préparation à des systèmes SaaS transactionnels
+
+- GitHub : `kasse222`
+- Email : `laminekasse.dev@gmail.com`
