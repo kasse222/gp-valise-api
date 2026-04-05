@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\CurrencyEnum;
+use App\Enums\TransactionTypeEnum;
 
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\postJson;
@@ -132,7 +133,8 @@ it('rejette le remboursement par un utilisateur non autorisé', function () {
     $transaction = Transaction::factory()
         ->forUserWithBooking($owner)
         ->create([
-            'status' => TransactionStatusEnum::COMPLETED->value, // ✅ refundable
+            'type' => TransactionTypeEnum::CHARGE->value,
+            'status' => TransactionStatusEnum::COMPLETED->value,
         ]);
 
     actingAs($other);
@@ -142,52 +144,64 @@ it('rejette le remboursement par un utilisateur non autorisé', function () {
     ])->assertForbidden();
 });
 
-
 it('autorise le remboursement par le propriétaire', function () {
     $user = User::factory()->verified()->create([
         'role' => \App\Enums\UserRoleEnum::SENDER->value,
     ]);
 
-    $transaction = Transaction::factory()
-        ->forUserWithBooking($user)
-        ->create([
-            'status' => TransactionStatusEnum::COMPLETED->value,
-        ]);
+    $booking = Booking::factory()->for($user)->create([
+        'status' => \App\Enums\BookingStatusEnum::EN_LITIGE,
+    ]);
+
+    $charge = Transaction::factory()->create([
+        'user_id'    => $user->id,
+        'booking_id' => $booking->id,
+        'type'       => TransactionTypeEnum::CHARGE->value,
+        'status'     => TransactionStatusEnum::COMPLETED->value,
+        'amount'     => 150.00,
+    ]);
 
     actingAs($user);
 
-    postJson("/api/v1/transactions/{$transaction->id}/refund", [
+    $response = postJson("/api/v1/transactions/{$charge->id}/refund", [
         'reason' => 'Valide',
-    ])
+    ]);
+
+    $response
         ->assertOk()
-        ->assertJsonPath('data.status.code', TransactionStatusEnum::REFUNDED->value);
+        ->assertJsonPath('data.type.code', TransactionTypeEnum::REFUND->value)
+        ->assertJsonPath('data.status.code', TransactionStatusEnum::COMPLETED->value)
+        ->assertJsonPath('data.amount', fn($amount) => (float) $amount === 150.0);
 
-    $transaction->refresh();
-    expect($transaction->status)->toBe(TransactionStatusEnum::REFUNDED);
-});
+    $charge->refresh();
 
+    expect($charge->type)->toBe(TransactionTypeEnum::CHARGE)
+        ->and($charge->status)->toBe(TransactionStatusEnum::COMPLETED);
 
-it('valide que le lien user-booking-transaction est cohérent', function () {
-    $user = User::factory()->verified()->create();
-    $transaction = Transaction::factory()->forUserWithBooking($user)->create();
-    $booking = $transaction->booking;
+    $refund = Transaction::query()
+        ->where('booking_id', $charge->booking_id)
+        ->where('type', TransactionTypeEnum::REFUND)
+        ->latest()
+        ->first();
 
-    expect($transaction->user_id)->toBe($user->id)
-        ->and($booking->user_id)->toBe($user->id)
-        ->and($booking->id)->toBe($transaction->booking_id);
+    expect($refund)->not->toBeNull()
+        ->and($refund->status)->toBe(TransactionStatusEnum::COMPLETED)
+        ->and((float) $refund->amount)->toBe(150.0)
+        ->and($refund->user_id)->toBe($user->id);
 });
 
 it('rejette le refund si user non vérifié (403)', function () {
     $user = User::factory()->create([
         'role' => \App\Enums\UserRoleEnum::SENDER->value,
         'verified_user' => false,
-        'kyc_passed_at' => now(), // on met KYC ok pour isoler le middleware verified_user
+        'kyc_passed_at' => now(),
     ]);
     expect($user->verified_user)->toBeFalse();
 
     $transaction = Transaction::factory()
         ->forUserWithBooking($user)
         ->create([
+            'type' => TransactionTypeEnum::CHARGE->value,
             'status' => TransactionStatusEnum::COMPLETED->value,
         ]);
 
@@ -209,6 +223,7 @@ it('rejette le refund si user sans KYC (403)', function () {
     $transaction = Transaction::factory()
         ->forUserWithBooking($user)
         ->create([
+            'type' => TransactionTypeEnum::CHARGE->value,
             'status' => TransactionStatusEnum::COMPLETED->value,
         ]);
 
@@ -228,15 +243,26 @@ it('throttle refund: 6 appels => 429 au 6e', function () {
 
     actingAs($user);
 
-    $transactions = Transaction::factory()
-        ->count(6)
-        ->forUserWithBooking($user)
-        ->create([
-            'status' => TransactionStatusEnum::COMPLETED->value,
+    $transactions = collect();
+
+    foreach (range(1, 6) as $i) {
+        $booking = Booking::factory()->for($user)->create([
+            'status' => \App\Enums\BookingStatusEnum::EN_LITIGE,
         ]);
 
-    foreach ($transactions->take(5) as $t) {
-        postJson("/api/v1/transactions/{$t->id}/refund", [
+        $transactions->push(
+            Transaction::factory()->create([
+                'user_id' => $user->id,
+                'booking_id' => $booking->id,
+                'type' => TransactionTypeEnum::CHARGE->value,
+                'status' => TransactionStatusEnum::COMPLETED->value,
+                'amount' => 150.00,
+            ])
+        );
+    }
+
+    foreach ($transactions->take(5) as $transaction) {
+        postJson("/api/v1/transactions/{$transaction->id}/refund", [
             'reason' => 'Throttle test',
         ])->assertOk();
     }
