@@ -9,7 +9,7 @@ use App\Models\BookingStatusHistory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany};
+use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany, HasOne};
 use Illuminate\Support\Facades\Auth;
 
 class Booking extends Model
@@ -97,9 +97,14 @@ class Booking extends Model
     {
         return $this->hasMany(BookingStatusHistory::class);
     }
-    public function transaction()
+    public function transactions(): HasMany
     {
-        return $this->hasOne(Transaction::class);
+        return $this->hasMany(Transaction::class);
+    }
+    public function transaction(): HasOne
+    {
+        return $this->hasOne(Transaction::class)
+            ->where('type', TransactionTypeEnum::CHARGE);
     }
 
     /*
@@ -245,10 +250,23 @@ class Booking extends Model
 
     public function hasSuccessfulChargeTransaction(): bool
     {
-        $transaction = $this->transaction;
+        return $this->transactions()
+            ->where('type', TransactionTypeEnum::CHARGE)
+            ->where('status', TransactionStatusEnum::COMPLETED)
+            ->exists();
+    }
 
-        return $transaction !== null
-            && $transaction->type === TransactionTypeEnum::CHARGE
-            && $transaction->status === TransactionStatusEnum::COMPLETED;
+    public function hasPayoutTransaction(): bool
+    {
+        return $this->transactions()
+            ->where('type', TransactionTypeEnum::PAYOUT)
+            ->exists();
+    }
+
+    public function canTriggerPayout(): bool
+    {
+        return $this->status === BookingStatusEnum::LIVREE
+            && $this->hasSuccessfulChargeTransaction()
+            && ! $this->hasPayoutTransaction();
     }
 }
