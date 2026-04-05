@@ -15,7 +15,7 @@ class RefundTransaction
 {
     public function execute(Transaction $charge, ?string $reason = null): Transaction
     {
-        $refund = DB::transaction(function () use ($charge) {
+        $result = DB::transaction(function () use ($charge, $reason) {
             $charge = Transaction::query()
                 ->lockForUpdate()
                 ->findOrFail($charge->id);
@@ -36,70 +36,48 @@ class RefundTransaction
                 ]);
             }
 
-            $allowedStatuses = [
-                BookingStatusEnum::ANNULE,
-                BookingStatusEnum::EXPIREE,
-                BookingStatusEnum::PAIEMENT_ECHOUE,
-                BookingStatusEnum::EN_LITIGE,
-            ];
+            // Verrouille aussi les transactions du booking pour éviter les doubles refunds concurrents
+            Transaction::query()
+                ->where('booking_id', $booking->id)
+                ->lockForUpdate()
+                ->get();
 
-            if (! in_array($booking->status, $allowedStatuses, true)) {
+            if (! $booking->canTriggerRefund()) {
                 throw ValidationException::withMessages([
                     'booking' => 'Ce booking ne peut pas déclencher de remboursement.',
                 ]);
             }
 
-            $bookingTransactions = Transaction::query()
-                ->where('booking_id', $booking->id)
-                ->lockForUpdate()
-                ->get();
+            $refundAmount = $booking->refundableAmount();
 
-            $hasPayout = $bookingTransactions->contains(
-                fn(Transaction $transaction) => $transaction->type === TransactionTypeEnum::PAYOUT
-            );
-
-            if ($hasPayout) {
+            if ($refundAmount <= 0) {
                 throw ValidationException::withMessages([
-                    'booking' => 'Impossible de rembourser après création du payout.',
+                    'booking' => 'Aucun montant remboursable disponible pour ce booking.',
                 ]);
             }
 
-            $hasRefund = $bookingTransactions->contains(
-                fn(Transaction $transaction) => $transaction->type === TransactionTypeEnum::REFUND
-            );
-
-            if ($hasRefund) {
-                throw ValidationException::withMessages([
-                    'booking' => 'Un remboursement existe déjà pour ce booking.',
-                ]);
-            }
-
-            $hasSuccessfulCharge = $bookingTransactions->contains(
-                fn(Transaction $transaction) =>
-                $transaction->type === TransactionTypeEnum::CHARGE
-                    && $transaction->status === TransactionStatusEnum::COMPLETED
-            );
-
-            if (! $hasSuccessfulCharge) {
-                throw ValidationException::withMessages([
-                    'booking' => 'Aucune charge complétée ne permet ce remboursement.',
-                ]);
-            }
-
-            return Transaction::query()->create([
-                'user_id' => $charge->user_id,
-                'booking_id' => $booking->id,
-                'type' => TransactionTypeEnum::REFUND,
-                'amount' => $charge->amount,
-                'currency' => $charge->currency,
-                'method' => $charge->method,
-                'status' => TransactionStatusEnum::COMPLETED,
+            $refund = Transaction::query()->create([
+                'user_id'      => $charge->user_id,
+                'booking_id'   => $booking->id,
+                'type'         => TransactionTypeEnum::REFUND,
+                'amount'       => $refundAmount,
+                'currency'     => $charge->currency,
+                'method'       => $charge->method,
+                'status'       => TransactionStatusEnum::COMPLETED,
                 'processed_at' => now(),
             ]);
+
+            $booking->transitionTo(
+                BookingStatusEnum::REMBOURSEE,
+                null,
+                $reason ?? 'Remboursement manuel après litige'
+            );
+
+            return $refund;
         });
 
-        event(new TransactionRefunded($refund, $reason));
+        event(new TransactionRefunded($result, $reason));
 
-        return $refund;
+        return $result;
     }
 }

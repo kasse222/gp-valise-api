@@ -286,28 +286,10 @@ class Booking extends Model
 
     public function canTriggerRefund(): bool
     {
-        // ❌ pas de payout autorisé
-        if ($this->hasPayoutTransaction()) {
-            return false;
-        }
-
-        // ❌ pas de charge → pas de refund
-        if (! $this->hasSuccessfulChargeTransaction()) {
-            return false;
-        }
-
-        // ❌ déjà remboursé
-        if ($this->hasRefundTransaction()) {
-            return false;
-        }
-
-        // ✅ statuts autorisés
-        return in_array($this->status, [
-            BookingStatusEnum::ANNULE,
-            BookingStatusEnum::EXPIREE,
-            BookingStatusEnum::PAIEMENT_ECHOUE,
-            BookingStatusEnum::EN_LITIGE,
-        ], true);
+        return $this->status === BookingStatusEnum::EN_LITIGE
+            && ! $this->hasPayoutTransaction()
+            && $this->hasSuccessfulChargeTransaction()
+            && ! $this->hasRefundTransaction();
     }
     public function refundableAmount(): float
     {

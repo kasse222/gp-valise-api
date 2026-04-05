@@ -25,7 +25,7 @@ class TransactionController extends Controller
     }
 
     /**
-     * 📄 Lister les transactions de l’utilisateur connecté
+     * 📄 Lister les transactions de l'utilisateur connecté
      */
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -38,7 +38,7 @@ class TransactionController extends Controller
     }
 
     /**
-     * 📄 Voir une transaction
+     * 🔍 Afficher une transaction
      */
     public function show(Transaction $transaction): TransactionResource
     {
@@ -46,13 +46,16 @@ class TransactionController extends Controller
     }
 
     /**
-     * ➕ Créer une nouvelle transaction
+     * ➕ Créer une transaction
      */
     public function store(
         StoreTransactionRequest $request,
         CreateTransaction $action
     ): JsonResponse {
-        $transaction = $action->execute($request->user(), $request->validated());
+        $transaction = $action->execute(
+            $request->user(),
+            $request->validated()
+        );
 
         return (new TransactionResource($transaction))
             ->response()
@@ -60,7 +63,7 @@ class TransactionController extends Controller
     }
 
     /**
-     * 💸 Demander un remboursement
+     * 💸 Déclencher un remboursement manuel
      */
     public function refund(
         RefundTransactionRequest $request,
@@ -69,12 +72,12 @@ class TransactionController extends Controller
     ): JsonResponse {
         $this->authorize('refund', $transaction);
 
-        $transaction = $action->execute(
+        $refund = $action->execute(
             $transaction,
             $request->validated('reason')
         );
 
-        return (new TransactionResource($transaction))
+        return (new TransactionResource($refund))
             ->response()
             ->setStatusCode(Response::HTTP_OK);
     }
