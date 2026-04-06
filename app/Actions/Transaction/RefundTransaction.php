@@ -2,7 +2,7 @@
 
 namespace App\Actions\Transaction;
 
-use App\Enums\BookingStatusEnum;
+use App\Contracts\Payments\PaymentProvider;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Events\TransactionRefunded;
@@ -10,9 +10,14 @@ use App\Models\Booking;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 
 class RefundTransaction
 {
+    public function __construct(
+        private readonly PaymentProvider $paymentProvider,
+    ) {}
+
     public function execute(Transaction $charge, ?string $reason = null): Transaction
     {
         $result = DB::transaction(function () use ($charge, $reason) {
@@ -36,7 +41,6 @@ class RefundTransaction
                 ]);
             }
 
-            // Verrouille aussi les transactions du booking pour éviter les doubles refunds concurrents
             Transaction::query()
                 ->where('booking_id', $booking->id)
                 ->lockForUpdate()
@@ -56,26 +60,39 @@ class RefundTransaction
                 ]);
             }
 
-            $refund = Transaction::query()->create([
-                'user_id'      => $charge->user_id,
-                'booking_id'   => $booking->id,
-                'type'         => TransactionTypeEnum::REFUND,
-                'amount'       => $refundAmount,
-                'currency'     => $charge->currency,
-                'method'       => $charge->method,
-                'status'       => TransactionStatusEnum::PENDING,
-                'processed_at' => now(),
+            $providerResult = $this->paymentProvider->refund([
+                'booking_id' => $booking->id,
+                'user_id' => $charge->user_id,
+                'amount' => $refundAmount,
+                'currency' => $charge->currency?->value,
+                'method' => $charge->method?->value,
+                'reason' => $reason,
             ]);
 
-            /*  👉 argent pas encore remboursé
-               👉 booking doit rester en litige
-            $booking->transitionTo(
-                BookingStatusEnum::REMBOURSEE,
-                null,
-                $reason ?? 'Remboursement manuel après litige'
-            );*/
+            if (! $providerResult->success) {
+                throw ValidationException::withMessages([
+                    'refund' => $providerResult->message ?? 'Le provider de paiement a refusé le remboursement.',
+                ]);
+            }
 
-            return $refund;
+            $status = match ($providerResult->status) {
+                'completed' => TransactionStatusEnum::COMPLETED,
+                'pending' => TransactionStatusEnum::PENDING,
+                'failed' => TransactionStatusEnum::FAILED,
+                default => throw new InvalidArgumentException("Statut provider inconnu : {$providerResult->status}"),
+            };
+
+            return Transaction::query()->create([
+                'user_id' => $charge->user_id,
+                'booking_id' => $booking->id,
+                'type' => TransactionTypeEnum::REFUND,
+                'amount' => $refundAmount,
+                'currency' => $charge->currency,
+                'method' => $charge->method,
+                'status' => $status,
+                'provider_transaction_id' => $providerResult->providerTransactionId,
+                'processed_at' => $status === TransactionStatusEnum::COMPLETED ? now() : null,
+            ]);
         });
 
         event(new TransactionRefunded($result, $reason));

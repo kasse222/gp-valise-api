@@ -2,6 +2,7 @@
 
 use App\Enums\CurrencyEnum;
 use App\Enums\PaymentMethodEnum;
+use App\Enums\PaymentStatusEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -15,24 +16,25 @@ return new class extends Migration
 
             $table->foreignId('user_id')
                 ->constrained('users')
-                ->onDelete('cascade');
+                ->cascadeOnDelete();
 
             $table->foreignId('booking_id')
                 ->nullable()
                 ->constrained('bookings')
-                ->onDelete('set null');
+                ->nullOnDelete();
 
-            $table->decimal('amount', 8, 2);
+            $table->decimal('amount', 10, 2);
 
-            $table->enum('currency', CurrencyEnum::values())->default(CurrencyEnum::EUR->value);
+            $table->string('currency', 10)
+                ->default(CurrencyEnum::EUR->value);
+
             $table->string('method', 50)
-                ->default(PaymentMethodEnum::CARTE_BANCAIRE->value); // 🟢 Enum Laravel >= 9.19
+                ->default(PaymentMethodEnum::CARTE_BANCAIRE->value);
 
             $table->unsignedTinyInteger('status')
-                ->default(\App\Enums\PaymentStatusEnum::EN_ATTENTE->value); // 🟢 Enum numérique
+                ->default(PaymentStatusEnum::EN_ATTENTE->value);
 
-            $table->uuid('payment_reference')->unique(); // ou ->nullable()->unique() selon ton besoin
-
+            $table->uuid('payment_reference')->unique();
 
             $table->timestamp('paid_at')->nullable();
 

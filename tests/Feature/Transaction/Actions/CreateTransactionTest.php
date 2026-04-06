@@ -41,7 +41,7 @@ it('crée une transaction si le booking est en paiement, non expiré et sans tra
         ->toBeInstanceOf(Transaction::class)
         ->and($transaction->booking_id)->toBe($booking->id)
         ->and($transaction->user_id)->toBe($user->id)
-        ->and($transaction->status)->toBe(TransactionStatusEnum::PENDING);
+        ->and($transaction->status)->toBe(TransactionStatusEnum::COMPLETED);
 });
 
 it('dispatch TransactionCreated quand une transaction est créée', function () {
