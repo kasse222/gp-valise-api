@@ -2,58 +2,62 @@
 
 Backend API Laravel pour une plateforme logistique entre voyageurs et expéditeurs.
 
-GP-Valise modélise un cas réel de marketplace logistique : un voyageur publie un trajet avec une capacité disponible, un expéditeur réserve des kg pour faire transporter un bagage ou un colis, puis le système orchestre réservation, paiement, expiration, livraison et flux financiers.
+GP-Valise modélise un **cas réel de marketplace transactionnelle**, avec gestion complète :
 
-Le projet a été conçu comme une API métier robuste, avec un focus sur :
+- des réservations
+- du cycle de vie métier
+- des flux financiers (charge, payout, refund)
+- des paiements asynchrones (inspirés Stripe)
 
-- cohérence métier
-- concurrence
-- idempotence
-- séparation claire des responsabilités
-- préparation progressive à un modèle escrow / marketplace
+> 🎯 Objectif : construire un backend **cohérent, robuste et prêt pour un environnement SaaS réel**
+
+---
 
 ![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)
 [![Laravel 12](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com)
 [![Docker](https://img.shields.io/badge/containerized-Docker-blue)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-149%20passing-brightgreen)](#tests)
-[![Made by Lamine Kasse](https://img.shields.io/badge/made%20by-Lamine%20Kasse-%23ff69b4)](mailto:laminekasse.dev@gmail.com)
-
-> Documentation Swagger locale : `http://localhost:8000/api/documentation`
+[![Tests](https://img.shields.io/badge/tests-150%2B%20passing-brightgreen)](#tests)
 
 ---
 
-## Sommaire
-
-- [Vision produit](#vision-produit)
-- [Stack technique](#stack-technique)
-- [Architecture](#architecture)
-- [Modules principaux](#modules-principaux)
-- [Booking lifecycle](#booking-lifecycle)
-- [Transactions, payout et refund](#transactions-payout-et-refund)
-- [Concurrence et idempotence](#concurrence-et-idempotence)
-- [Sécurité](#sécurité)
-- [Tests](#tests)
-- [Installation locale](#installation-locale)
-- [Roadmap](#roadmap)
-- [Auteur](#auteur)
-
----
-
-## Vision produit
+## 🚀 Vision produit
 
 GP-Valise est une API backend pour une plateforme logistique de confiance entre :
 
-- **voyageur** : publie un trajet avec une capacité disponible
-- **expéditeur** : réserve de la capacité pour faire transporter un bagage ou un colis
-- **admin** : supervise les flux, les litiges et les opérations sensibles
+- **Voyageur** : publie un trajet avec capacité disponible
+- **Expéditeur** : réserve des kg pour transporter un colis
+- **Admin** : supervise les flux et les litiges
 
-L’objectif n’est pas seulement de créer des réservations, mais de garantir un système cohérent sur trois axes :
+Le système repose sur trois piliers :
 
-- **logistique** : trajets, capacité, étapes, bagages, livraison
-- **confiance** : rôles, vérification, KYC, signalements, litiges
-- **finance** : charge, payout, refund, traçabilité transactionnelle
+- **Logistique** : trajets, étapes, capacité, livraison
+- **Confiance** : rôles, KYC, signalements, litiges
+- **Finance** : transactions, payout, refund, traçabilité
 
 ---
+
+## 💸 Architecture Paiement (Async Ready)
+
+Le système suit un modèle **asynchrone inspiré des PSP modernes (Stripe-like)**.
+
+### Concepts clés
+
+- `PaymentProvider` (abstraction)
+- `Transaction` = source de vérité financière
+- Webhooks pour la confirmation réelle
+
+### Flow simplifié
+
+````text
+CHARGE → (provider) → COMPLETED / PENDING / FAILED
+
+REFUND → PENDING
+           ↓
+      webhook
+           ↓
+COMPLETED → booking REMBOURSEE
+FAILED    → booking reste EN_LITIGE
+
 
 ## Stack technique
 
@@ -78,7 +82,7 @@ Le projet suit une architecture orientée cas d’usage :
 
 ```text
 Controller → Action → Model / Enum / Validator
-```
+````
 
 ### Répartition des responsabilités
 
@@ -88,14 +92,15 @@ Controller → Action → Model / Enum / Validator
 - **FormRequest** : validation d’entrée
 - **Enum** : états, transitions, comportements métier purs
 - **Validator** : règles métier réutilisables
-- **Service** : orchestration transverse rare
+- **Service** : orchestration transverse rare (intégration externe)
 
 ### Principes appliqués
 
-- pas de logique métier dans les controllers
-- pas de logique métier dans les policies
-- pas d’accès base de données dans les enums
-- centralisation progressive des règles dans les modèles et actions
+- Principes appliqués
+- séparation stricte des responsabilités
+- logique métier centralisée
+- idempotence
+- cohérence transactionnelle
 
 ---
 
@@ -139,7 +144,7 @@ CONFIRMEE → LIVREE → TERMINE
 Et en cas de problème :
 
 ```text
-LIVREE / TERMINE → EN_LITIGE → REMBOURSEE
+LIVREE → EN_LITIGE → REMBOURSEE
 ```
 
 ### Règles clés
@@ -169,117 +174,74 @@ Elle permet de :
 
 ---
 
-## Transactions, payout et refund
+## 💰 Transactions, payout et refund
 
-La couche financière distingue clairement :
+- Types de transactions
 
-- **Payment** : vue métier du cycle de paiement
-- **Transaction** : mouvement financier unitaire et traçable
+*CHARGE
+*PAYOUT
+*REFUND
+*FEE
 
-### Types de transactions pris en charge
+- Refund (v1)
 
-- `CHARGE`
-- `PAYOUT`
-- `REFUND`
-- `FEE`
+*refund manuel
+*refund total
+*refund unique
+*uniquement en litige
+\*bloqué si payout existant
 
-### Payout
+- Async (important)
 
-Après livraison :
+*REFUND = PENDING
+*finalisation via webhook
+\*idempotence garantie
 
-- un payout peut être préparé seulement si une charge complétée existe
-- le système empêche les doubles payouts
-- une commission plateforme peut être générée
-
-### Refund v1
-
-Le remboursement actuellement implémenté suit des règles strictes :
-
-- refund **manuel**
-- refund **total**
-- refund **unique**
-- refund **autorisé seulement en litige**
-- refund **bloqué si un payout existe**
-- refund basé sur **le montant**
-- transition métier cohérente vers `REMBOURSEE`
-
-Ce choix permet de garder un flow simple, sûr et testable, avant d’introduire plus tard :
-
-- refund partiel
-- plusieurs refunds
-- compensation après payout
-- arbitrage avancé
-
----
+👉 Ce design permet de simuler un système réel type Stripe.
 
 ## Concurrence et idempotence
 
-Le projet traite explicitement les problèmes de concurrence et de retry.
+Le projet traite
 
-### Ce qui est géré
-
-- surbooking évité via verrouillage pessimiste
-- double réservation de bagage évitée
-- expiration batch rejouable sans side effects multiples
-- refund sécurisé contre les doubles exécutions concurrentes
+*surbooking
+*double réservation
+*double refund
+*retry webhook
 
 ### Techniques utilisées
 
 - `DB::transaction(...)`
 - `lockForUpdate()`
 - guards métier idempotents
-- recalcul et relecture sous transaction
-
-### Exemple de logique robuste
-
-- verrou sur le trip pour protéger la capacité
-- verrou sur les bagages pour éviter une réservation concurrente
-- verrou sur les transactions d’un booking pour éviter un double refund
+- recalcul sous transaction
 
 ---
 
 ## Sécurité
 
-Le projet applique plusieurs couches de sécurité :
-
 - `auth:sanctum`
 - `Policies` par ressource
-- middleware de rôle
-- `verified_user`
-- `kyc`
-- `throttle.sensitive`
-
-Le endpoint refund est notamment protégé par :
-
-- utilisateur vérifié
-- KYC
-- throttling
-- policy dédiée
-- règles métier dans l’action
-
----
+- `verified_user`/`kyc`
+- `throttling opérations sensibles`
 
 ## Tests
 
 Le projet dispose actuellement d’une suite de tests verte :
 
-- **149 tests**
+- **153 tests**
 - **406 assertions**
 - durée locale observée : **~6 secondes**
+- couverture métier complète
 
 ### Couverture fonctionnelle
 
 Les tests couvrent notamment :
 
-- authentification
-- CRUD des modules principaux
 - booking lifecycle
 - expiration batch
 - concurrence métier
-- payout
-- refund manuel en litige
-- contrôle d’accès
-- throttling des opérations sensibles
+- refund async
+- webhook (success / failed / idempotence)
 
 ---
 
@@ -300,38 +262,24 @@ make seed
 
 - API : `http://localhost:8000`
 - Swagger : `http://localhost:8000/api/documentation`
-- PhpMyAdmin : `http://localhost:8080`
-
-### Tests
-
-```bash
-make test
-```
-
----
 
 ## Roadmap
 
 ### Court terme
 
-- enrichir le README et la documentation d’architecture
-- finaliser l’alignement de certains modules partiellement refactorés
-- améliorer l’observabilité et les logs métier
-- renforcer encore les tests edge cases
+- sécurité webhook (signature)
+- logs métier
+- monitoring
 
 ### Moyen terme
 
 - refund partiel
-- plusieurs refunds
-- compensation après payout
-- intégration PSP réel (Stripe / webhook)
-- durcissement Docker prod / CI/CD / monitoring
-
----
+- payout async complet
+- intégration Stripe
 
 ## Auteur
 
-Projet développé par **Lamine Kasse** dans le cadre d’une montée en compétence avancée en :
+Backend Developer (Laravel)
 
 - Laravel
 - architecture backend
@@ -342,3 +290,18 @@ Projet développé par **Lamine Kasse** dans le cadre d’une montée en compét
 
 - GitHub : `kasse222`
 - Email : `laminekasse.dev@gmail.com`
+
+🎯 Objectif :
+
+CDI Maroc 🇲🇦
+Remote international 🌍
+
+Spécialisé en :
+
+API design
+
+- systèmes transactionnels
+- architecture backend
+- Laravel / Docker / CI
+
+📧 laminekasse.dev@gmail.com
