@@ -2,7 +2,7 @@
 
 use App\Enums\CurrencyEnum;
 use App\Enums\PaymentMethodEnum;
-use App\Enums\PaymentStatusEnum;
+use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -15,32 +15,36 @@ return new class extends Migration
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
 
-            // 👤 Utilisateur concerné
             $table->foreignId('user_id')
                 ->constrained('users')
-                ->onDelete('cascade');
+                ->cascadeOnDelete();
 
-            // 🔁 Lien optionnel avec une réservation
             $table->foreignId('booking_id')
                 ->nullable()
                 ->constrained('bookings')
                 ->nullOnDelete();
 
+            $table->string('type', 50)
+                ->default(TransactionTypeEnum::CHARGE->value)
+                ->index();
 
-            // 💰 Montant + devise
-            $table->float('amount');
+            $table->decimal('amount', 10, 2);
+
             $table->string('currency', 10)
                 ->default(CurrencyEnum::EUR->value);
 
-            // 💳 Méthode et statut (via enums)
             $table->string('method', 50)
                 ->nullable()
                 ->default(PaymentMethodEnum::CARTE_BANCAIRE->value);
 
-            $table->unsignedTinyInteger('status')
-                ->default(PaymentStatusEnum::EN_ATTENTE->value);
+            $table->string('status', 30)
+                ->default(TransactionStatusEnum::PENDING->value)
+                ->index();
 
-            // ✅ Date de traitement
+            $table->string('provider_transaction_id')
+                ->nullable()
+                ->index();
+
             $table->timestamp('processed_at')->nullable();
 
             $table->timestamps();

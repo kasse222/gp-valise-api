@@ -4,6 +4,7 @@ namespace App\Actions\Transaction;
 
 use App\Contracts\Payments\PaymentProvider;
 use App\Enums\BookingStatusEnum;
+use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Events\TransactionCreated;
 use App\Models\Booking;
@@ -68,10 +69,20 @@ class CreateTransaction
                 ]);
             }
 
+            $status = match ($providerResult->status) {
+                'completed' => TransactionStatusEnum::COMPLETED,
+                'pending' => TransactionStatusEnum::PENDING,
+                'failed' => TransactionStatusEnum::FAILED,
+                default => throw new InvalidArgumentException("Statut provider inconnu : {$providerResult->status}"),
+            };
+
             return $user->transactions()->create([
                 ...$data,
                 'booking_id' => $booking->id,
                 'type' => TransactionTypeEnum::CHARGE,
+                'status' => $status,
+                'provider_transaction_id' => $providerResult->providerTransactionId,
+                'processed_at' => $status === TransactionStatusEnum::COMPLETED ? now() : null,
             ])->fresh();
         });
 
