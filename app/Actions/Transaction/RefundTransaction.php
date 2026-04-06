@@ -63,15 +63,17 @@ class RefundTransaction
                 'amount'       => $refundAmount,
                 'currency'     => $charge->currency,
                 'method'       => $charge->method,
-                'status'       => TransactionStatusEnum::COMPLETED,
+                'status'       => TransactionStatusEnum::PENDING,
                 'processed_at' => now(),
             ]);
 
+            /*  👉 argent pas encore remboursé
+               👉 booking doit rester en litige
             $booking->transitionTo(
                 BookingStatusEnum::REMBOURSEE,
                 null,
                 $reason ?? 'Remboursement manuel après litige'
-            );
+            );*/
 
             return $refund;
         });
