@@ -2,6 +2,7 @@
 
 namespace App\Actions\Transaction;
 
+use App\Contracts\Payments\PaymentProvider;
 use App\Enums\BookingStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Events\TransactionCreated;
@@ -14,6 +15,10 @@ use InvalidArgumentException;
 
 class CreateTransaction
 {
+    public function __construct(
+        private readonly PaymentProvider $paymentProvider,
+    ) {}
+
     public function execute(User $user, array $data): Transaction
     {
         if (($data['amount'] ?? 0) <= 0) {
@@ -46,6 +51,20 @@ class CreateTransaction
             if ($booking->transaction()->exists()) {
                 throw ValidationException::withMessages([
                     'booking_id' => 'Une transaction existe déjà pour ce booking.',
+                ]);
+            }
+
+            $providerResult = $this->paymentProvider->charge([
+                'booking_id' => $booking->id,
+                'user_id' => $user->id,
+                'amount' => $data['amount'],
+                'currency' => $data['currency'] ?? null,
+                'method' => $data['method'] ?? null,
+            ]);
+
+            if (! $providerResult->success) {
+                throw ValidationException::withMessages([
+                    'payment' => $providerResult->message ?? 'Le provider de paiement a refusé la charge.',
                 ]);
             }
 
