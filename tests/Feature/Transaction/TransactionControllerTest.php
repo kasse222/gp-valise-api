@@ -173,7 +173,7 @@ it('autorise le remboursement par un admin', function () {
     $response
         ->assertOk()
         ->assertJsonPath('data.type.code', TransactionTypeEnum::REFUND->value)
-        ->assertJsonPath('data.status.code', TransactionStatusEnum::COMPLETED->value)
+        ->assertJsonPath('data.status.code', TransactionStatusEnum::PENDING->value)
         ->assertJsonPath('data.amount', fn($amount) => (float) $amount === 150.0);
 
     $charge->refresh();
@@ -181,7 +181,7 @@ it('autorise le remboursement par un admin', function () {
 
     expect($charge->type)->toBe(TransactionTypeEnum::CHARGE)
         ->and($charge->status)->toBe(TransactionStatusEnum::COMPLETED)
-        ->and($booking->status)->toBe(BookingStatusEnum::REMBOURSEE);
+        ->and($booking->status)->toBe(BookingStatusEnum::EN_LITIGE);
 
     $refund = Transaction::query()
         ->where('booking_id', $charge->booking_id)
@@ -190,7 +190,7 @@ it('autorise le remboursement par un admin', function () {
         ->first();
 
     expect($refund)->not->toBeNull()
-        ->and($refund->status)->toBe(TransactionStatusEnum::COMPLETED)
+        ->and($refund->status)->toBe(TransactionStatusEnum::PENDING)
         ->and((float) $refund->amount)->toBe(150.0)
         ->and($refund->user_id)->toBe($sender->id);
 });

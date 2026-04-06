@@ -67,7 +67,7 @@ it('crée une transaction de refund pour une charge complétée', function () {
 
     expect($refund->type)->toBe(TransactionTypeEnum::REFUND)
         ->and($refund->amount)->toBe(150.0)
-        ->and($refund->status)->toBe(TransactionStatusEnum::COMPLETED)
+        ->and($refund->status)->toBe(TransactionStatusEnum::PENDING)
         ->and($refund->booking_id)->toBe($booking->id)
         ->and($refund->user_id)->toBe($user->id);
 
