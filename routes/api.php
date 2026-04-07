@@ -14,7 +14,8 @@ use App\Http\Controllers\Api\V1\{
     PlanController,
     ReportController,
     TransactionController,
-    UserController
+    UserController,
+    WebhookController
 };
 use App\Http\Middleware\EnsureRole;
 use App\Enums\UserRoleEnum;
@@ -28,6 +29,17 @@ use App\Enums\UserRoleEnum;
 Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::post('/register', [AuthController::class, 'register'])->name('auth.register');
     Route::post('/login', [AuthController::class, 'login'])->name('auth.login');
+
+    /*
+    |--------------------------------------------------------------------------
+    | 🔔 Webhooks paiement (publics mais signés)
+    |--------------------------------------------------------------------------
+    | Le provider externe doit pouvoir appeler cette route sans auth:sanctum.
+    | La sécurité se fait via signature HMAC + rate limit dédié.
+    */
+    Route::post('/webhooks/payment', WebhookController::class)
+        ->middleware(['webhook.signature', 'throttle:webhooks'])
+        ->name('webhooks.payment');
 });
 
 /*
@@ -39,15 +51,6 @@ Route::prefix('v1')
     ->middleware(['auth:sanctum'])
     ->name('api.v1.')
     ->group(function () {
-
-        /*
-        |--------------------------------------------------------------------------
-        | ✅ Middlewares globaux API (optionnel mais recommandé)
-        |--------------------------------------------------------------------------
-        | - force.json : si tu l’alias dans bootstrap/app.php
-        |   -> sinon retire-le ici.
-        */
-        // Route::middleware(['force.json'])->group(function () { ... });
 
         // 👤 Infos user connecté + sessions
         Route::get('/me', [AuthController::class, 'me'])->name('auth.me');
@@ -147,9 +150,6 @@ Route::prefix('v1')
             Route::post('items', [BookingItemController::class, 'store'])->name('items.store');
 
             Route::get('status-histories', [BookingStatusHistoryController::class, 'index'])->name('status_histories.index');
-            //   Route::post('status-histories', [BookingStatusHistoryController::class, 'store'])->name('status_histories.store');
-
-            // ⚠️ Si cette route est un doublon, garde-en une seule :
             Route::post('status', [BookingStatusHistoryController::class, 'store'])->name('status.store');
         });
 
@@ -198,43 +198,28 @@ Route::prefix('v1')
 
         /*
         |--------------------------------------------------------------------------
-        | 💳 PAYMENTS + 💰 TRANSACTIONS (avec middlewares sécurité)
+        | 💰 TRANSACTIONS (lecture + création)
         |--------------------------------------------------------------------------
-        | ✅ Objectif :
-        | - payments + refund = KYC + verified + throttle
-        | - transactions index/show/store = verified
-        |
-        | ⚠️ IMPORTANT :
-        | Ces middlewares doivent être aliasés dans bootstrap/app.php :
-        | verified_user, kyc, throttle.sensitive
         */
         Route::middleware(['verified_user'])->group(function () {
             Route::apiResource('transactions', TransactionController::class)->only(['index', 'show', 'store']);
         });
 
+        /*
+        |--------------------------------------------------------------------------
+        | 💳 PAYMENTS + REFUND (sensibles)
+        |--------------------------------------------------------------------------
+        */
         Route::middleware(['verified_user', 'kyc', 'throttle.sensitive:finance,5,1'])->group(function () {
             Route::apiResource('payments', PaymentController::class);
             Route::post('transactions/{transaction}/refund', [TransactionController::class, 'refund'])
                 ->name('transactions.refund');
         });
-
-        /*
-        |--------------------------------------------------------------------------
-        | ⚠️ NOTE
-        |--------------------------------------------------------------------------
-        | Tu avais un apiResource('payments') + un groupe /transactions complet (update/destroy)
-        | Ici on aligne avec ton objectif de sécurité + portfolio :
-        | - payments : CRUD OK
-        | - transactions : seulement index/show/store
-        | - refund : route dédiée sécurisée
-        |
-        | Si tu veux garder update/destroy sur transactions, ajoute-les dans un groupe admin.
-        */
     });
 
 /*
 |--------------------------------------------------------------------------
-| 🚨 Route fallback – pour les erreurs 404 JSON
+| 🚨 Route fallback – erreurs 404 JSON
 |--------------------------------------------------------------------------
 */
 Route::fallback(function () {
