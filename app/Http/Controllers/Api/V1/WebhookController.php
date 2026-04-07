@@ -10,7 +10,10 @@ class WebhookController extends Controller
 {
     public function __invoke(Request $request, HandlePaymentWebhook $action)
     {
-        $action->execute($request->all());
+        $action->execute(
+            $request->all(),
+            $request->getContent() // 🔥 important
+        );
 
         return response()->json(['status' => 'ok']);
     }
