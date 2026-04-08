@@ -57,10 +57,8 @@ class HandlePaymentWebhook
                     return;
                 }
 
-                $booking = $transaction->booking;
-
                 match ($event) {
-                    'refund.completed' => $this->handleSuccess($transaction, $booking, $log),
+                    'refund.completed' => $this->handleSuccess($transaction, $transaction->booking, $log),
                     'refund.failed' => $this->handleFailure($transaction, $log),
                     default => $this->markIgnored($log),
                 };
