@@ -7,6 +7,7 @@ use App\Exceptions\RetryableWebhookException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Throwable;
 
 class ProcessPaymentWebhook implements ShouldQueue
@@ -15,6 +16,10 @@ class ProcessPaymentWebhook implements ShouldQueue
 
     public int $tries = 5;
     public int $timeout = 30;
+
+    public function __construct(
+        public array $payload,
+    ) {}
 
     public function backoff(): array
     {
@@ -26,39 +31,46 @@ class ProcessPaymentWebhook implements ShouldQueue
         return now()->addMinutes(10);
     }
 
-    public function __construct(
-        public array $payload,
-    ) {}
-
     public function handle(HandlePaymentWebhook $action): void
     {
         try {
             $action->execute($this->payload);
         } catch (RetryableWebhookException $e) {
-            // ✅ on retry seulement pendant les premières tentatives
             if ($this->attempts() < 3) {
                 throw $e;
             }
 
-            // ❗ après plusieurs tentatives, on arrête de rethrow
-            Log::warning('Webhook abandonné après retries sur transaction introuvable', [
+            Log::warning('Webhook abandonné après plusieurs tentatives retryables', [
                 'payload' => $this->payload,
                 'attempts' => $this->attempts(),
                 'error' => $e->getMessage(),
+                'job' => static::class,
             ]);
         }
     }
 
     public function failed(Throwable $exception): void
     {
-        logger()->error('Webhook définitivement échoué', [
+        Log::channel('stack')->critical('WEBHOOK DEFINITIVEMENT ECHOUE', [
             'payload' => $this->payload,
             'error' => $exception->getMessage(),
+            'job' => static::class,
         ]);
 
-        //  simulation alerte (MVP)
-        \Log::channel('stack')->critical('ALERTE WEBHOOK FAILED', [
-            'payload' => $this->payload,
-        ]);
+        $alertEmail = config('payment.webhook.alert_email');
+
+        if ($alertEmail) {
+            Mail::raw(
+                'Webhook failed: ' . json_encode([
+                    'payload' => $this->payload,
+                    'error' => $exception->getMessage(),
+                    'job' => static::class,
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
+                function ($message) use ($alertEmail) {
+                    $message->to($alertEmail)
+                        ->subject('Webhook Failed 🚨');
+                }
+            );
+        }
     }
 }
