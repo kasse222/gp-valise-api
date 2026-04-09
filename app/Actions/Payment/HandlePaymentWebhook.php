@@ -5,6 +5,7 @@ namespace App\Actions\Payment;
 use App\Enums\BookingStatusEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
+use App\Exceptions\RetryableWebhookException;
 use App\Models\Booking;
 use App\Models\Transaction;
 use App\Models\WebhookLog;
@@ -47,21 +48,35 @@ class HandlePaymentWebhook
                     ->lockForUpdate()
                     ->first();
 
-                if (! $transaction || $transaction->type !== TransactionTypeEnum::REFUND) {
-                    $this->markIgnored($log);
+                if (! $transaction) {
+                    throw new RetryableWebhookException(
+                        "Transaction introuvable pour provider_transaction_id={$providerId}"
+                    );
+                }
+
+                if ($transaction->type !== TransactionTypeEnum::REFUND) {
+                    $this->markIgnored($log, 'Transaction non gérée par ce webhook');
                     return;
                 }
 
                 if ($transaction->isSucceeded() || $transaction->isFailed()) {
-                    $this->markIgnored($log);
+                    $this->markIgnored($log, 'Transaction déjà finalisée');
                     return;
                 }
 
                 match ($event) {
                     'refund.completed' => $this->handleSuccess($transaction, $transaction->booking, $log),
                     'refund.failed' => $this->handleFailure($transaction, $log),
-                    default => $this->markIgnored($log),
+                    default => $this->markIgnored($log, "Event non supporté: {$event}"),
                 };
+            } catch (RetryableWebhookException $e) {
+                $log->update([
+                    'status' => WebhookLog::STATUS_FAILED,
+                    'error_message' => $e->getMessage(),
+                    'processed_at' => now(),
+                ]);
+
+                throw $e;
             } catch (Throwable $e) {
                 $log->update([
                     'status' => WebhookLog::STATUS_FAILED,
@@ -108,10 +123,11 @@ class HandlePaymentWebhook
         ]);
     }
 
-    private function markIgnored(WebhookLog $log): void
+    private function markIgnored(WebhookLog $log, ?string $reason = null): void
     {
         $log->update([
             'status' => WebhookLog::STATUS_IGNORED,
+            'error_message' => $reason,
             'processed_at' => now(),
         ]);
     }
