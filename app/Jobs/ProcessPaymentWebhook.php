@@ -51,9 +51,14 @@ class ProcessPaymentWebhook implements ShouldQueue
 
     public function failed(Throwable $exception): void
     {
-        Log::error('Webhook définitivement échoué', [
+        logger()->error('Webhook définitivement échoué', [
             'payload' => $this->payload,
             'error' => $exception->getMessage(),
+        ]);
+
+        //  simulation alerte (MVP)
+        \Log::channel('stack')->critical('ALERTE WEBHOOK FAILED', [
+            'payload' => $this->payload,
         ]);
     }
 }
