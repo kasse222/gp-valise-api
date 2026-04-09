@@ -132,20 +132,16 @@ it('est idempotent si le même event_id est reçu deux fois', function () {
         ->and(WebhookLog::where('event_id', 'evt_789')->count())->toBe(1);
 });
 
-it('ignore un provider_transaction_id inconnu et crée un log ignored', function () {
+it('lève une exception retryable si la transaction est introuvable', function () {
     $payload = [
-        'event_id' => 'evt_unknown_tx',
+        'event_id' => 'evt_retry_missing_tx',
         'event' => 'refund.completed',
-        'provider_transaction_id' => 'unknown_refund_id',
+        'provider_transaction_id' => 'missing_tx_123',
     ];
 
+    $this->expectException(\App\Exceptions\RetryableWebhookException::class);
+
     app(HandlePaymentWebhook::class)->execute($payload);
-
-    $log = WebhookLog::where('event_id', 'evt_unknown_tx')->first();
-
-    expect($log)->not->toBeNull()
-        ->and($log->status)->toBe(WebhookLog::STATUS_IGNORED)
-        ->and($log->processed_at)->not->toBeNull();
 });
 
 it('ignore un event non supporté et crée un log ignored', function () {
