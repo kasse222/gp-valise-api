@@ -15,18 +15,31 @@ FROM php:8.2-fpm-alpine
 
 # Dépendances système PHP requises pour Laravel
 RUN apk add --no-cache \
-    bash zip unzip curl git mysql-client \
-    libpng libjpeg-turbo libzip-dev \
-    oniguruma-dev icu-dev libxml2-dev \
-    && docker-php-ext-install pdo pdo_mysql zip intl bcmath
+    bash \
+    zip \
+    unzip \
+    curl \
+    git \
+    mysql-client \
+    libpng \
+    libjpeg-turbo \
+    libzip-dev \
+    oniguruma-dev \
+    icu-dev \
+    libxml2-dev \
+    $PHPIZE_DEPS \
+    && docker-php-ext-install pdo pdo_mysql zip intl bcmath \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && apk del $PHPIZE_DEPS
 
 # Création d’un user sécurisé
 RUN addgroup -g 1000 laravel && adduser -u 1000 -G laravel -s /bin/sh -D laravel
 
-# Définir le dossier de travail (racine Laravel)
+# Définir le dossier de travail
 WORKDIR /var/www
 
-# Copier uniquement vendor de l’étape 1
+# Copier vendor depuis le stage 1
 COPY --from=vendor /app/vendor ./vendor
 
 # Copier tout le projet
