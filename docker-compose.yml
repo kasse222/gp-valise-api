@@ -36,6 +36,16 @@ services:
     networks:
       - gpvalise
 
+
+  redis:
+    image: redis:7-alpine
+    container_name: gp-valise-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - gpvalise
+
   mysql:
     image: mysql:8.0
     container_name: gpvalise_mysql

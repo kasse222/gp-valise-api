@@ -27,9 +27,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'throttle.sensitive' => ThrottleSensitiveActions::class,
             'webhook.signature'  => VerifyWebhookSignature::class,
         ]);
-        RateLimiter::for('webhooks', function (Request $request) {
+
+        /*  RateLimiter::for('webhooks', function (Request $request) {
             return Limit::perMinute(60);
-        });
+        });*/
+
         // Optionnel mais utile : forcer JSON sur toutes les routes API
         $middleware->appendToGroup('api', ForceJsonResponse::class);
     })
