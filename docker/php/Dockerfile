@@ -13,7 +13,7 @@ RUN composer install --no-dev --optimize-autoloader --prefer-dist --no-scripts
 # ──────────────────────────────────────────────
 FROM php:8.2-fpm-alpine
 
-# Dépendances système PHP requises pour Laravel
+# Dépendances système + extensions PHP requises
 RUN apk add --no-cache \
     bash \
     zip \
@@ -28,35 +28,44 @@ RUN apk add --no-cache \
     icu-dev \
     libxml2-dev \
     $PHPIZE_DEPS \
-    && docker-php-ext-install pdo pdo_mysql zip intl bcmath \
+    && docker-php-ext-install \
+    pdo \
+    pdo_mysql \
+    zip \
+    intl \
+    bcmath \
+    pcntl \
+    posix \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && apk del $PHPIZE_DEPS
 
-# Création d’un user sécurisé
-RUN addgroup -g 1000 laravel && adduser -u 1000 -G laravel -s /bin/sh -D laravel
+# Création d’un user applicatif non-root
+RUN addgroup -g 1000 laravel \
+    && adduser -u 1000 -G laravel -s /bin/sh -D laravel
 
-# Définir le dossier de travail
+# Répertoire de travail
 WORKDIR /var/www
 
-# Copier vendor depuis le stage 1
+# Copier vendor depuis le stage builder
 COPY --from=vendor /app/vendor ./vendor
 
-# Copier tout le projet
+# Copier le code applicatif
 COPY . .
 
-# Copier le .env spécifique Docker
+# Copier la configuration d’environnement Docker
 COPY .env.docker .env
 
-# Donner les droits aux dossiers nécessaires
-RUN chmod -R 775 storage bootstrap/cache && \
-    chown -R laravel:laravel storage bootstrap/cache
+# Droits nécessaires à Laravel
+RUN chmod -R 775 storage bootstrap/cache \
+    && chown -R laravel:laravel storage bootstrap/cache
 
-# Copier le script d’entrée et le rendre exécutable
+# Entrypoint
 COPY docker/php/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 USER laravel
 
 EXPOSE 9000
+
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
