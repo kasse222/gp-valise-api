@@ -1,11 +1,10 @@
 #!/bin/sh
 
-cd /var/www  # ✅ Ton projet est bien ici
+cd /var/www
 
 echo "📄 Vérification des variables d'environnement Laravel..."
 echo "DB_HOST=$DB_HOST"
 echo "DB_USERNAME=$DB_USERNAME"
-
 
 echo "📡 Attente de MySQL sur $DB_HOST:$DB_PORT..."
 max_try=30
@@ -39,7 +38,6 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-
 echo "📦 Découverte des packages..."
 php artisan package:discover --ansi || true
 
@@ -53,5 +51,10 @@ chmod -R ug+rwX storage bootstrap/cache || true
 echo "🗃️ Exécution des migrations Laravel..."
 php artisan migrate --force || true
 
-echo "🚀 Lancement PHP-FPM..."
+if [ "$#" -gt 0 ]; then
+  echo "🚀 Lancement de la commande fournie : $*"
+  exec "$@"
+fi
+
+echo "🚀 Aucune commande fournie, lancement PHP-FPM par défaut..."
 exec php-fpm

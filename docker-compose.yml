@@ -76,6 +76,41 @@ services:
       - mysql
     networks:
       - gpvalise
+  
+  horizon:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: gpvalise_horizon
+    restart: unless-stopped
+    volumes:
+      - .:/var/www:cached
+      - .env.docker:/var/www/.env
+    env_file:
+      - .env.docker
+    depends_on:
+      - redis
+      - mysql
+    command: php artisan horizon
+    networks:
+      - gpvalise
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: gpvalise_scheduler
+    restart: unless-stopped
+    volumes:
+      - .:/var/www:cached
+      - .env.docker:/var/www/.env
+    env_file:
+      - .env.docker
+    depends_on:
+      - mysql
+    command: sh -c "while true; do php artisan schedule:run; sleep 60; done"
+    networks:
+      - gpvalise
 
 volumes:
   db_data:
