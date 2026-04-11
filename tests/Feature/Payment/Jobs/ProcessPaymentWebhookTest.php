@@ -4,6 +4,7 @@ use App\Actions\Payment\HandlePaymentWebhook;
 use App\Exceptions\RetryableWebhookException;
 use App\Jobs\ProcessPaymentWebhook;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
@@ -20,6 +21,7 @@ it('appelle HandlePaymentWebhook avec le payload fourni', function () {
         ->with($payload);
 
     $job = new ProcessPaymentWebhook($payload);
+
     $job->handle($actionMock);
 });
 
@@ -30,18 +32,26 @@ it('relance une exception retryable si le nombre de tentatives est inférieur au
         'provider_transaction_id' => 'missing_tx_job',
     ];
 
-    $actionMock = \Mockery::mock(HandlePaymentWebhook::class);
+    $actionMock = Mockery::mock(HandlePaymentWebhook::class);
     $actionMock->shouldReceive('execute')
         ->once()
         ->with($payload)
         ->andThrow(new RetryableWebhookException('Transaction introuvable'));
 
-    $job = \Mockery::mock(ProcessPaymentWebhook::class, [$payload])->makePartial();
-    $job->shouldReceive('attempts')->andReturn(1);
+    $job = new class($payload, 1) extends ProcessPaymentWebhook {
+        public function __construct(array $payload, private int $fakeAttempts)
+        {
+            parent::__construct($payload);
+        }
 
-    $this->expectException(RetryableWebhookException::class);
+        public function attempts(): int
+        {
+            return $this->fakeAttempts;
+        }
+    };
 
-    $job->handle($actionMock);
+    expect(fn() => $job->handle($actionMock))
+        ->toThrow(RetryableWebhookException::class);
 });
 
 it('n’échoue plus après plusieurs tentatives retryables et journalise un warning', function () {
@@ -51,14 +61,33 @@ it('n’échoue plus après plusieurs tentatives retryables et journalise un war
         'provider_transaction_id' => 'missing_tx_job_stop',
     ];
 
-    $actionMock = \Mockery::mock(HandlePaymentWebhook::class);
+    $actionMock = Mockery::mock(HandlePaymentWebhook::class);
     $actionMock->shouldReceive('execute')
         ->once()
         ->with($payload)
         ->andThrow(new RetryableWebhookException('Transaction introuvable'));
 
-    $job = \Mockery::mock(ProcessPaymentWebhook::class, [$payload])->makePartial();
-    $job->shouldReceive('attempts')->andReturn(3);
+    Log::shouldReceive('warning')
+        ->once()
+        ->withArgs(function (string $message, array $context) use ($payload) {
+            return $message === 'Webhook abandonné après plusieurs tentatives retryables'
+                && $context['payload'] === $payload
+                && $context['attempts'] === 3
+                && str_contains($context['job'], ProcessPaymentWebhook::class)
+                && $context['error'] === 'Transaction introuvable';
+        });
+
+    $job = new class($payload, 3) extends ProcessPaymentWebhook {
+        public function __construct(array $payload, private int $fakeAttempts)
+        {
+            parent::__construct($payload);
+        }
+
+        public function attempts(): int
+        {
+            return $this->fakeAttempts;
+        }
+    };
 
     $job->handle($actionMock);
 
