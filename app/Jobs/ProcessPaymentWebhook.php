@@ -19,7 +19,9 @@ class ProcessPaymentWebhook implements ShouldQueue
 
     public function __construct(
         public array $payload,
-    ) {}
+    ) {
+        $this->onQueue('high');
+    }
 
     public function backoff(): array
     {
