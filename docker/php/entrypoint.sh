@@ -3,6 +3,7 @@
 cd /var/www
 
 echo "📄 Vérification des variables d'environnement Laravel..."
+echo "APP_ENV=$APP_ENV"
 echo "DB_HOST=$DB_HOST"
 echo "DB_USERNAME=$DB_USERNAME"
 
@@ -28,21 +29,26 @@ fi
 echo "🎛 Configuration de Laravel..."
 
 echo "🧹 Nettoyage config & cache..."
-php artisan config:clear
-php artisan cache:clear
-php artisan route:clear || true
-php artisan view:clear || true
+php artisan optimize:clear || true
 
 echo "🔁 Génération des caches Laravel..."
 php artisan config:cache
-php artisan route:cache
 php artisan view:cache
+
+if [ "${APP_ENV:-local}" = "production" ]; then
+  echo "🛣️ Génération du cache des routes (production uniquement)..."
+  php artisan route:cache
+else
+  echo "ℹ️ route:cache ignoré hors production"
+fi
 
 echo "📦 Découverte des packages..."
 php artisan package:discover --ansi || true
 
 echo "🔗 Lien symbolique de storage..."
-php artisan storage:link || true
+if [ ! -L public/storage ]; then
+  php artisan storage:link
+fi
 
 echo "🔐 Vérification des permissions..."
 mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache
