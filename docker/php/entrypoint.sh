@@ -46,9 +46,9 @@ php artisan package:discover --ansi || true
 echo "🔗 Lien symbolique de storage..."
 php artisan storage:link || true
 
-echo "🔐 Attribution des permissions..."
-chown -R www-data:www-data storage bootstrap/cache
-chmod -R ug+rwX storage bootstrap/cache
+echo "🔐 Vérification des permissions..."
+mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache
+chmod -R ug+rwX storage bootstrap/cache || true
 
 echo "🗃️ Exécution des migrations Laravel..."
 php artisan migrate --force || true

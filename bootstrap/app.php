@@ -5,12 +5,11 @@ use App\Http\Middleware\EnsureUserIsVerified;
 use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\ThrottleSensitiveActions;
 use App\Http\Middleware\VerifyWebhookSignature;
-use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -28,10 +27,21 @@ return Application::configure(basePath: dirname(__DIR__))
             'webhook.signature'  => VerifyWebhookSignature::class,
         ]);
 
-        // Optionnel mais utile : forcer JSON sur toutes les routes API
         $middleware->appendToGroup('api', ForceJsonResponse::class);
+
+        $middleware->redirectGuestsTo(function (Request $request) {
+            if ($request->is('horizon') || $request->is('horizon/*') || $request->expectsJson()) {
+                return null;
+            }
+
+            return null;
+        });
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->render(function (AuthenticationException $e, Request $request) {
+            return response()->json([
+                'message' => 'Non authentifié.',
+            ], 401);
+        });
     })
     ->create();
