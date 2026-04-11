@@ -4,10 +4,10 @@ namespace App\Jobs;
 
 use App\Actions\Payment\HandlePaymentWebhook;
 use App\Exceptions\RetryableWebhookException;
+use App\Services\Alerting\SlackNotifier;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Throwable;
 
 class ProcessPaymentWebhook implements ShouldQueue
@@ -53,26 +53,18 @@ class ProcessPaymentWebhook implements ShouldQueue
 
     public function failed(Throwable $exception): void
     {
-        Log::channel('stack')->critical('WEBHOOK DEFINITIVEMENT ECHOUE', [
+        $context = [
             'payload' => $this->payload,
             'error' => $exception->getMessage(),
             'job' => static::class,
-        ]);
+        ];
 
-        $alertEmail = config('payment.webhook.alert_email');
+        Log::channel('stack')->critical('WEBHOOK DEFINITIVEMENT ECHOUE', $context);
 
-        if ($alertEmail) {
-            Mail::raw(
-                'Webhook failed: ' . json_encode([
-                    'payload' => $this->payload,
-                    'error' => $exception->getMessage(),
-                    'job' => static::class,
-                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
-                function ($message) use ($alertEmail) {
-                    $message->to($alertEmail)
-                        ->subject('Webhook Failed 🚨');
-                }
-            );
-        }
+        app(SlackNotifier::class)->send(
+            'Webhook définitivement échoué',
+            $context,
+            'critical'
+        );
     }
 }
