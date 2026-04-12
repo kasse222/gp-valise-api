@@ -79,7 +79,11 @@ class MonitorWebhookHealth extends Command
 
         Log::channel('stack')->critical($message, $context);
 
-        app(SlackNotifier::class)->send($message, $context, 'critical');
+        dispatch(new \App\Jobs\SendSlackAlert(
+            $message,
+            $context,
+            'critical'
+        ));
 
         $this->sendEmailFallback($message, $context);
     }
