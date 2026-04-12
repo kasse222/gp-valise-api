@@ -12,3 +12,5 @@ Schedule::command('bookings:expire-pending')->everyFiveMinutes();
 
 // monitoring webhook automatique
 Schedule::command('monitoring:webhooks')->everyFiveMinutes();
+
+Schedule::command('monitoring:queues')->everyFiveMinutes();
