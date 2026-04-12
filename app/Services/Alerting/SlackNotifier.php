@@ -21,14 +21,21 @@ class SlackNotifier
             return;
         }
 
-        try {
-            $payload = [
-                'text' => $this->formatMessage($message, $context, $level),
-            ];
+        $payload = [
+            'text' => $this->formatMessage($message, $context, $level),
+        ];
 
+        try {
             $response = Http::timeout(10)->post($webhookUrl, $payload);
 
-            if (! $response->successful()) {
+            if (app()->environment('local')) {
+                Log::debug('Slack response', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+            }
+
+            if ($response->failed()) {
                 Log::error('Slack notification failed: non-success response.', [
                     'status' => $response->status(),
                     'body' => $response->body(),

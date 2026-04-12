@@ -61,10 +61,10 @@ class ProcessPaymentWebhook implements ShouldQueue
 
         Log::channel('stack')->critical('WEBHOOK DEFINITIVEMENT ECHOUE', $context);
 
-        app(SlackNotifier::class)->send(
+        dispatch(new \App\Jobs\SendSlackAlert(
             'Webhook définitivement échoué',
             $context,
             'critical'
-        );
+        ));
     }
 }
