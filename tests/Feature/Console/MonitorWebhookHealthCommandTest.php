@@ -110,3 +110,45 @@ it('déclenche une alerte si des failed_jobs webhook existent', function () {
             && $job->context['failed_jobs_count'] === 1;
     });
 });
+
+it('déclenche une alerte si un retry storm est détecté sur un type de job', function () {
+    Queue::fake();
+
+    Log::shouldReceive('channel')
+        ->once()
+        ->with('stack')
+        ->andReturnSelf();
+
+    Log::shouldReceive('critical')
+        ->once()
+        ->withArgs(function (string $message, array $context) {
+            return $message === 'Alerte supervision queues : seuil critique dépassé'
+                && $context['retry_storm']['storm_detected'] === true
+                && $context['retry_storm']['dominant_job'] === 'App\\Jobs\\ProcessPaymentWebhook'
+                && $context['retry_storm']['dominant_count'] === 5;
+        });
+
+    foreach (range(1, 5) as $i) {
+        DB::table('failed_jobs')->insert([
+            'uuid' => (string) Str::uuid(),
+            'connection' => 'redis',
+            'queue' => 'high',
+            'payload' => json_encode([
+                'displayName' => 'App\\Jobs\\ProcessPaymentWebhook',
+            ]),
+            'exception' => "Test exception {$i}",
+            'failed_at' => now(),
+        ]);
+    }
+
+    $this->artisan('monitoring:queues --high-threshold=25 --failed-jobs-threshold=99 --window=15')
+        ->expectsOutput('⚠️ Alerte déclenchée.')
+        ->assertFailed();
+
+    Queue::assertPushed(SendSlackAlert::class, function (SendSlackAlert $job) {
+        return $job->message === 'Alerte supervision queues : seuil critique dépassé'
+            && $job->level === 'critical'
+            && $job->context['retry_storm']['storm_detected'] === true
+            && $job->context['retry_storm']['dominant_job'] === 'App\\Jobs\\ProcessPaymentWebhook';
+    });
+});
