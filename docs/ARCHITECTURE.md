@@ -2,34 +2,36 @@
 
 ## 1. Principe directeur
 
-GP-Valise suit une architecture orientée cas d’usage.
+GP-Valise suit une architecture orientée **cas d’usage**.
+
+L’objectif n’est pas seulement de produire une API fonctionnelle, mais un backend **robuste, lisible, testable et évolutif**, capable de supporter un modèle SaaS transactionnel avec logique métier forte, traitements asynchrones et supervision opérationnelle. :contentReference[oaicite:0]{index=0}
 
 Chaque couche a une responsabilité claire et limitée.
 
-### Répartition des responsabilités
+---
+
+## 2. Répartition des responsabilités
+
+### Couche HTTP
 
 - `Controller` = orchestration HTTP uniquement
 - `FormRequest` = validation d’entrée HTTP
-- `Policy` = autorisation / contrôle d’accès
+- `Resource` = formatage des réponses API
+- `Policy` = contrôle d’accès / autorisation
+
+### Couche métier
+
 - `Action` = un cas d’usage métier complet
+- `Model` = relations, helpers métier, invariants locaux
+- `Enum` = états, transitions, comportements métier purs
 - `Validator` = validation métier réutilisable hors HTTP
-- `Enum` = règles d’état, transitions et comportement métier pur
-- `Service` = orchestration transverse rare
-- `Job` = traitement asynchrone et découplé
-- `Notifier` = intégration d’alerting externe (Slack, email, etc.)
 
----
+### Couche asynchrone / runtime
 
-## 2. Interdits
-
-Les règles suivantes structurent le projet :
-
-- pas de logique métier dans les `Controllers`
-- pas de logique métier dans les `Policies`
-- pas d’accès base de données dans les `Enums`
-- pas de duplication entre `Action` et `Service`
-- pas de `Service` pour un use case métier simple et isolé
-- pas de dépendance directe à un provider externe dans les contrôleurs
+- `Job` = traitement asynchrone, découplé du cycle HTTP
+- `Service` = logique transverse rare ou intégration technique
+- `Notifier` = intégration d’alerting externe
+- `Command` = supervision, batchs planifiés, diagnostics runtime
 
 ---
 
@@ -37,259 +39,477 @@ Les règles suivantes structurent le projet :
 
 ### Convention principale
 
-- injection d’instance dans le contrôleur
-- appel uniforme des use cases via `execute(...)`
+Le flux nominal doit rester :
 
-### Cible
+```text
+Controller → Action → Model / Enum / Validator
+```
 
-Le flux standard doit être :
+Avec :
 
-`Controller -> Action -> Model / Enum / Validator`
+- `Policy` pour l’autorisation
+- `FormRequest` pour la validation d’entrée
+- `Resource` pour la sortie API
 
-avec :
-
-- `Policy` pour l’accès
-- `FormRequest` pour la validation HTTP
-- `Resource` pour la réponse API
-
-### Flux async retenu
+### Convention async
 
 Pour les traitements asynchrones critiques :
 
-`Controller / Event Source -> Job -> Action -> Model / Enum / Validator`
+```text
+Controller / Event Source → Job → Action → Model / Enum / Validator
+```
+
+Cette convention permet de garder :
+
+- un contrôleur léger
+- une logique métier centralisée
+- un code testable indépendamment du transport HTTP ou queue
 
 ---
 
-## 4. Décisions déjà prises
+## 4. Interdits structurants
 
-## 📦 Booking lifecycle (règle métier)
+Les règles suivantes cadrent l’architecture du projet :
 
-1. Création → `EN_PAIEMENT`
-    - bloque temporairement les kg
+- pas de logique métier dans les `Controllers`
+- pas de logique métier dans les `Policies`
+- pas d’accès base de données dans les `Enums`
+- pas de duplication entre `Action` et `Service`
+- pas de dépendance directe à un provider externe dans les contrôleurs
+- pas de side effects critiques non isolés
+- pas de dépendance réseau synchrone dans le chemin de supervision critique
+
+Ces règles visent à éviter les dérives classiques des projets Laravel qui grossissent mal : logique noyée dans les contrôleurs, services fourre-tout, duplication métier et couplage transport/métier.
+
+---
+
+## 5. Décisions métier et techniques déjà prises
+
+## 📦 Booking lifecycle
+
+Le module `Booking` repose sur une vraie **state machine métier**.
+
+### Flow principal
+
+```text
+EN_ATTENTE → EN_PAIEMENT → CONFIRMEE
+                     ↓
+                  EXPIREE
+
+CONFIRMEE → LIVREE → TERMINE
+
+LIVREE → EN_LITIGE → REMBOURSEE
+```
+
+### Règles structurantes
+
+1. Création d’un booking → `EN_PAIEMENT`
+    - bloque temporairement la capacité
     - définit `payment_expires_at`
 
 2. Paiement validé + confirmation métier → `CONFIRMEE`
-    - confirme la réservation
-    - kg définitivement utilisés
+    - réservation confirmée
+    - kg définitivement consommés
 
-3. Paiement échoué / expiré
-    - booking → `PAIEMENT_ECHOUE` ou `EXPIREE` selon le cas
-    - kg libérés
-    - luggage remis `EN_ATTENTE`
+3. Paiement expiré / non finalisé → `EXPIREE`
+    - libération des ressources réservées
+    - bagages remis en `EN_ATTENTE`
 
-4. Livraison → `LIVREE` puis `TERMINE`
+4. Livraison → `LIVREE`
+    - déclenchement possible du payout
 
-### Booking
+5. Clôture → `TERMINE`
+
+6. Litige → `EN_LITIGE`
+    - possibilité de refund selon les règles métier
+
+### Décisions appliquées
 
 - `BookingService` supprimé
 - `BookingController` refactoré
-- usage plus cohérent du route model binding
-- actions appelées par injection d’instance
-- flow paiement introduit : `EN_ATTENTE -> EN_PAIEMENT -> CONFIRMEE`
-- expiration automatique des bookings en attente de paiement
+- transitions centralisées dans `BookingStatusEnum`
+- historique des statuts piloté par les transitions métier
 - batch d’expiration isolé et idempotent
-- events métier alignés : `BookingConfirmed`, `BookingCanceled`, `BookingDelivered`, `BookingExpired`
-- listeners de logs homogénéisés (`booking.*`)
-- création directe d’historique de statut supprimée au profit des transitions métier uniquement
-- tests métier, events et batch alignés
+- events métier homogénéisés :
+    - `BookingConfirmed`
+    - `BookingCanceled`
+    - `BookingDelivered`
+    - `BookingExpired`
 
-### Transaction
-
-- `TransactionService` supprimé
-- `TransactionController` aligné sur le pattern Action-first
-- `CreateTransaction` et `RefundTransaction` centralisent les invariants métier
-- création de transaction autorisée uniquement pour un booking :
-    - appartenant à l’utilisateur
-    - en `EN_PAIEMENT`
-    - non expiré
-    - sans transaction existante
-- `UpdateTransactionRequest` supprimé
-- eager loading global implicite supprimé du modèle `Transaction`
-- events métier alignés : `TransactionCreated`, `TransactionRefunded`
-- listeners de logs homogènes (`transaction.*`)
-
-### Payment
-
-- module réaligné sur le pattern Action-first
-- `PaymentController` refactoré pour utiliser des actions injectées
-- lecture sortie du controller via `ListPayments` et `GetPaymentDetails`
-- `CreatePayment` et `UpdatePayment` convertis en actions d’instance
-- `Payment` reste pour l’instant une couche métier simple côté produit/UI
-- `Transaction` reste la couche financière la plus robuste du système
-- évolution future envisagée : modèle de type escrow / marketplace géré progressivement
-
-### Trip
-
-- `UpdateTrip` créé
-- `TripController` partiellement refactoré
-- `index()` extrait vers `ListTrips`
-- `show()` extrait vers `GetTripDetails`
+Cette structuration est déjà visible dans l’architecture du contrôleur, du modèle et de l’enum de booking.
 
 ---
 
-## 5. Runtime / infrastructure applicative
+## 6. Concurrence, locking et idempotence
 
-### Containers
+La réservation et le paiement sont traités comme des zones critiques.
 
-Le runtime est désormais séparé en containers dédiés :
+### Objectifs
 
-- `app` = PHP-FPM / application web
-- `horizon` = workers de queue
-- `scheduler` = exécution planifiée des commandes Laravel
-- `nginx` = reverse proxy
-- `redis` = backend queue/cache
-- `mysql` = base de données
+- éviter le surbooking
+- éviter la double réservation
+- éviter les side effects dupliqués
+- garantir un comportement stable en cas de retry ou replay
 
-### Principe retenu
+### Principes retenus
 
-Un process principal par container.
+- utilisation de `DB::transaction(...)`
+- verrouillage pessimiste (`lockForUpdate()`) sur les ressources critiques
+- relecture base sous transaction
+- guards métier idempotents
+- transitions centralisées
 
-Cette approche remplace le lancement manuel de workers et améliore :
+### Exemples de situations couvertes
 
-- la lisibilité
-- la résilience
-- le redémarrage automatique
-- la préparation à la production
+- double clic utilisateur
+- retry HTTP
+- scheduler rejoué
+- batch relancé
+- job queue relancé après incident
+- webhook reçu plusieurs fois
 
----
-
-## 6. Stratégie de queues
-
-### Objectif
-
-Prioriser les traitements critiques, éviter la saturation et préparer la montée en charge.
-
-### Queues retenues
-
-- `high`
-    - webhooks paiement
-    - événements financiers critiques
-    - traitements nécessitant une faible latence
-
-- `default`
-    - logique métier standard
-    - traitements applicatifs normaux
-
-- `low`
-    - tâches non critiques
-    - logs async, emails, exports, tâches de confort futures
-
-### Décision appliquée
-
-- `ProcessPaymentWebhook` est désormais routé sur la queue `high`
-- Horizon utilise des supervisors distincts par niveau de priorité
-- la visibilité de `high / default / low` est opérationnelle dans le dashboard Horizon
-
-### Bénéfices
-
-- isolation des charges
-- réduction de l’effet “noisy neighbor”
-- meilleure lisibilité des métriques
-- base prête pour le scaling réel
+La documentation métier détaillée sur ce sujet reste portée par `BOOKING_FLOW.md`.
 
 ---
 
-## 7. Observabilité et alerting
+## 7. Sémantique de capacité
 
-### Monitoring existant
+Le modèle `Trip` ne se contente pas d’une capacité statique.
 
-Une commande dédiée surveille la santé des webhooks :
+### Règle métier retenue
 
-- volume traité
-- volume ignoré
-- volume en échec
-- présence de `failed_jobs` liés aux webhooks
+Un trajet considère comme kg occupés :
 
-### Alerting critique
+- les bookings `CONFIRMEE`
+- les bookings `EN_PAIEMENT` non expirés
 
-Le projet introduit un service dédié :
+Ne comptent pas :
 
-- `SlackNotifier`
+- les bookings expirés
+- les bookings annulés
+- les bookings finaux inactifs
 
-Utilisation actuelle :
-
-- alerte critique sur échec définitif de `ProcessPaymentWebhook`
-- alerte critique sur dépassement de seuil détecté par `monitoring:webhooks`
-- fallback email conservé
-
-### Limite actuelle connue
-
-L’intégration réelle Slack reste **à finaliser** :
-
-- le code d’intégration est prêt
-- les tests sont verts
-- les appels sont correctement instrumentés
-- mais le webhook entrant Slack actuellement configuré est invalide (`404 no_team`)
-
-Conséquence :
-
-- la fondation technique d’alerting est prête
-- la livraison réelle vers Slack dépend d’un **nouveau webhook valide**
+Cette règle permet d’aligner la capacité réellement bloquée avec le métier et de mieux représenter un paiement en cours comme une réservation temporairement active. La logique de calcul est portée côté `Trip`, avec `kgReserved()`, `kgDisponible()` et `canAcceptKg()`.
 
 ---
 
-## 8. État actuel
+## 8. Module Transaction
 
-### Modules bien alignés
+Le module `Transaction` représente les **mouvements financiers unitaires et traçables**.
 
-- Booking
-- Transaction
-- Payment
-- Webhook async
-- Monitoring webhook
-- Alerting critique (fondation prête)
-- Queue strategy (`high / default / low`)
-- Horizon sécurisé
-
-### Modules partiellement alignés
-
-- Trip
-
-### Modules encore à refactorer / enrichir
-
-- Plan
-- Report
-- finalisation observabilité avancée
-- correction du problème de `route:cache` observé en runtime
-- finalisation de l’intégration Slack réelle avec un webhook valide
-
----
-
-## 9. Direction métier à porter progressivement
-
-### Payment vs Transaction
-
-- `Payment` = couche métier produit / cycle de paiement côté plateforme
-- `Transaction` = mouvements financiers unitaires et traçables
-
-### Direction cible
-
-Le projet évolue vers un modèle marketplace / escrow simple :
-
-1. l’expéditeur paie la plateforme
-2. la plateforme conserve temporairement les fonds
-3. le voyageur livre le colis
-4. la plateforme libère les fonds au voyageur
-5. un remboursement reste possible en cas d’échec ou de litige
-
-### Types financiers cibles
+### Types visés
 
 - `charge`
 - `payout`
 - `refund`
 - `fee`
 
-Cette évolution doit se faire par étapes, sans refactor destructif global.
+### Rôle architectural
+
+`Transaction` est la **source de vérité financière** du système.
+
+Le module suit désormais la convention Action-first :
+
+- `CreateTransaction`
+- `RefundTransaction`
+- `CreatePayoutTransaction`
+
+### Décisions appliquées
+
+- `TransactionService` supprimé
+- `TransactionController` aligné sur le pattern Action-first
+- vérifications métier centralisées dans les actions
+- validations sensibles sous transaction
+- règles de cohérence booking/transaction appliquées avant création
+
+Exemples déjà implémentés :
+
+- une charge ne peut être créée que pour un booking appartenant à l’utilisateur, en `EN_PAIEMENT`, non expiré et sans transaction existante
+- un refund n’est autorisé que si le booking et la charge permettent réellement un remboursement
+- un payout n’est déclenchable qu’après livraison, avec création conjointe d’une commission
+
+Ces flux sont portés par les actions financières dédiées.
 
 ---
 
-## 10. Priorités à venir
+## 9. Paiement asynchrone
+
+Le système suit un modèle **asynchrone inspiré des PSP modernes**.
+
+### Principes
+
+- abstraction par `PaymentProvider`
+- provider fake pour simulation locale
+- finalisation réelle par webhook
+- séparation claire entre paiement métier et transaction financière
+
+### Provider de simulation
+
+`FakePaymentProvider` permet de simuler :
+
+- `completed`
+- `pending`
+- `failed`
+
+pour :
+
+- `charge`
+- `refund`
+- `payout`
+
+Cela sert à tester l’architecture sans coupler immédiatement le système à Stripe ou à un PSP réel.
+
+---
+
+## 10. Webhook processing
+
+Le traitement webhook est isolé dans une chaîne asynchrone dédiée.
+
+### Flow retenu
+
+```text
+WebhookController
+   → ProcessPaymentWebhook (queue high)
+      → HandlePaymentWebhook
+         → Transaction / Booking updates
+         → WebhookLog
+         → alerting si échec définitif
+```
+
+### Décisions clés
+
+- `ProcessPaymentWebhook` est routé sur la queue `high`
+- retries contrôlés avec `tries`, `backoff()` et `retryUntil()`
+- distinction entre erreur retryable et erreur définitive
+- log critique en cas d’échec final
+- alerte Slack déclenchée de manière asynchrone
+
+Le job `ProcessPaymentWebhook` est explicitement prioritaire et dispose de backoff progressif.
+
+### Idempotence webhook
+
+`HandlePaymentWebhook` applique une idempotence par `event_id` :
+
+- si l’event a déjà été loggé, il est ignoré
+- si la transaction est déjà finalisée, elle n’est pas retraitée
+- les événements non supportés sont marqués `ignored`
+- les refunds sont finalisés par `refund.completed` / `refund.failed`
+
+Cette logique évite les doubles traitements, même en cas de replay provider ou de retry queue.
+
+---
+
+## 11. Observabilité et supervision
+
+La supervision n’est plus limitée aux logs applicatifs classiques.
+
+Le projet introduit une vraie logique de **diagnostic opérationnel**.
+
+### Monitoring webhook
+
+Une commande dédiée `monitoring:webhooks` collecte :
+
+- nombre de webhooks traités
+- webhooks ignorés
+- webhooks échoués
+- failed jobs liés aux webhooks
+
+Si les seuils sont dépassés :
+
+- log critique
+- dispatch d’une alerte Slack
+- fallback email possible
+
+Cette commande reste simple, mais utile pour un premier niveau d’observabilité ciblé sur les paiements async.
+
+### Monitoring queues
+
+Une commande dédiée `monitoring:queues` s’appuie sur `QueueHealthService`.
+
+Elle observe plusieurs signaux :
+
+- backlog des queues `high / default / low`
+- âge du plus vieux job
+- nombre de `failed_jobs` récents
+- détection d’un retry storm
+
+Le but n’est pas seulement de savoir “si la queue est haute”, mais de qualifier **la nature de la pression système**.
+
+### Classification intelligente
+
+Le système distingue :
+
+- `healthy`
+- `traffic_spike`
+- `slow_processing`
+- `retry_storm_pressure`
+- `capacity_pressure`
+
+Cette classification sert à produire un diagnostic exploitable pour l’incident review ou le scaling, avec `reason` et `recommended_action`.
+
+---
+
+## 12. Alerting
+
+Le projet introduit un service dédié d’alerting externe :
+
+- `SlackNotifier`
+
+### Principes retenus
+
+- aucune dépendance Slack directe dans le cœur métier
+- formatage centralisé des messages
+- logs locaux en cas d’erreur Slack
+- déclenchement asynchrone via job
+
+### Flux
+
+```text
+Command / Job critique
+   → SendSlackAlert (queue low)
+      → SlackNotifier
+         → webhook Slack
+```
+
+Le job `SendSlackAlert` est volontairement routé sur la queue `low`, afin de ne pas polluer les traitements critiques. Le notifier gère les cas :
+
+- alertes désactivées
+- webhook absent
+- réponse HTTP non-success
+- exception réseau.
+
+---
+
+## 13. Stratégie de queues
+
+### Objectif
+
+Prioriser les traitements critiques, éviter les interférences entre charges et préparer la montée en charge.
+
+### Queues retenues
+
+#### `high`
+
+Pour les traitements critiques à faible latence :
+
+- webhooks paiement
+- opérations financières critiques
+- traitements nécessitant une forte priorité
+
+#### `default`
+
+Pour la logique métier applicative standard :
+
+- jobs non critiques mais normaux
+- traitements usuels du backend
+
+#### `low`
+
+Pour les traitements secondaires :
+
+- alerting Slack
+- logs async
+- tâches de confort
+- futures tâches non critiques
+
+### Bénéfices
+
+- isolation des charges
+- limitation de l’effet noisy neighbor
+- meilleure lecture opérationnelle
+- base saine pour le scaling Horizon
+
+Cette stratégie est maintenant cohérente entre architecture, monitoring et alerting.
+
+---
+
+## 14. Runtime / infrastructure applicative
+
+Le runtime est séparé en containers dédiés :
+
+- `app` = PHP-FPM / API
+- `horizon` = workers de queue
+- `scheduler` = exécution planifiée des commandes Laravel
+- `nginx` = reverse proxy
+- `redis` = backend queue / cache
+- `mysql` = persistance
+
+### Principe retenu
+
+Un process principal par container.
+
+### Bénéfices
+
+- meilleure lisibilité du runtime
+- séparation claire des responsabilités système
+- redémarrage plus simple
+- meilleure préparation à un déploiement réel
+
+Cette approche remplace les workers lancés manuellement et rapproche l’environnement local d’un runtime plus crédible côté prod.
+
+---
+
+## 15. État d’alignement des modules
+
+### Modules bien alignés
+
+- Booking
+- Transaction
+- Payment async / webhook
+- Monitoring webhook
+- Monitoring queue
+- Alerting critique
+- Queue strategy
+- Runtime containerisé
+
+### Modules partiellement alignés
+
+- Trip
+
+### Modules encore à enrichir / refactorer
+
+- Plan
+- Report
+- observabilité persistée
+- dashboard métier
+- simulation de charge
+- auto-protection système
+
+---
+
+## 16. Direction cible
+
+Le projet évolue progressivement vers un modèle **marketplace / escrow simple**.
+
+### Cible métier
+
+1. l’expéditeur paie la plateforme
+2. la plateforme conserve temporairement les fonds
+3. le voyageur livre le colis
+4. la plateforme déclenche le payout
+5. le refund reste possible en cas d’échec ou de litige
+
+### Cible technique
+
+- renforcer l’observabilité
+- mesurer la pression réelle sur les workers
+- documenter les seuils de saturation
+- introduire des protections actives :
+    - throttling
+    - circuit breaker
+    - pause dispatch ciblée
+    - backoff intelligent
+
+---
+
+## 17. Priorités à venir
 
 - finaliser l’alignement de `Trip`
-- corriger le bug `route:cache`
-- finaliser Slack avec un webhook valide
-- enrichir l’observabilité :
-    - saturation queue `high`
-    - temps d’attente anormaux
-    - backlog
-- préparer le scaling réel des workers en production
+- enrichir `AUDIT.md`
+- créer `QUEUE_MONITORING_FLOW.md`
+- persister certaines métriques de supervision
+- simuler une montée en charge réaliste
+- raisonner sur la saturation workers / Horizon
+- préparer les mécanismes d’auto-protection système
+
+---
