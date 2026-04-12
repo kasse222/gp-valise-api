@@ -11,15 +11,19 @@ class SendSlackAlert implements ShouldQueue
     use Queueable;
 
     public int $tries = 3;
-    public int $timeout = 10;
+    public int $timeout = 15;
 
     public function __construct(
         public string $message,
         public array $context = [],
         public string $level = 'info',
     ) {
-        // 👉 CRUCIAL : jamais sur high
         $this->onQueue('low');
+    }
+
+    public function backoff(): array
+    {
+        return [10, 30, 60];
     }
 
     public function handle(SlackNotifier $notifier): void

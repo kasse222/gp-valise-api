@@ -2,7 +2,6 @@
 
 use App\Jobs\SendSlackAlert;
 use App\Models\WebhookLog;
-use App\Services\Alerting\SlackNotifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -13,10 +12,7 @@ use Illuminate\Support\Str;
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
 it('retourne success si aucun seuil critique nest atteint', function () {
-
-    $slack = \Mockery::mock(SlackNotifier::class);
-    $slack->shouldReceive('send')->never();
-    $this->app->instance(SlackNotifier::class, $slack);
+    Queue::fake();
 
     WebhookLog::create([
         'event_id' => 'evt_ok',
@@ -30,26 +26,35 @@ it('retourne success si aucun seuil critique nest atteint', function () {
     $this->artisan('monitoring:webhooks')
         ->expectsOutput('✅ Aucun problème critique détecté.')
         ->assertSuccessful();
+
+    Queue::assertNothingPushed();
 });
 
-it('déclenche alerte si seuil dépassé', function () {
-
+it('déclenche une alerte si le seuil d échecs webhook est dépassé', function () {
+    Queue::fake();
     Mail::fake();
 
-    $slack = \Mockery::mock(SlackNotifier::class);
-    $slack->shouldReceive('send')->once();
-    $this->app->instance(SlackNotifier::class, $slack);
+    Log::shouldReceive('channel')
+        ->once()
+        ->with('stack')
+        ->andReturnSelf();
 
-    Log::shouldReceive('channel')->once()->andReturnSelf();
-    Log::shouldReceive('critical')->once();
+    Log::shouldReceive('critical')
+        ->once()
+        ->withArgs(function (string $message, array $context) {
+            return $message === 'Alerte monitoring webhook : seuil d’échecs dépassé'
+                && $context['window_minutes'] === 10
+                && $context['failed_threshold'] === 5
+                && $context['failed_count'] === 5;
+        });
 
     config()->set('payment.webhook.alert_email', 'admin@test.com');
 
     foreach (range(1, 5) as $i) {
         WebhookLog::create([
-            'event_id' => "evt_$i",
+            'event_id' => "evt_failed_{$i}",
             'event' => 'refund.completed',
-            'provider_transaction_id' => "txn_$i",
+            'provider_transaction_id' => "txn_failed_{$i}",
             'status' => WebhookLog::STATUS_FAILED,
             'payload' => [],
             'processed_at' => now(),
@@ -57,31 +62,53 @@ it('déclenche alerte si seuil dépassé', function () {
     }
 
     $this->artisan('monitoring:webhooks --failed-threshold=5')
+        ->expectsOutput('⚠️ Alerte déclenchée.')
         ->assertFailed();
+
+    Queue::assertPushed(SendSlackAlert::class, function (SendSlackAlert $job) {
+        return $job->message === 'Alerte monitoring webhook : seuil d’échecs dépassé'
+            && $job->level === 'critical'
+            && $job->context['failed_count'] === 5
+            && $job->context['failed_threshold'] === 5;
+    });
 });
 
-it('déclenche alerte si failed_jobs présent', function () {
-
+it('déclenche une alerte si des failed_jobs webhook existent', function () {
+    Queue::fake();
     Mail::fake();
 
-    $slack = \Mockery::mock(SlackNotifier::class);
-    $slack->shouldReceive('send')->once();
-    $this->app->instance(SlackNotifier::class, $slack);
+    Log::shouldReceive('channel')
+        ->once()
+        ->with('stack')
+        ->andReturnSelf();
 
-    Log::shouldReceive('channel')->once()->andReturnSelf();
-    Log::shouldReceive('critical')->once();
+    Log::shouldReceive('critical')
+        ->once()
+        ->withArgs(function (string $message, array $context) {
+            return $message === 'Alerte monitoring webhook : seuil d’échecs dépassé'
+                && $context['failed_jobs_count'] === 1;
+        });
 
     DB::table('failed_jobs')->insert([
         'uuid' => (string) Str::uuid(),
         'connection' => 'database',
         'queue' => 'default',
-        'payload' => json_encode(['displayName' => 'App\\Jobs\\ProcessPaymentWebhook']),
+        'payload' => json_encode([
+            'displayName' => 'App\\Jobs\\ProcessPaymentWebhook',
+        ]),
         'exception' => 'test',
         'failed_at' => now(),
     ]);
 
     $this->artisan('monitoring:webhooks')
+        ->expectsOutput('⚠️ Alerte déclenchée.')
         ->assertFailed();
+
+    Queue::assertPushed(SendSlackAlert::class, function (SendSlackAlert $job) {
+        return $job->message === 'Alerte monitoring webhook : seuil d’échecs dépassé'
+            && $job->level === 'critical'
+            && $job->context['failed_jobs_count'] === 1;
+    });
 });
 
 it('déclenche une alerte si un retry storm est détecté sur un type de job', function () {
