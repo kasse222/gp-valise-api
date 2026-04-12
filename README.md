@@ -4,10 +4,10 @@ Backend API Laravel pour une plateforme logistique entre voyageurs et expéditeu
 
 GP-Valise modélise un **cas réel de marketplace transactionnelle**, avec gestion complète :
 
-- des réservations
-- du cycle de vie métier
-- des flux financiers (charge, payout, refund)
-- des paiements asynchrones (inspirés Stripe)
+- réservations (booking lifecycle)
+- flux financiers (charge, payout, refund)
+- paiements asynchrones (webhooks type Stripe)
+- supervision des queues et alerting
 
 > 🎯 Objectif : construire un backend **cohérent, robuste et prêt pour un environnement SaaS réel**
 
@@ -16,7 +16,7 @@ GP-Valise modélise un **cas réel de marketplace transactionnelle**, avec gesti
 ![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)
 [![Laravel 12](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com)
 [![Docker](https://img.shields.io/badge/containerized-Docker-blue)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-150%2B%20passing-brightgreen)](#tests)
+[![Tests](https://img.shields.io/badge/tests-184%20passing-brightgreen)](#tests)
 
 ---
 
@@ -24,228 +24,206 @@ GP-Valise modélise un **cas réel de marketplace transactionnelle**, avec gesti
 
 GP-Valise est une API backend pour une plateforme logistique de confiance entre :
 
-- **Voyageur** : publie un trajet avec capacité disponible
-- **Expéditeur** : réserve des kg pour transporter un colis
-- **Admin** : supervise les flux et les litiges
+- **Voyageur** → publie un trajet avec capacité disponible
+- **Expéditeur** → réserve des kg pour transporter un colis
+- **Admin** → supervise flux, litiges et sécurité
 
 Le système repose sur trois piliers :
 
-- **Logistique** : trajets, étapes, capacité, livraison
-- **Confiance** : rôles, KYC, signalements, litiges
-- **Finance** : transactions, payout, refund, traçabilité
+- **Logistique** → trajets, capacité, livraison
+- **Confiance** → rôles, KYC, signalements
+- **Finance** → transactions, payout, refund
 
 ---
 
-## 💸 Architecture Paiement (Async Ready)
+## 🧠 Core Capabilities
 
-Le système suit un modèle **asynchrone inspiré des PSP modernes (Stripe-like)**.
-
-### Concepts clés
-
-- `PaymentProvider` (abstraction)
-- `Transaction` = source de vérité financière
-- Webhooks pour la confirmation réelle
-
-### Flow simplifié
-
-````text
-CHARGE → (provider) → COMPLETED / PENDING / FAILED
-
-REFUND → PENDING
-           ↓
-      webhook
-           ↓
-COMPLETED → booking REMBOURSEE
-FAILED    → booking reste EN_LITIGE
-
-
-## Stack technique
-
-- **Laravel 12** (API-only)
-- **Sanctum** (authentification token)
-- **PestPHP** (tests automatisés)
-- **MySQL 8** (développement)
-- **SQLite in-memory** (tests / CI)
-- **Docker** (environnement local)
-- **GitHub Actions** (CI)
-- **Swagger / l5-swagger** (documentation API)
-- **Enums métier** (source de vérité des statuts)
-- **Actions** (cas d’usage métier)
-- **Policies** (contrôle d’accès)
-- **FormRequests** (validation HTTP)
+- Booking lifecycle robuste (state machine métier)
+- Gestion de capacité avec concurrence (lockForUpdate)
+- Paiements asynchrones (webhook-driven)
+- Transactions traçables (charge / payout / refund)
+- Idempotence complète (webhook, batch, actions)
+- Supervision des queues (Redis + Horizon)
+- Alerting critique (Slack async)
+- Architecture orientée cas d’usage (Action-first)
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
-Le projet suit une architecture orientée cas d’usage :
+### Pattern principal
 
 ```text
 Controller → Action → Model / Enum / Validator
-````
+```
 
-### Répartition des responsabilités
+### Traitements async
 
-- **Controller** : orchestration HTTP uniquement
-- **Action** : logique métier d’un use case
-- **Policy** : autorisation / contrôle d’accès
-- **FormRequest** : validation d’entrée
-- **Enum** : états, transitions, comportements métier purs
-- **Validator** : règles métier réutilisables
-- **Service** : orchestration transverse rare (intégration externe)
+```text
+WebhookController → Job → Action → Model
+```
 
-### Principes appliqués
+### Responsabilités
 
-- Principes appliqués
-- séparation stricte des responsabilités
-- logique métier centralisée
-- idempotence
-- cohérence transactionnelle
+- Controller → orchestration HTTP
+- Action → logique métier
+- Policy → contrôle d’accès
+- FormRequest → validation
+- Enum → règles métier (state machine)
+- Job → traitement async
+- Service → logique transverse (rare)
 
 ---
 
-## Modules principaux
+## 🔄 Flows métier clés
 
-Le backend couvre aujourd’hui les modules suivants :
-
-- **User**
-- **Trip**
-- **Booking**
-- **BookingItem**
-- **Luggage**
-- **BookingStatusHistory**
-- **Payment**
-- **Transaction**
-- **Location**
-- **Report**
-- **Plan**
-- **Invitation**
-
----
-
-## Booking lifecycle
-
-Le cœur du projet repose sur un cycle de vie métier réaliste des réservations.
-
-### Flow principal
+### 📦 Booking lifecycle
 
 ```text
 EN_ATTENTE → EN_PAIEMENT → CONFIRMEE
                      ↓
                   EXPIREE
-```
 
-Puis :
-
-```text
 CONFIRMEE → LIVREE → TERMINE
-```
 
-Et en cas de problème :
-
-```text
 LIVREE → EN_LITIGE → REMBOURSEE
 ```
 
-### Règles clés
+---
 
-- une réservation n’est plus confirmable directement après création
-- un booking passe en `EN_PAIEMENT`
-- la capacité est bloquée temporairement
-- si le paiement réussit et que les conditions métier sont réunies, le booking passe en `CONFIRMEE`
-- si le délai de paiement expire, le booking passe en `EXPIREE`
-- l’expiration libère les ressources réservées
-- les transitions sensibles sont historisées
+### 💳 Paiement & refund (async)
 
-### Batch automatique
+```text
+CHARGE → provider → COMPLETED / PENDING / FAILED
 
-Le projet intègre une commande batch dédiée :
-
-```bash
-php artisan bookings:expire-pending
+REFUND → PENDING
+           ↓
+        webhook
+           ↓
+COMPLETED → booking REMBOURSEE
+FAILED    → booking reste EN_LITIGE
 ```
 
-Elle permet de :
-
-- scanner les bookings `EN_PAIEMENT` expirés
-- appliquer la transition vers `EXPIREE`
-- libérer les valises liées
-- garantir un comportement idempotent et stable
+✔️ Idempotence via `event_id`
+✔️ Traitement async via queue `high`
 
 ---
 
-## 💰 Transactions, payout et refund
+### 📡 Supervision des queues
 
-- Types de transactions
+```text
+Scheduler / Command
+   → QueueHealthService
+      → analyse backlog / age / failed / retry storm
+         → classification intelligente
+            → alert Slack async
+```
 
-*CHARGE
-*PAYOUT
-*REFUND
-*FEE
+Statuts possibles :
 
-- Refund (v1)
-
-*refund manuel
-*refund total
-*refund unique
-*uniquement en litige
-\*bloqué si payout existant
-
-- Async (important)
-
-*REFUND = PENDING
-*finalisation via webhook
-\*idempotence garantie
-
-👉 Ce design permet de simuler un système réel type Stripe.
-
-## Concurrence et idempotence
-
-Le projet traite
-
-*surbooking
-*double réservation
-*double refund
-*retry webhook
-
-### Techniques utilisées
-
-- `DB::transaction(...)`
-- `lockForUpdate()`
-- guards métier idempotents
-- recalcul sous transaction
+- `healthy`
+- `traffic_spike`
+- `slow_processing`
+- `retry_storm_pressure`
+- `capacity_pressure`
 
 ---
 
-## Sécurité
+## ⚙️ Observability & Queue Strategy
 
-- `auth:sanctum`
-- `Policies` par ressource
-- `verified_user`/`kyc`
-- `throttling opérations sensibles`
+### Queues
 
-## Tests
+- `high` → webhooks paiement, jobs critiques
+- `default` → logique métier standard
+- `low` → alerting, tâches secondaires
 
-Le projet dispose actuellement d’une suite de tests verte :
+### Principes
 
-- **153 tests**
-- **406 assertions**
-- durée locale observée : **~6 secondes**
-- couverture métier complète
+- isolation des charges
+- priorisation métier
+- détection multi-signaux :
+    - backlog
+    - âge du job
+    - failed_jobs
+    - retry storm
 
-### Couverture fonctionnelle
+### Alerting
 
-Les tests couvrent notamment :
+- Slack async (queue low)
+- fallback logs + email
+- contexte structuré pour diagnostic rapide
+
+---
+
+## 🧱 Runtime (Docker)
+
+Architecture containerisée :
+
+- `app` → PHP-FPM (API)
+- `horizon` → workers Redis
+- `scheduler` → tâches planifiées
+- `nginx` → reverse proxy
+- `redis` → queues / cache
+- `mysql` → base de données
+
+---
+
+## 💸 Transactions
+
+Types supportés :
+
+- `CHARGE` → paiement expéditeur
+- `PAYOUT` → paiement voyageur
+- `REFUND` → remboursement
+- `FEE` → commission plateforme
+
+### Règles clés
+
+- payout déclenché uniquement après livraison
+- refund uniquement si autorisé métier
+- blocage si payout déjà effectué
+- idempotence garantie
+
+---
+
+## 🧪 Tests
+
+- ✅ **184 tests**
+- ✅ **524 assertions**
+- ⚡ ~6.6s en local
+
+### Couverture
 
 - booking lifecycle
 - expiration batch
-- concurrence métier
-- refund async
-- webhook (success / failed / idempotence)
+- concurrence
+- webhook async
+- refund
+- queue monitoring
+- sécurité Horizon
 
 ---
 
-## Installation locale
+## 🔐 Sécurité
+
+- Sanctum (auth API)
+- Policies par ressource
+- KYC / verified user
+- throttling opérations sensibles
+- signature webhook
+
+---
+
+## 📚 Documentation
+
+- `ARCHITECTURE.md` → architecture complète
+- `AUDIT.md` → évolution technique & décisions
+- `BOOKING_FLOW.md` → concurrence & idempotence
+- `QUEUE_MONITORING_FLOW.md` → supervision & alerting (à venir)
+
+---
+
+## 🚀 Installation locale
 
 ```bash
 git clone https://github.com/kasse222/gp-valise-api.git
@@ -258,50 +236,45 @@ make migrate
 make seed
 ```
 
-### Interfaces locales
+### Accès
 
-- API : `http://localhost:8000`
-- Swagger : `http://localhost:8000/api/documentation`
+- API → [http://localhost:8000](http://localhost:8000)
+- Swagger → [http://localhost:8000/api/documentation](http://localhost:8000/api/documentation)
 
-## Roadmap
+---
+
+## 🛣️ Roadmap
 
 ### Court terme
 
-- sécurité webhook (signature)
-- logs métier
-- monitoring
+- finalisation Slack webhook
+- observabilité avancée
+- métriques persistées
 
 ### Moyen terme
 
-- refund partiel
 - payout async complet
-- intégration Stripe
+- refund partiel
+- intégration Stripe réelle
+- auto-scaling workers
 
-## Auteur
+---
 
-Backend Developer (Laravel)
+## 👨‍💻 Auteur
+
+Backend Developer (Laravel / API / SaaS)
 
 - Laravel
 - architecture backend
-- API design
-- logique métier
-- Docker / CI
-- préparation à des systèmes SaaS transactionnels
-
-- GitHub : `kasse222`
-- Email : `laminekasse.dev@gmail.com`
-
-🎯 Objectif :
-
-CDI Maroc 🇲🇦
-Remote international 🌍
-
-Spécialisé en :
-
-API design
-
 - systèmes transactionnels
-- architecture backend
-- Laravel / Docker / CI
+- Docker / CI/CD
 
-📧 laminekasse.dev@gmail.com
+📧 [laminekasse.dev@gmail.com](mailto:laminekasse.dev@gmail.com)
+🌍 Objectif court terme : Remote / Maroc
+🌍 Objectif moyen terme : Remote international / Europe
+
+---
+
+```
+
+```
