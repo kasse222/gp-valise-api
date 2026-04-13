@@ -8,9 +8,14 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('bookings:expire-pending')->everyFiveMinutes();
+Schedule::command('bookings:expire-pending')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();
 
-// monitoring webhook automatique
-Schedule::command('monitoring:webhooks')->everyFiveMinutes();
+Schedule::command('monitoring:webhooks')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();
 
-Schedule::command('monitoring:queues')->everyFiveMinutes();
+Schedule::command('monitoring:queues')
+    ->everyMinute()
+    ->withoutOverlapping();

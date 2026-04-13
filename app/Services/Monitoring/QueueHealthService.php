@@ -220,6 +220,16 @@ class QueueHealthService
                 retryStormDetected: $storm,
             );
         }
+        if (! $backlog && ! $age && $storm) {
+            return $this->pressureResponse(
+                status: 'retry_storm_pressure',
+                reason: 'Un retry storm est détecté même sans backlog actif. Le système a connu une dégradation applicative récente qui mérite investigation.',
+                action: 'Analyser le job dominant, la cause des échecs et ajuster tries/backoff ou la logique applicative.',
+                backlogExceeded: $backlog,
+                ageExceeded: $age,
+                retryStormDetected: $storm,
+            );
+        }
 
         if ($backlog && $storm) {
             return $this->pressureResponse(
