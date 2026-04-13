@@ -115,7 +115,7 @@ return [
 
         'local' => [
             'supervisor-high' => [
-                'maxProcesses' => 3,
+                'maxProcesses' => 5,
             ],
             'supervisor-default' => [
                 'maxProcesses' => 2,

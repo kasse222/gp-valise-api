@@ -105,7 +105,43 @@ Le système ne retourne pas juste des métriques.
 
 👉 Il produit un **diagnostic métier**
 
----
+## 🖼️ Exemples visuels
+
+### Horizon — séparation des queues et capacité workers
+
+La supervision des queues est observable directement dans Horizon.
+
+Cet écran permet de visualiser :
+
+- la séparation `high / default / low`
+- le nombre de `processes` alloués par supervisor
+- le backlog courant
+- le `wait time` estimé
+- l’impact direct du scaling sur la queue `high`
+
+#### Exemple — charge simulée avec supervisor-high à 5 workers
+
+![Horizon queue monitoring](docs/images/horizon-dashboard-queues.png)
+
+### Lecture
+
+Dans ce test de charge :
+
+- `SimulateHeavyJob` est dispatché sur la queue `high`
+- le backlog monte fortement lors d’un burst de 1000 jobs
+- Horizon montre que l’augmentation de `supervisor-high` réduit le `wait time`
+- aucun `failed job` n’est observé pendant cette simulation
+
+👉 Cette capture illustre un point clé :
+
+> un backlog élevé n’indique pas forcément un bug applicatif ;  
+> il peut révéler simplement une limite de capacité workers.
+
+### Option complémentaire — alerting Slack
+
+Si une alerte Slack a été documentée dans le projet, elle peut être référencée ici ou dans `OBSERVABILITY_FLOW.md` pour illustrer la réaction du système à un incident réel.
+
+## ![Slack alert example](docs/images/slack-alert-monitoring-example.png)
 
 ### 🟢 `healthy`
 
@@ -292,6 +328,17 @@ Le système GP-Valise ne fait pas seulement du monitoring.
 | combinaison des signaux | diagnostic réel    |
 
 ---
+
+### Point d’architecture important
+
+Pour une queue critique avec SLA faible (ex: webhook paiement), la priorité logique (`high`) ne suffit pas à elle seule.
+
+Il faut également :
+
+- une capacité workers adaptée
+- des jobs courts
+- une isolation claire des traitements critiques
+- une observation continue du backlog et du wait time
 
 ## 🔥 Conclusion
 
