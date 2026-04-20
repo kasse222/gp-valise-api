@@ -195,42 +195,28 @@ Cette règle permet d’aligner la capacité réellement bloquée avec le métie
 
 ## 8. Module Transaction
 
-Le module `Transaction` représente les **mouvements financiers unitaires et traçables**.
+## Financial boundary hardening
 
-### Types visés
+Le domaine financier a été recentré sur `Transaction`.
 
-- `charge`
-- `payout`
-- `refund`
-- `fee`
+### Ce qui est vrai maintenant
 
-### Rôle architectural
+- `Transaction` est la seule source de vérité financière métier et publique.
+- Les écritures publiques sur `Payment` ont été supprimées.
+- `PaymentController` est read-only.
+- Les flux `charge`, `refund` et `payout` passent par les actions transactionnelles dédiées.
 
-`Transaction` est la **source de vérité financière** du système.
+### Mapping des flux
 
-Le module suit désormais la convention Action-first :
+- charge → `CreateTransaction`
+- refund → `RefundTransaction` + `HandlePaymentWebhook`
+- payout → `CreatePayoutTransaction` + `CreatePayoutAfterBookingDelivered`
 
-- `CreateTransaction`
-- `RefundTransaction`
-- `CreatePayoutTransaction`
+### Bénéfice
 
-### Décisions appliquées
-
-- `TransactionService` supprimé
-- `TransactionController` aligné sur le pattern Action-first
-- vérifications métier centralisées dans les actions
-- validations sensibles sous transaction
-- règles de cohérence booking/transaction appliquées avant création
-
-Exemples déjà implémentés :
-
-- une charge ne peut être créée que pour un booking appartenant à l’utilisateur, en `EN_PAIEMENT`, non expiré et sans transaction existante
-- un refund n’est autorisé que si le booking et la charge permettent réellement un remboursement
-- un payout n’est déclenchable qu’après livraison, avec création conjointe d’une commission
-
-Ces flux sont portés par les actions financières dédiées.
-
----
+- réduction du risque d’incohérence financière
+- suppression des chemins publics dangereux
+- clarification forte de la frontière métier
 
 ## 9. Paiement asynchrone
 
