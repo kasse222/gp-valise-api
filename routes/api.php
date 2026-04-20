@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\{
     InvitationController,
     LocationController,
     LuggageController,
+    PaymentController,
     PlanController,
     ReportController,
     TransactionController,
@@ -208,6 +209,8 @@ Route::prefix('v1')
         });
 
         Route::middleware(['verified_user', 'kyc', 'throttle.sensitive:finance,5,1'])->group(function () {
+            Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
+            Route::get('payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
             Route::post('transactions/{transaction}/refund', [TransactionController::class, 'refund'])
                 ->name('transactions.refund');
         });

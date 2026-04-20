@@ -87,39 +87,59 @@ LIVREE → EN_LITIGE → REMBOURSEE
 
 ## 💳 3.3 Transactions — Vérité financière
 
-### Objectif
+## Source de vérité financière
 
-Isoler la logique financière du reste du système.
+À partir de ce refactor, `Transaction` est la seule source de vérité financière métier et publique du système.
 
-### Types gérés
+### Règles d’architecture
 
-- `CHARGE`
-- `PAYOUT`
-- `REFUND`
-- `FEE`
+- Toute opération financière métier doit passer par `Transaction`.
+- Le modèle `Payment` n’est plus exposé en écriture via l’API publique.
+- `PaymentController` est désormais limité à la lecture seule :
+    - `GET /api/v1/payments`
+    - `GET /api/v1/payments/{payment}`
+- Aucun flux public ne peut créer, modifier ou supprimer un `Payment`.
 
-### Refactor
+### Flux financiers validés
 
-- suppression de `TransactionService`
-- adoption du pattern Action-first :
-    - `CreateTransaction`
-    - `RefundTransaction`
-    - `CreatePayoutTransaction`
+#### Charge
 
-### Règles métier
+Le flux de charge passe par :
 
-- charge uniquement si booking valide
-- refund conditionné au statut métier
-- payout déclenché après livraison
-- commission calculée automatiquement
+- `TransactionController::store`
+- `CreateTransaction`
 
-### Impact
+Il n’existe plus de création publique de paiement via `Payment`.
 
-- traçabilité financière claire
-- séparation nette métier / finance
-- base compatible escrow
+#### Refund
 
----
+Le flux de remboursement passe par :
+
+- `TransactionController::refund`
+- `RefundTransaction`
+- `HandlePaymentWebhook` pour le traitement asynchrone lié à la transaction de refund
+
+Le remboursement est donc centré sur `Transaction`, pas sur un CRUD `Payment`.
+
+#### Payout
+
+Le flux de versement passe par :
+
+- la livraison du booking
+- le listener `CreatePayoutAfterBookingDelivered`
+- l’action `CreatePayoutTransaction`
+
+Le payout et la commission sont tracés comme transactions financières, sans passer par un flux d’écriture `Payment`.
+
+### Conséquence
+
+Le contrat financier public repose sur :
+
+- `TransactionController`
+- les actions `CreateTransaction`, `RefundTransaction`, `CreatePayoutTransaction`
+- les webhooks et jobs liés au domaine transactionnel
+
+Le modèle `Payment` doit être considéré comme un composant legacy/interne tant qu’il existe encore dans le codebase.
 
 ## ⚡ 3.4 Paiement asynchrone (Stripe-like)
 
