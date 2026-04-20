@@ -4,6 +4,7 @@ use App\Actions\BookingItem\UpdateBookingItem;
 use App\Enums\BookingStatusEnum;
 use App\Models\Booking;
 use App\Models\BookingItem;
+use Illuminate\Validation\ValidationException;
 
 uses(
     Tests\TestCase::class,
@@ -34,7 +35,7 @@ it('met à jour un booking item existant', function () {
 
 it('refuse de mettre à jour un booking item si la réservation est finalisée', function () {
     $booking = Booking::factory()->create([
-        'status' => BookingStatusEnum::TERMINE, // ❌ final
+        'status' => BookingStatusEnum::TERMINE,
     ]);
 
     $item = BookingItem::factory()->create([
@@ -49,5 +50,5 @@ it('refuse de mettre à jour un booking item si la réservation est finalisée',
     ];
 
     expect(fn() => UpdateBookingItem::execute($item, $data))
-        ->toThrow(\Illuminate\Validation\ValidationException::class);
+        ->toThrow(ValidationException::class);
 });

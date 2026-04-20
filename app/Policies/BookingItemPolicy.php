@@ -14,7 +14,7 @@ class BookingItemPolicy
 
     public function update(User $user, BookingItem $item): bool
     {
-        return $user->id === $item->booking->user_id && !$item->booking->status->isFinal();
+        return $item->booking->user_id === $user->id;
     }
 
     public function delete(User $user, BookingItem $item): bool
