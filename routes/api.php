@@ -10,7 +10,6 @@ use App\Http\Controllers\Api\V1\{
     InvitationController,
     LocationController,
     LuggageController,
-    PaymentController,
     PlanController,
     ReportController,
     TransactionController,
@@ -22,7 +21,7 @@ use App\Enums\UserRoleEnum;
 
 /*
 |--------------------------------------------------------------------------
-| 🌐 API v1 – Routes publiques (auth NON requise)
+| 🌐 API v1 – Routes publiques
 |--------------------------------------------------------------------------
 */
 
@@ -32,10 +31,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | 🔔 Webhooks paiement (publics mais signés)
+    | 🔔 Webhook paiement public mais signé
     |--------------------------------------------------------------------------
-    | Le provider externe doit pouvoir appeler cette route sans auth:sanctum.
-    | La sécurité se fait via signature HMAC + rate limit dédié.
     */
     Route::post('/webhooks/payment', WebhookController::class)
         ->middleware(['webhook.signature', 'throttle:webhooks'])
@@ -44,7 +41,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| 🔐 API v1 – Routes protégées (auth:sanctum obligatoire)
+| 🔐 API v1 – Routes protégées
 |--------------------------------------------------------------------------
 */
 Route::prefix('v1')
@@ -52,14 +49,18 @@ Route::prefix('v1')
     ->name('api.v1.')
     ->group(function () {
 
-        // 👤 Infos user connecté + sessions
+        /*
+        |--------------------------------------------------------------------------
+        | 🔑 Auth
+        |--------------------------------------------------------------------------
+        */
         Route::get('/me', [AuthController::class, 'me'])->name('auth.me');
         Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::post('/logout-all', [AuthController::class, 'logoutAll'])->name('auth.logoutAll');
 
         /*
         |--------------------------------------------------------------------------
-        | 👤 USERS (profil / vérifs / plan)
+        | 👤 Users
         |--------------------------------------------------------------------------
         */
         Route::prefix('users')->name('users.')->group(function () {
@@ -73,21 +74,21 @@ Route::prefix('v1')
 
         /*
         |--------------------------------------------------------------------------
-        | ✈️ TRIPS (create/update/delete réservés aux voyageurs)
+        | ✈️ Trips
         |--------------------------------------------------------------------------
         */
+        Route::get('/trips', [TripController::class, 'index'])->name('trips.index');
+        Route::get('/trips/{trip}', [TripController::class, 'show'])->name('trips.show');
+
         Route::middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)->group(function () {
             Route::post('/trips', [TripController::class, 'store'])->name('trips.store');
             Route::put('/trips/{trip}', [TripController::class, 'update'])->name('trips.update');
             Route::delete('/trips/{trip}', [TripController::class, 'destroy'])->name('trips.destroy');
         });
 
-        Route::get('/trips', [TripController::class, 'index'])->name('trips.index');
-        Route::get('/trips/{trip}', [TripController::class, 'show'])->name('trips.show');
-
         /*
         |--------------------------------------------------------------------------
-        | 📦 PLANS (CRUD admin)
+        | 📦 Plans
         |--------------------------------------------------------------------------
         */
         Route::get('/plans', [PlanController::class, 'index'])->name('plans.index');
@@ -103,7 +104,7 @@ Route::prefix('v1')
 
         /*
         |--------------------------------------------------------------------------
-        | 📍 LOCATIONS (store admin ou traveler)
+        | 📍 Locations
         |--------------------------------------------------------------------------
         */
         Route::prefix('locations')->name('locations.')->group(function () {
@@ -117,16 +118,16 @@ Route::prefix('v1')
 
         /*
         |--------------------------------------------------------------------------
-        | 📦 BOOKINGS (create/update/delete réservés aux expéditeurs)
+        | 📦 Bookings
         |--------------------------------------------------------------------------
         */
+        Route::get('/bookings', [BookingController::class, 'index'])->name('bookings.index');
+        Route::get('/bookings/{booking}', [BookingController::class, 'show'])->name('bookings.show');
+
         Route::middleware(EnsureRole::class . ':' . UserRoleEnum::SENDER->value)->group(function () {
             Route::post('/bookings', [BookingController::class, 'store'])->name('bookings.store');
             Route::delete('/bookings/{booking}', [BookingController::class, 'destroy'])->name('bookings.destroy');
         });
-
-        Route::get('/bookings', [BookingController::class, 'index'])->name('bookings.index');
-        Route::get('/bookings/{booking}', [BookingController::class, 'show'])->name('bookings.show');
 
         Route::post('/bookings/{booking}/confirm', [BookingController::class, 'confirm'])
             ->middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)
@@ -142,15 +143,15 @@ Route::prefix('v1')
 
         /*
         |--------------------------------------------------------------------------
-        | 📦 BOOKING ITEMS + STATUS HISTORIES
+        | 📦 Booking items + status histories
         |--------------------------------------------------------------------------
         */
         Route::prefix('bookings/{booking}')->name('bookings.')->group(function () {
             Route::get('items', [BookingItemController::class, 'index'])->name('items.index');
             Route::post('items', [BookingItemController::class, 'store'])->name('items.store');
 
-            Route::get('status-histories', [BookingStatusHistoryController::class, 'index'])->name('status_histories.index');
-            Route::post('status', [BookingStatusHistoryController::class, 'store'])->name('status.store');
+            Route::get('status-histories', [BookingStatusHistoryController::class, 'index'])
+                ->name('status_histories.index');
         });
 
         Route::prefix('booking-items')->name('booking_items.')->group(function () {
@@ -160,21 +161,21 @@ Route::prefix('v1')
 
         /*
         |--------------------------------------------------------------------------
-        | 🎒 LUGGAGES (CRUD expéditeur)
+        | 🎒 Luggages
         |--------------------------------------------------------------------------
         */
+        Route::get('/luggages', [LuggageController::class, 'index'])->name('luggages.index');
+        Route::get('/luggages/{luggage}', [LuggageController::class, 'show'])->name('luggages.show');
+
         Route::middleware(EnsureRole::class . ':' . UserRoleEnum::SENDER->value)->group(function () {
             Route::post('/luggages', [LuggageController::class, 'store'])->name('luggages.store');
             Route::put('/luggages/{luggage}', [LuggageController::class, 'update'])->name('luggages.update');
             Route::delete('/luggages/{luggage}', [LuggageController::class, 'destroy'])->name('luggages.destroy');
         });
 
-        Route::get('/luggages', [LuggageController::class, 'index'])->name('luggages.index');
-        Route::get('/luggages/{luggage}', [LuggageController::class, 'show'])->name('luggages.show');
-
         /*
         |--------------------------------------------------------------------------
-        | 📧 INVITATIONS
+        | 📧 Invitations
         |--------------------------------------------------------------------------
         */
         Route::prefix('invitations')->name('invitations.')->group(function () {
@@ -187,7 +188,7 @@ Route::prefix('v1')
 
         /*
         |--------------------------------------------------------------------------
-        | 🚨 REPORTS
+        | 🚨 Reports
         |--------------------------------------------------------------------------
         */
         Route::prefix('reports')->name('reports.')->group(function () {
@@ -198,20 +199,15 @@ Route::prefix('v1')
 
         /*
         |--------------------------------------------------------------------------
-        | 💰 TRANSACTIONS (lecture + création)
+        | 💰 Transactions = seule API financière publique
         |--------------------------------------------------------------------------
         */
         Route::middleware(['verified_user'])->group(function () {
-            Route::apiResource('transactions', TransactionController::class)->only(['index', 'show', 'store']);
+            Route::apiResource('transactions', TransactionController::class)
+                ->only(['index', 'show', 'store']);
         });
 
-        /*
-        |--------------------------------------------------------------------------
-        | 💳 PAYMENTS + REFUND (sensibles)
-        |--------------------------------------------------------------------------
-        */
         Route::middleware(['verified_user', 'kyc', 'throttle.sensitive:finance,5,1'])->group(function () {
-            Route::apiResource('payments', PaymentController::class);
             Route::post('transactions/{transaction}/refund', [TransactionController::class, 'refund'])
                 ->name('transactions.refund');
         });
@@ -219,7 +215,7 @@ Route::prefix('v1')
 
 /*
 |--------------------------------------------------------------------------
-| 🚨 Route fallback – erreurs 404 JSON
+| 🚨 Fallback JSON
 |--------------------------------------------------------------------------
 */
 Route::fallback(function () {
