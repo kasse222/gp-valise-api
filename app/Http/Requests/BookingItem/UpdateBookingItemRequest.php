@@ -3,23 +3,23 @@
 namespace App\Http\Requests\BookingItem;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Auth;
 
 class UpdateBookingItemRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Auth::check(); // à spécialiser plus tard
+        return true;
     }
 
     public function rules(): array
     {
         return [
-            'booking_id'  => ['sometimes', 'exists:bookings,id'],
-            'luggage_id'  => ['sometimes', 'exists:luggages,id'],
-            'trip_id'     => ['sometimes', 'exists:trips,id'],
-            'kg_reserved' => ['sometimes', 'numeric', 'min:0.1', 'max:100'],
+            'kg_reserved' => ['sometimes', 'numeric', 'min:0.1'],
             'price'       => ['sometimes', 'numeric', 'min:0'],
+
+            'booking_id'  => ['prohibited'],
+            'trip_id'     => ['prohibited'],
+            'luggage_id'  => ['prohibited'],
         ];
     }
 }

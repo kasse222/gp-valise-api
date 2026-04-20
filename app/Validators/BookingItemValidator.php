@@ -13,36 +13,54 @@ class BookingItemValidator
     {
         $luggage = Luggage::findOrFail($data['luggage_id']);
 
-        // Vérifie que la valise appartient bien à l’utilisateur
+        if ($booking->isFinal()) {
+            throw ValidationException::withMessages([
+                'booking_item' => 'Impossible d’ajouter un élément à une réservation finalisée.',
+            ]);
+        }
+
         if ($luggage->user_id !== $booking->user_id) {
             throw ValidationException::withMessages([
                 'luggage_id' => 'Cette valise ne vous appartient pas.',
             ]);
         }
 
-        // Vérifie qu'elle n'est pas déjà associée à un autre item
         if ($booking->bookingItems()->where('luggage_id', $luggage->id)->exists()) {
             throw ValidationException::withMessages([
                 'luggage_id' => 'Cette valise est déjà utilisée pour cette réservation.',
             ]);
         }
 
-        // Vérifie que le poids réservé est cohérent
-        if ($data['kg_reserved'] <= 0) {
+        if (isset($data['kg_reserved']) && $data['kg_reserved'] <= 0) {
             throw ValidationException::withMessages([
                 'kg_reserved' => 'Le poids réservé doit être supérieur à zéro.',
             ]);
         }
-
-        // Autres règles potentielles...
     }
 
     public function validateUpdate(BookingItem $item, array $data): void
     {
-        // Exemple : on interdit de modifier une valise déjà livrée
-        if ($item->booking->status->isFinal()) {
+        $item->loadMissing('booking');
+
+        if (! $item->booking) {
+            throw ValidationException::withMessages([
+                'booking_item' => 'Impossible de modifier un élément sans réservation associée.',
+            ]);
+        }
+
+        if ($item->booking->isFinal()) {
             throw ValidationException::withMessages([
                 'booking_item' => 'Impossible de modifier un élément d’une réservation finalisée.',
+            ]);
+        }
+
+        if (
+            array_key_exists('booking_id', $data) ||
+            array_key_exists('trip_id', $data) ||
+            array_key_exists('luggage_id', $data)
+        ) {
+            throw ValidationException::withMessages([
+                'booking_item' => 'Le rattachement du booking item ne peut pas être modifié.',
             ]);
         }
 
@@ -52,6 +70,10 @@ class BookingItemValidator
             ]);
         }
 
-        // Tu peux étendre ici selon les règles métier spécifiques à l’update
+        if (isset($data['price']) && $data['price'] < 0) {
+            throw ValidationException::withMessages([
+                'price' => 'Le prix ne peut pas être négatif.',
+            ]);
+        }
     }
 }

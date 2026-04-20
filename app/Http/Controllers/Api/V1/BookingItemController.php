@@ -36,11 +36,13 @@ class BookingItemController extends Controller
 
     public function update(UpdateBookingItemRequest $request, BookingItem $item)
     {
-
+        $this->authorize('update', $item);
 
         $item = UpdateBookingItem::execute($item, $request->validated());
 
-        return new BookingItemResource($item);
+        return response()->json([
+            'data' => $item->fresh(),
+        ]);
     }
 
     public function destroy(BookingItem $item)
