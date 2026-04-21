@@ -24,33 +24,42 @@ class BookingFactory extends Factory
             'payment_expires_at' => null,
         ];
 
-        match ($status) {
-            BookingStatusEnum::EN_PAIEMENT => $timestamps['payment_expires_at'] = now()->addMinutes(15),
+        switch ($status) {
+            case BookingStatusEnum::EN_PAIEMENT:
+                $timestamps['payment_expires_at'] = now()->addMinutes(15);
+                break;
 
-            BookingStatusEnum::CONFIRMEE => $timestamps['confirmed_at'] = now(),
+            case BookingStatusEnum::CONFIRMEE:
+                $timestamps['confirmed_at'] = now();
+                break;
 
-            BookingStatusEnum::LIVREE => [
-                $timestamps['confirmed_at'] = now()->subDays(2),
-                $timestamps['completed_at'] = now()->subHour(),
-            ],
+            case BookingStatusEnum::LIVREE:
+                $timestamps['confirmed_at'] = now()->subDays(2);
+                $timestamps['completed_at'] = now()->subHour();
+                break;
 
-            BookingStatusEnum::TERMINE => [
-                $timestamps['confirmed_at'] = now()->subDays(2),
-                $timestamps['completed_at'] = now(),
-            ],
+            case BookingStatusEnum::TERMINE:
+                $timestamps['confirmed_at'] = now()->subDays(2);
+                $timestamps['completed_at'] = now();
+                break;
 
-            BookingStatusEnum::ANNULE,
-            BookingStatusEnum::REMBOURSEE => $timestamps['cancelled_at'] = now()->subDay(),
+            case BookingStatusEnum::ANNULE:
+            case BookingStatusEnum::REMBOURSEE:
+                $timestamps['cancelled_at'] = now()->subDay();
+                break;
 
-            BookingStatusEnum::EXPIREE => $timestamps['expired_at'] = now()->subMinutes(5),
+            case BookingStatusEnum::EXPIREE:
+                $timestamps['expired_at'] = now()->subMinutes(5);
+                break;
 
-            default => null,
-        };
+            default:
+                break;
+        }
 
         return [
             'user_id' => User::factory(),
             'trip_id' => Trip::factory(),
-            'status' => $status,
+            'status' => $status->value,
             'comment' => $this->faker->optional()->sentence(),
             ...$timestamps,
         ];
@@ -59,7 +68,7 @@ class BookingFactory extends Factory
     public function confirmed(): static
     {
         return $this->state(fn() => [
-            'status' => BookingStatusEnum::CONFIRMEE,
+            'status' => BookingStatusEnum::CONFIRMEE->value,
             'confirmed_at' => now(),
             'completed_at' => null,
             'cancelled_at' => null,
@@ -71,7 +80,7 @@ class BookingFactory extends Factory
     public function pendingPayment(): static
     {
         return $this->state(fn() => [
-            'status' => BookingStatusEnum::EN_PAIEMENT,
+            'status' => BookingStatusEnum::EN_PAIEMENT->value,
             'confirmed_at' => null,
             'completed_at' => null,
             'cancelled_at' => null,
@@ -83,7 +92,7 @@ class BookingFactory extends Factory
     public function expiredPayment(): static
     {
         return $this->state(fn() => [
-            'status' => BookingStatusEnum::EN_PAIEMENT,
+            'status' => BookingStatusEnum::EN_PAIEMENT->value,
             'confirmed_at' => null,
             'completed_at' => null,
             'cancelled_at' => null,
@@ -95,7 +104,7 @@ class BookingFactory extends Factory
     public function expired(): static
     {
         return $this->state(fn() => [
-            'status' => BookingStatusEnum::EXPIREE,
+            'status' => BookingStatusEnum::EXPIREE->value,
             'confirmed_at' => null,
             'completed_at' => null,
             'cancelled_at' => null,
@@ -107,7 +116,7 @@ class BookingFactory extends Factory
     public function cancelled(): static
     {
         return $this->state(fn() => [
-            'status' => BookingStatusEnum::ANNULE,
+            'status' => BookingStatusEnum::ANNULE->value,
             'confirmed_at' => null,
             'completed_at' => null,
             'cancelled_at' => now()->subDay(),

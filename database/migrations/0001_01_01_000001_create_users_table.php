@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\UserRoleEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -20,8 +21,10 @@ return new class extends Migration
             $table->string('country')->nullable();
             $table->string('password');
 
-            // Enum rôle utilisateur (enum natif Laravel)
-            $table->unsignedTinyInteger('role')->default(0)->comment('Enum UserRoleEnum');
+            // Rôle utilisateur aligné avec UserRoleEnum:int
+            $table->unsignedTinyInteger('role')
+                ->default(UserRoleEnum::SENDER->value)
+                ->comment('Rôle utilisateur stocké en int et casté via UserRoleEnum');
 
             // Vérifications
             $table->boolean('verified_user')->default(false);
@@ -39,6 +42,9 @@ return new class extends Migration
             // Auth & timestamps
             $table->rememberToken();
             $table->timestamps();
+
+            $table->index('role');
+            $table->index(['verified_user', 'kyc_passed_at']);
         });
     }
 

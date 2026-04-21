@@ -2,10 +2,10 @@
 
 namespace Database\Factories;
 
-use App\Models\User;
 use App\Enums\UserRoleEnum;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
 
 class UserFactory extends Factory
 {
@@ -14,29 +14,22 @@ class UserFactory extends Factory
     public function definition(): array
     {
         $faker = \Faker\Factory::create('en_US');
+
         return [
             'first_name'      => $faker->firstName,
             'last_name'       => $faker->lastName,
-            'email'           => $faker->unique()->email,
-            //   'phone_verified_at' => optional(0.6)->dateTimeBetween('-6 months'),
-            //   'email_verified_at' => optional(0.6)->dateTimeBetween('-6 months'),
-            'password'        => 'password', // ❗ à overrider en tests si besoin
-            'role'            => $faker->randomElement(UserRoleEnum::cases())->value,
-            'verified_user'   => $faker->boolean(80), // 80% des utilisateurs sont vérifiés
+            'email'           => $faker->unique()->safeEmail,
             'phone'           => $faker->unique()->e164PhoneNumber,
-            'country'         => $faker->countryCode, // 💡 Plus utile en API (FR, SN, MA...)
+            'country'         => $faker->countryCode,
+            'password'        => Hash::make('password'),
+            'role'            => $faker->randomElement(UserRoleEnum::cases())->value,
+            'verified_user'   => $faker->boolean(80),
             'kyc_passed_at'   => $faker->optional(0.6)->dateTimeBetween('-6 months'),
             'plan_id'         => null,
             'plan_expires_at' => null,
         ];
     }
 
-    protected $casts = [
-        'role' => UserRoleEnum::class,
-    ];
-    /**
-     * 💼 Administrateur
-     */
     public function admin(): static
     {
         return $this->state(fn() => [
@@ -44,9 +37,6 @@ class UserFactory extends Factory
         ]);
     }
 
-    /**
-     * 📦 Expéditeur
-     */
     public function expeditor(): static
     {
         return $this->state(fn() => [
@@ -54,23 +44,18 @@ class UserFactory extends Factory
         ]);
     }
 
-    /**
-     * ✈️ Voyageur
-     */
     public function traveler(): static
     {
         return $this->state(fn() => [
             'role' => UserRoleEnum::TRAVELER->value,
         ]);
     }
+
     public function sender(): static
     {
-        // alias vers la méthode déjà existante
         return $this->expeditor();
     }
-    /**
-     * 🧪 Utilisateur vérifié
-     */
+
     public function verified(): static
     {
         return $this->state(fn() => [
