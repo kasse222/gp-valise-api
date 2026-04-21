@@ -20,17 +20,14 @@ return new class extends Migration
                 ->constrained()
                 ->cascadeOnDelete();
 
-            $table->string('status', 30)
+            $table->unsignedTinyInteger('status')
                 ->default(BookingStatusEnum::EN_ATTENTE->value)
-                ->comment('Statut de réservation (enum casté)');
+                ->comment('Statut de réservation stocké en int et casté via BookingStatusEnum');
 
-            // ⏱️ timestamps métier
             $table->timestamp('confirmed_at')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->timestamp('cancelled_at')->nullable();
             $table->timestamp('expired_at')->nullable();
-
-            // 🔥 NOUVEAU : paiement
             $table->timestamp('payment_expires_at')->nullable();
 
             $table->text('comment')->nullable();
@@ -38,11 +35,8 @@ return new class extends Migration
             $table->softDeletes();
             $table->timestamps();
 
-            // 🔥 index important pour batch expiration
-            $table->index(['status', 'payment_expires_at']);
-
-            // index existant
-            $table->index(['user_id', 'trip_id', 'status']);
+            $table->index(['status', 'payment_expires_at'], 'bookings_status_payment_expires_at_index');
+            $table->index(['user_id', 'trip_id', 'status'], 'bookings_user_trip_status_index');
         });
     }
 
