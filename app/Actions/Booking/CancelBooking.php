@@ -3,39 +3,58 @@
 namespace App\Actions\Booking;
 
 use App\Enums\BookingStatusEnum;
+use App\Enums\LuggageStatusEnum;
 use App\Events\BookingCanceled;
 use App\Models\Booking;
-use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CancelBooking
 {
-    public function execute(Booking $booking, User $actor): Booking
+    public function execute(int $bookingId): Booking
     {
-        $booking = DB::transaction(function () use ($booking, $actor) {
+        return DB::transaction(function () use ($bookingId) {
+            /** @var Booking $booking */
             $booking = Booking::query()
-                ->with(['bookingItems.luggage', 'trip'])
+                ->with(['bookingItems.luggage', 'trip', 'user'])
                 ->lockForUpdate()
-                ->findOrFail($booking->id);
+                ->findOrFail($bookingId);
 
-            if (! $booking->canBeUpdatedTo(BookingStatusEnum::ANNULE, $actor)) {
+            if (! $booking->status->canBeCancelled()) {
                 throw ValidationException::withMessages([
-                    'booking' => 'Annulation non autorisée ou statut invalide.',
+                    'booking' => 'Cette réservation ne peut pas être annulée.',
+                ]);
+            }
+
+            if (! in_array($booking->status, [
+                BookingStatusEnum::EN_PAIEMENT,
+                BookingStatusEnum::ACCEPTE,
+                BookingStatusEnum::PAIEMENT_ECHOUE,
+            ], true)) {
+                throw ValidationException::withMessages([
+                    'booking' => 'Le statut actuel ne permet pas une annulation manuelle.',
                 ]);
             }
 
             $booking->transitionTo(
                 BookingStatusEnum::ANNULE,
-                $actor,
-                'Annulation par l’utilisateur'
+                auth()->user(),
+                'Annulation manuelle de la réservation'
             );
 
-            return $booking->fresh(['bookingItems.luggage', 'trip']);
+            foreach ($booking->bookingItems as $item) {
+                if ($item->luggage) {
+                    $item->luggage->update([
+                        'status' => LuggageStatusEnum::EN_ATTENTE,
+                    ]);
+                }
+            }
+
+            $booking = $booking->fresh(['bookingItems.luggage', 'trip', 'user', 'statusHistories']);
+
+            event(new BookingCanceled($booking));
+
+            return $booking;
         });
-
-        event(new BookingCanceled($booking));
-
-        return $booking;
     }
 }

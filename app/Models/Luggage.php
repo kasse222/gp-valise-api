@@ -121,7 +121,7 @@ class Luggage extends Model
      */
     public function isAvailable(): bool
     {
-        return $this->status === LuggageStatusEnum::RESERVEE;
+        return $this->status === LuggageStatusEnum::EN_ATTENTE;
     }
 
     /**

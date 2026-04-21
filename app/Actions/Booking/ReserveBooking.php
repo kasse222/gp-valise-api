@@ -2,48 +2,36 @@
 
 namespace App\Actions\Booking;
 
-use App\Actions\BookingItem\CreateBookingItem;
 use App\Enums\BookingStatusEnum;
 use App\Enums\LuggageStatusEnum;
 use App\Models\Booking;
 use App\Models\Luggage;
 use App\Models\Trip;
-use App\Models\User;
+use App\Validators\BookingValidator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ReserveBooking
 {
-    /**
-     * Réserve un trajet avec des valises données.
-     */
-    public function execute(User $user, array $validated): Booking
+    public function __construct(
+        protected BookingValidator $validator
+    ) {}
+
+    public function execute(array $data): Booking
     {
-        return DB::transaction(function () use ($user, $validated) {
-            $now = now();
-
+        return DB::transaction(function () use ($data) {
+            /** @var Trip $trip */
             $trip = Trip::query()
-                ->whereKey($validated['trip_id'])
                 ->lockForUpdate()
-                ->firstOrFail();
+                ->findOrFail($data['trip_id']);
 
-            $totalKg = array_sum(array_column($validated['items'], 'kg_reserved'));
+            $this->validator->validateReservation($trip, $data);
 
-            if (! $trip->canAcceptKg($totalKg)) {
-                throw ValidationException::withMessages([
-                    'items' => ['La capacité restante du trajet est insuffisante.'],
-                ]);
-            }
-
-            $luggageIds = collect($validated['items'])
+            $luggageIds = collect($data['items'] ?? [])
                 ->pluck('luggage_id')
-                ->unique();
-
-            if ($luggageIds->count() !== count($validated['items'])) {
-                throw ValidationException::withMessages([
-                    'items' => ['Une valise ne peut pas apparaître plusieurs fois dans la même réservation.'],
-                ]);
-            }
+                ->filter()
+                ->unique()
+                ->values();
 
             $luggages = Luggage::query()
                 ->whereIn('id', $luggageIds)
@@ -53,33 +41,38 @@ class ReserveBooking
 
             if ($luggages->count() !== $luggageIds->count()) {
                 throw ValidationException::withMessages([
-                    'items' => ['Une ou plusieurs valises sont introuvables.'],
+                    'items' => 'Une ou plusieurs valises sont introuvables.',
                 ]);
             }
 
-            foreach ($luggages as $luggage) {
-                if ($luggage->user_id !== $user->id) {
+            $booking = Booking::create([
+                'user_id' => $data['user_id'],
+                'trip_id' => $trip->id,
+                'status' => BookingStatusEnum::EN_PAIEMENT,
+                'payment_expires_at' => now()->addMinutes(15),
+                'comment' => $data['comment'] ?? null,
+            ]);
+
+            foreach ($data['items'] as $itemData) {
+                $luggage = $luggages->get($itemData['luggage_id']);
+
+                if (! $luggage) {
                     throw ValidationException::withMessages([
-                        'items' => ['Une ou plusieurs valises ne vous appartiennent pas.'],
+                        'items' => 'Valise introuvable pendant la réservation.',
                     ]);
                 }
 
-                $this->assertLuggageDisponible($luggage);
-            }
+                if ($luggage->status !== LuggageStatusEnum::EN_ATTENTE) {
+                    throw ValidationException::withMessages([
+                        'items' => "La valise {$luggage->id} n’est plus disponible.",
+                    ]);
+                }
 
-            $booking = Booking::create([
-                'user_id' => $user->id,
-                'trip_id' => $trip->id,
-                'status' => BookingStatusEnum::EN_PAIEMENT,
-                'payment_expires_at' => $now->copy()->addMinutes(15),
-            ]);
-
-            foreach ($validated['items'] as $item) {
-                $luggage = $luggages->get($item['luggage_id']);
-
-                CreateBookingItem::execute($booking, [
-                    ...$item,
+                $booking->bookingItems()->create([
                     'trip_id' => $trip->id,
+                    'luggage_id' => $luggage->id,
+                    'kg_reserved' => $itemData['kg_reserved'],
+                    'price' => $itemData['price'],
                 ]);
 
                 $luggage->update([
@@ -87,16 +80,7 @@ class ReserveBooking
                 ]);
             }
 
-            return $booking->load('bookingItems.luggage');
+            return $booking->fresh(['bookingItems.luggage', 'trip', 'user']);
         });
-    }
-
-    protected function assertLuggageDisponible(Luggage $luggage): void
-    {
-        if ($luggage->status !== LuggageStatusEnum::EN_ATTENTE) {
-            throw ValidationException::withMessages([
-                'items' => ["La valise #{$luggage->id} n'est pas disponible."]
-            ]);
-        }
     }
 }

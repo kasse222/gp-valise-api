@@ -1,23 +1,23 @@
 <?php
 
+use App\Enums\BookingStatusEnum;
+use App\Enums\LuggageStatusEnum;
+use App\Enums\UserRoleEnum;
+use App\Models\Booking;
+use App\Models\BookingItem;
+use App\Models\Luggage;
+use App\Models\Trip;
+use App\Models\User;
+use Laravel\Sanctum\Sanctum;
+
 uses(
     Tests\TestCase::class,
     Illuminate\Foundation\Testing\RefreshDatabase::class
 );
 
-use App\Models\User;
-use App\Models\Booking;
-use App\Models\Trip;
-use App\Models\Luggage;
-use App\Enums\BookingStatusEnum;
-use App\Enums\UserRoleEnum;
-use Laravel\Sanctum\Sanctum;
-
-use function Pest\Laravel\actingAs;
-
 beforeEach(function () {
     $expediteur = User::factory()->create([
-        'role' => UserRoleEnum::SENDER,
+        'role' => UserRoleEnum::SENDER->value,
     ]);
 
     Sanctum::actingAs($expediteur);
@@ -25,14 +25,17 @@ beforeEach(function () {
 });
 
 it('retourne la liste des bookings (index)', function () {
-    Booking::factory()->count(3)->create(['user_id' => $this->expediteur->id]);
+    Booking::factory()->count(3)->create([
+        'user_id' => test()->expediteur->id,
+    ]);
 
     $response = $this->getJson('/api/v1/bookings');
 
     $response->assertOk()
         ->assertJsonCount(3, 'data');
 });
-test('le rôle est bien casté en enum', function () {
+
+it('le rôle est bien casté en enum', function () {
     $user = User::factory()->create([
         'role' => UserRoleEnum::SENDER->value,
     ]);
@@ -42,15 +45,18 @@ test('le rôle est bien casté en enum', function () {
 
 it('affiche une réservation spécifique (show)', function () {
     $trip = Trip::factory()->create();
+
     $booking = Booking::factory()->create([
         'user_id' => test()->expediteur->id,
         'trip_id' => $trip->id,
     ]);
+
     $luggage = Luggage::factory()->create([
         'user_id' => test()->expediteur->id,
-        'status' => \App\Enums\LuggageStatusEnum::EN_ATTENTE,
+        'status' => LuggageStatusEnum::EN_ATTENTE,
     ]);
-    $item = \App\Models\BookingItem::factory()->create([
+
+    $item = BookingItem::factory()->create([
         'booking_id' => $booking->id,
         'trip_id' => $trip->id,
         'luggage_id' => $luggage->id,
@@ -65,13 +71,15 @@ it('affiche une réservation spécifique (show)', function () {
 });
 
 it('crée une réservation (store)', function () {
-    $expediteur = User::factory()->create(['role' => UserRoleEnum::SENDER]);
-    $this->actingAs($expediteur);
+    $traveler = User::factory()->traveler()->verified()->create();
 
-    $trip = Trip::factory()->create();
+    $trip = Trip::factory()->create([
+        'user_id' => $traveler->id,
+    ]);
+
     $luggage = Luggage::factory()->create([
-        'user_id' => $expediteur->id,
-        'status' => \App\Enums\LuggageStatusEnum::EN_ATTENTE,
+        'user_id' => test()->expediteur->id,
+        'status' => LuggageStatusEnum::EN_ATTENTE,
     ]);
 
     $data = [
@@ -81,18 +89,17 @@ it('crée une réservation (store)', function () {
                 'luggage_id' => $luggage->id,
                 'kg_reserved' => 2.5,
                 'price' => 100.0,
-            ]
-        ]
+            ],
+        ],
     ];
 
     $response = $this->postJson('/api/v1/bookings', $data);
+
     $response->assertCreated()
         ->assertJsonPath('data.status', BookingStatusEnum::EN_PAIEMENT->value)
         ->assertJsonPath('data.items.0.luggage.id', $luggage->id)
         ->assertJsonPath('data.payment_expires_at', fn($value) => ! is_null($value));
 });
-
-
 
 it('supprime une réservation (destroy)', function () {
     $trip = Trip::factory()->create();
@@ -100,6 +107,7 @@ it('supprime une réservation (destroy)', function () {
     $booking = Booking::factory()->create([
         'user_id' => test()->expediteur->id,
         'trip_id' => $trip->id,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
     ]);
 
     $response = $this->deleteJson("/api/v1/bookings/{$booking->id}");
@@ -109,7 +117,6 @@ it('supprime une réservation (destroy)', function () {
             'message' => 'Réservation supprimée.',
         ]);
 
-    // ✅ Vérifie que le booking est soft-deleted
     $this->assertSoftDeleted('bookings', [
         'id' => $booking->id,
     ]);

@@ -1,13 +1,13 @@
 <?php
 
 use App\Enums\BookingStatusEnum;
+use App\Enums\LuggageStatusEnum;
 use App\Models\Booking;
 use App\Models\BookingItem;
 use App\Models\Luggage;
 use App\Models\Trip;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-
 use function Pest\Laravel\actingAs;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
@@ -20,12 +20,13 @@ beforeEach(function () {
     $this->luggage = Luggage::factory()->create([
         'user_id' => $this->expeditor->id,
         'weight_kg' => 20,
+        'status' => LuggageStatusEnum::EN_ATTENTE,
     ]);
 
     $this->booking = Booking::factory()->create([
         'user_id' => $this->expeditor->id,
         'trip_id' => $this->trip->id,
-        'status' => BookingStatusEnum::ACCEPTE,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
     ]);
 
     actingAs($this->expeditor);
@@ -46,8 +47,8 @@ it('liste les booking items d’un booking', function () {
 it('crée un booking item avec des données valides', function () {
     $data = [
         'kg_reserved' => 10,
-        'price'       => 50,
-        'luggage_id'  => $this->luggage->id,
+        'price' => 50,
+        'luggage_id' => $this->luggage->id,
     ];
 
     $response = $this->postJson(
@@ -56,19 +57,18 @@ it('crée un booking item avec des données valides', function () {
     );
 
     $response->assertCreated()
-        ->assertJsonPath('data.kg_reserved', 10);
+        ->assertJsonPath('data.kg_reserved', 10)
+        ->assertJsonPath('data.luggage_id', $this->luggage->id);
 });
 
 it('refuse la création si utilisateur non autorisé', function () {
-    $user = User::factory()->traveler()->create();
+    $user = User::factory()->traveler()->verified()->create();
     actingAs($user);
 
     $data = [
-        'booking_id'  => $this->booking->id,
-        'luggage_id'  => $this->luggage->id,
-        'trip_id'     => $this->trip->id,
         'kg_reserved' => 5,
-        'price'       => 30,
+        'price' => 30,
+        'luggage_id' => $this->luggage->id,
     ];
 
     $response = $this->postJson(
@@ -79,17 +79,18 @@ it('refuse la création si utilisateur non autorisé', function () {
     $response->assertForbidden();
 });
 
-it('met à jour un booking item existant', function () {
+it('met à jour un booking item existant avec les champs autorisés', function () {
     $item = BookingItem::factory()->create([
         'booking_id' => $this->booking->id,
         'trip_id' => $this->trip->id,
+        'luggage_id' => $this->luggage->id,
         'kg_reserved' => 5,
         'price' => 30,
     ]);
 
     $response = $this->putJson(route('api.v1.booking_items.update', $item), [
         'kg_reserved' => 15,
-        'price'       => 60,
+        'price' => 60,
     ]);
 
     $response->assertOk()
@@ -107,11 +108,12 @@ it('refuse de modifier un booking item si la réservation est finalisée', funct
     $item = BookingItem::factory()->create([
         'booking_id' => $booking->id,
         'trip_id' => $this->trip->id,
+        'luggage_id' => $this->luggage->id,
     ]);
 
     $response = $this->putJson(route('api.v1.booking_items.update', $item), [
         'kg_reserved' => 20,
-        'price'       => 80,
+        'price' => 80,
     ]);
 
     $response->assertStatus(422)
@@ -146,12 +148,18 @@ it('refuse la modification par un autre utilisateur', function () {
     $booking = Booking::factory()->create([
         'user_id' => $owner->id,
         'trip_id' => $trip->id,
-        'status' => BookingStatusEnum::ACCEPTE,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
+    ]);
+
+    $luggage = Luggage::factory()->create([
+        'user_id' => $owner->id,
+        'status' => LuggageStatusEnum::EN_ATTENTE,
     ]);
 
     $item = BookingItem::factory()->create([
         'booking_id' => $booking->id,
         'trip_id' => $trip->id,
+        'luggage_id' => $luggage->id,
         'kg_reserved' => 5,
         'price' => 30,
     ]);
@@ -166,39 +174,20 @@ it('refuse la modification par un autre utilisateur', function () {
     $response->assertForbidden();
 });
 
-it('autorise la modification des champs autorisés au propriétaire', function () {
+it('supprime un booking item existant', function () {
     $item = BookingItem::factory()->create([
         'booking_id' => $this->booking->id,
         'trip_id' => $this->trip->id,
-        'kg_reserved' => 5,
-        'price' => 30,
-    ]);
-
-    $response = $this->putJson(route('api.v1.booking_items.update', $item), [
-        'kg_reserved' => 12.5,
-        'price' => 75,
-    ]);
-
-    $response->assertOk()
-        ->assertJsonPath('data.kg_reserved', 12.5)
-        ->assertJsonPath('data.price', 75);
-});
-
-it('supprime un booking item existant', function () {
-    $booking = Booking::factory()->create([
-        'user_id' => $this->expeditor->id,
-        'trip_id' => $this->trip->id,
-    ]);
-
-    $item = BookingItem::factory()->create([
-        'booking_id' => $booking->id,
-        'trip_id' => $this->trip->id,
+        'luggage_id' => $this->luggage->id,
     ]);
 
     $response = $this->deleteJson(route('api.v1.booking_items.destroy', $item));
 
     $response->assertOk();
-    $this->assertDatabaseMissing('booking_items', ['id' => $item->id]);
+
+    $this->assertDatabaseMissing('booking_items', [
+        'id' => $item->id,
+    ]);
 });
 
 it('refuse la suppression si l’utilisateur n’est pas le propriétaire', function () {
@@ -207,11 +196,18 @@ it('refuse la suppression si l’utilisateur n’est pas le propriétaire', func
     $booking = Booking::factory()->create([
         'user_id' => $otherUser->id,
         'trip_id' => $this->trip->id,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
+    ]);
+
+    $luggage = Luggage::factory()->create([
+        'user_id' => $otherUser->id,
+        'status' => LuggageStatusEnum::EN_ATTENTE,
     ]);
 
     $item = BookingItem::factory()->create([
         'booking_id' => $booking->id,
         'trip_id' => $this->trip->id,
+        'luggage_id' => $luggage->id,
     ]);
 
     $response = $this->deleteJson(route('api.v1.booking_items.destroy', $item));

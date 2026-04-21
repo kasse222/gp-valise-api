@@ -12,23 +12,26 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 
+use function Pest\Laravel\actingAs;
+
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
 it('livre une réservation avec succès', function () {
-    $voyageur = User::factory()->create();
+    $voyageur = User::factory()->traveler()->verified()->create();
 
     $trip = Trip::factory()->create([
         'user_id' => $voyageur->id,
     ]);
 
-    $expediteur = User::factory()->create();
+    $expediteur = User::factory()->sender()->verified()->create();
 
-    $booking = Booking::factory()
-        ->for($expediteur)
-        ->for($trip)
-        ->create([
-            'status' => BookingStatusEnum::CONFIRMEE,
-        ]);
+    $booking = Booking::factory()->create([
+        'user_id' => $expediteur->id,
+        'trip_id' => $trip->id,
+        'status' => BookingStatusEnum::CONFIRMEE,
+    ]);
+
+    actingAs($voyageur);
 
     $result = app(CompleteBooking::class)->execute($booking, $voyageur);
 
@@ -41,20 +44,21 @@ it('livre une réservation avec succès', function () {
 it('dispatch BookingDelivered lorsqu une réservation est livrée', function () {
     Event::fake();
 
-    $voyageur = User::factory()->create();
+    $voyageur = User::factory()->traveler()->verified()->create();
 
     $trip = Trip::factory()->create([
         'user_id' => $voyageur->id,
     ]);
 
-    $expediteur = User::factory()->create();
+    $expediteur = User::factory()->sender()->verified()->create();
 
-    $booking = Booking::factory()
-        ->for($expediteur)
-        ->for($trip)
-        ->create([
-            'status' => BookingStatusEnum::CONFIRMEE,
-        ]);
+    $booking = Booking::factory()->create([
+        'user_id' => $expediteur->id,
+        'trip_id' => $trip->id,
+        'status' => BookingStatusEnum::CONFIRMEE,
+    ]);
+
+    actingAs($voyageur);
 
     $result = app(CompleteBooking::class)->execute($booking, $voyageur);
 
@@ -65,20 +69,19 @@ it('dispatch BookingDelivered lorsqu une réservation est livrée', function () 
 });
 
 it('crée automatiquement un payout pending et une commission lorsqu une réservation est livrée', function () {
-    $voyageur = User::factory()->create();
+    $voyageur = User::factory()->traveler()->verified()->create();
 
     $trip = Trip::factory()->create([
         'user_id' => $voyageur->id,
     ]);
 
-    $expediteur = User::factory()->create();
+    $expediteur = User::factory()->sender()->verified()->create();
 
-    $booking = Booking::factory()
-        ->for($expediteur)
-        ->for($trip)
-        ->create([
-            'status' => BookingStatusEnum::CONFIRMEE,
-        ]);
+    $booking = Booking::factory()->create([
+        'user_id' => $expediteur->id,
+        'trip_id' => $trip->id,
+        'status' => BookingStatusEnum::CONFIRMEE,
+    ]);
 
     Transaction::factory()->create([
         'user_id' => $expediteur->id,
@@ -88,6 +91,8 @@ it('crée automatiquement un payout pending et une commission lorsqu une réserv
         'amount' => 120.50,
         'processed_at' => now(),
     ]);
+
+    actingAs($voyageur);
 
     app(CompleteBooking::class)->execute($booking, $voyageur);
 
@@ -104,29 +109,28 @@ it('crée automatiquement un payout pending et une commission lorsqu une réserv
     expect($payout)->not->toBeNull()
         ->and($payout->user_id)->toBe($voyageur->id)
         ->and($payout->status)->toBe(TransactionStatusEnum::PENDING)
-        ->and($payout->amount)->toBe(102.42);
+        ->and((float) $payout->amount)->toBe(102.42);
 
     expect($fee)->not->toBeNull()
         ->and($fee->user_id)->toBe($voyageur->id)
         ->and($fee->status)->toBe(TransactionStatusEnum::COMPLETED)
-        ->and($fee->amount)->toBe(18.08);
+        ->and((float) $fee->amount)->toBe(18.08);
 });
 
 it('ne crée pas de deuxième payout si un payout existe déjà', function () {
-    $voyageur = User::factory()->create();
+    $voyageur = User::factory()->traveler()->verified()->create();
 
     $trip = Trip::factory()->create([
         'user_id' => $voyageur->id,
     ]);
 
-    $expediteur = User::factory()->create();
+    $expediteur = User::factory()->sender()->verified()->create();
 
-    $booking = Booking::factory()
-        ->for($expediteur)
-        ->for($trip)
-        ->create([
-            'status' => BookingStatusEnum::LIVREE,
-        ]);
+    $booking = Booking::factory()->create([
+        'user_id' => $expediteur->id,
+        'trip_id' => $trip->id,
+        'status' => BookingStatusEnum::LIVREE,
+    ]);
 
     Transaction::factory()->create([
         'user_id' => $expediteur->id,

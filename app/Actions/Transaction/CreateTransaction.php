@@ -49,7 +49,12 @@ class CreateTransaction
                 ]);
             }
 
-            if ($booking->transaction()->exists()) {
+            $existingCharge = Transaction::query()
+                ->where('booking_id', $booking->id)
+                ->where('type', TransactionTypeEnum::CHARGE)
+                ->exists();
+
+            if ($existingCharge) {
                 throw ValidationException::withMessages([
                     'booking_id' => 'Une transaction existe déjà pour ce booking.',
                 ]);

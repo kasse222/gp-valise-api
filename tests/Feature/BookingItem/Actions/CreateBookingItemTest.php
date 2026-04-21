@@ -1,6 +1,8 @@
 <?php
 
 use App\Actions\BookingItem\CreateBookingItem;
+use App\Enums\BookingStatusEnum;
+use App\Enums\LuggageStatusEnum;
 use App\Models\Booking;
 use App\Models\BookingItem;
 use App\Models\Luggage;
@@ -20,10 +22,12 @@ it('crée un booking item cohérent avec le booking, le trip et la valise', func
     $booking = Booking::factory()->create([
         'user_id' => $user->id,
         'trip_id' => $trip->id,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
     ]);
 
     $luggage = Luggage::factory()->create([
         'user_id' => $user->id,
+        'status' => LuggageStatusEnum::EN_ATTENTE,
     ]);
 
     $data = [
