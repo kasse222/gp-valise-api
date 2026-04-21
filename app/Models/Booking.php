@@ -5,11 +5,13 @@ namespace App\Models;
 use App\Enums\BookingStatusEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
-use App\Models\BookingStatusHistory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use DomainException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany, HasOne};
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Auth;
 
 class Booking extends Model
@@ -29,44 +31,40 @@ class Booking extends Model
     ];
 
     protected $casts = [
-        'status'         => BookingStatusEnum::class,
-        'confirmed_at'   => 'datetime',
-        'completed_at'   => 'datetime',
-        'cancelled_at'   => 'datetime',
-        'expired_at'      => 'datetime',
+        'status' => BookingStatusEnum::class,
+        'confirmed_at' => 'datetime',
+        'completed_at' => 'datetime',
+        'cancelled_at' => 'datetime',
+        'expired_at' => 'datetime',
         'payment_expires_at' => 'datetime',
     ];
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | Boot : audit du statut initial
-    |--------------------------------------------------------------------------
-    */
     protected static bool $disableStatusAutoCreate = false;
 
     public static function disableAutoStatusCreation(): void
     {
         static::$disableStatusAutoCreate = true;
     }
+
     protected static function booted(): void
     {
         static::created(function (Booking $booking) {
             if (self::$disableStatusAutoCreate) {
                 return;
             }
+
             $booking->statusHistories()->create([
                 'old_status' => null,
                 'new_status' => $booking->status,
                 'changed_by' => $booking->user_id,
-                'reason'     => 'Création initiale',
+                'reason' => 'Création initiale',
             ]);
         });
     }
 
     /*
     |--------------------------------------------------------------------------
-    | 🔗 Relations
+    | Relations
     |--------------------------------------------------------------------------
     */
 
@@ -85,9 +83,6 @@ class Booking extends Model
         return $this->hasMany(BookingItem::class);
     }
 
-    /**
-     * Alias de la relation canonique bookingItems (compatibilité).
-     */
     public function items(): HasMany
     {
         return $this->bookingItems();
@@ -97,19 +92,29 @@ class Booking extends Model
     {
         return $this->hasMany(BookingStatusHistory::class);
     }
-    public function transactions(): HasMany
-    {
-        return $this->hasMany(Transaction::class);
-    }
+
+    /**
+     * Compat legacy : certains flux regardent encore la charge principale.
+     */
     public function transaction(): HasOne
     {
         return $this->hasOne(Transaction::class)
             ->where('type', TransactionTypeEnum::CHARGE);
     }
 
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class);
+    }
+
+    public function reports()
+    {
+        return $this->morphMany(Report::class, 'reportable');
+    }
+
     /*
     |--------------------------------------------------------------------------
-    | ⚙️ Méthodes Métier : statut
+    | Helpers métier
     |--------------------------------------------------------------------------
     */
 
@@ -131,20 +136,28 @@ class Booking extends Model
     public function transitionTo(BookingStatusEnum $newStatus, ?User $changer = null, ?string $reason = null): void
     {
         if (! $this->canTransitionTo($newStatus)) {
-            throw new \DomainException("❌ Transition non autorisée de {$this->status->value} → {$newStatus->value}");
+            throw new DomainException(
+                "Transition non autorisée de {$this->status->value} vers {$newStatus->value}"
+            );
         }
 
-        // Timestamps associés au changement de statut
         match ($newStatus) {
             BookingStatusEnum::CONFIRMEE => $this->confirmed_at = now(),
-            BookingStatusEnum::TERMINE   => $this->completed_at = now(),
-            BookingStatusEnum::ANNULE    => $this->cancelled_at = now(),
-            default                      => null,
+            BookingStatusEnum::LIVREE,
+            BookingStatusEnum::TERMINE => $this->completed_at = now(),
+            BookingStatusEnum::ANNULE => $this->cancelled_at = now(),
+            BookingStatusEnum::EXPIREE => $this->expired_at = now(),
+            default => null,
         };
 
-        if ($newStatus === BookingStatusEnum::EXPIREE) {
-            $this->expired_at = now();
-            $this->payment_expires_at = null;
+        if ($newStatus !== BookingStatusEnum::EN_PAIEMENT) {
+            $this->payment_expires_at = match ($newStatus) {
+                BookingStatusEnum::CONFIRMEE,
+                BookingStatusEnum::ANNULE,
+                BookingStatusEnum::EXPIREE,
+                BookingStatusEnum::PAIEMENT_ECHOUE => null,
+                default => $this->payment_expires_at,
+            };
         }
 
         $oldStatus = $this->status;
@@ -159,52 +172,46 @@ class Booking extends Model
         ]);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🔐 Vérification des droits métier selon utilisateur
-    |--------------------------------------------------------------------------
-    */
-
     public function canBeUpdatedTo(BookingStatusEnum $newStatus, ?User $user = null): bool
     {
-
         $user ??= Auth::user();
 
-        return match (true) {
-            // Expéditeur peut annuler une résa en attente ou acceptée
-            $this->status === BookingStatusEnum::EN_ATTENTE
-                && $newStatus === BookingStatusEnum::ANNULE
-                && $user->id === $this->user_id => true,
+        if (! $user) {
+            return false;
+        }
 
-            // Voyageur peut confirmer
+        $travelerId = $this->trip?->user_id;
+        $senderId = $this->user_id;
+
+        return match (true) {
+            $this->status === BookingStatusEnum::EN_PAIEMENT
+                && $newStatus === BookingStatusEnum::ANNULE
+                && $user->id === $senderId => true,
+
             $this->status === BookingStatusEnum::EN_PAIEMENT
                 && $newStatus === BookingStatusEnum::CONFIRMEE
-                && $user->id === $this->trip->user_id => true,
+                && $user->id === $travelerId => true,
 
-            // Livraison possible par le voyageur
             $this->status === BookingStatusEnum::CONFIRMEE
                 && $newStatus === BookingStatusEnum::LIVREE
-                && $user->id === $this->trip->user_id => true,
+                && $user->id === $travelerId => true,
+
+            $this->status === BookingStatusEnum::LIVREE
+                && $newStatus === BookingStatusEnum::EN_LITIGE
+                && in_array($user->id, [$senderId, $travelerId], true) => true,
 
             default => false,
         };
     }
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | 📄 Aliases lisibles
-    |--------------------------------------------------------------------------
-    */
-
     public function isConfirmed(): bool
     {
-        return $this->is(BookingStatusEnum::CONFIRMEE);
+        return $this->status === BookingStatusEnum::CONFIRMEE;
     }
 
     public function isCancelled(): bool
     {
-        return $this->is(BookingStatusEnum::ANNULE);
+        return $this->status === BookingStatusEnum::ANNULE;
     }
 
     public function canBeCancelled(): bool
@@ -231,10 +238,6 @@ class Booking extends Model
     {
         return $this->status->canBeRefunded();
     }
-    public function reports(): \Illuminate\Database\Eloquent\Relations\MorphMany
-    {
-        return $this->morphMany(Report::class, 'reportable');
-    }
 
     public function isPaymentExpired(): bool
     {
@@ -242,18 +245,11 @@ class Booking extends Model
             && $this->payment_expires_at !== null
             && $this->payment_expires_at->isPast();
     }
+
     public function isAwaitingPayment(): bool
     {
         return $this->status === BookingStatusEnum::EN_PAIEMENT
             && $this->payment_expires_at?->isFuture();
-    }
-
-    public function hasSuccessfulChargeTransaction(): bool
-    {
-        return $this->transactions()
-            ->where('type', TransactionTypeEnum::CHARGE)
-            ->where('status', TransactionStatusEnum::COMPLETED)
-            ->exists();
     }
 
     public function hasPayoutTransaction(): bool
@@ -263,20 +259,6 @@ class Booking extends Model
             ->exists();
     }
 
-    public function canTriggerPayout(): bool
-    {
-        return $this->status === BookingStatusEnum::LIVREE
-            && $this->hasSuccessfulChargeTransaction()
-            && ! $this->hasPayoutTransaction()
-            && ! $this->hasFeeTransaction();
-    }
-
-    public function hasFeeTransaction(): bool
-    {
-        return $this->transactions()
-            ->where('type', TransactionTypeEnum::FEE)
-            ->exists();
-    }
     public function hasRefundTransaction(): bool
     {
         return $this->transactions()
@@ -284,22 +266,50 @@ class Booking extends Model
             ->exists();
     }
 
+    public function hasCompletedChargeTransaction(): bool
+    {
+        return $this->transactions()
+            ->where('type', TransactionTypeEnum::CHARGE)
+            ->where('status', TransactionStatusEnum::COMPLETED)
+            ->exists();
+    }
+
+    public function canTriggerPayout(): bool
+    {
+        return $this->status === BookingStatusEnum::LIVREE
+            && $this->hasCompletedChargeTransaction()
+            && ! $this->hasPayoutTransaction();
+    }
+
     public function canTriggerRefund(): bool
     {
-        return $this->status === BookingStatusEnum::EN_LITIGE
-            && ! $this->hasPayoutTransaction()
-            && $this->hasSuccessfulChargeTransaction()
-            && ! $this->hasRefundTransaction();
+        return in_array($this->status, [
+            BookingStatusEnum::CONFIRMEE,
+            BookingStatusEnum::LIVREE,
+            BookingStatusEnum::EN_LITIGE,
+        ], true)
+            && $this->hasCompletedChargeTransaction()
+            && ! $this->hasRefundTransaction()
+            && ! $this->hasPayoutTransaction();
     }
+
+    public function hasSuccessfulChargeTransaction(): bool
+    {
+        return $this->transactions()
+            ->where('type', \App\Enums\TransactionTypeEnum::CHARGE)
+            ->where('status', \App\Enums\TransactionStatusEnum::COMPLETED)
+            ->exists();
+    }
+
     public function refundableAmount(): float
     {
         $charge = $this->transactions()
-            ->where('type', TransactionTypeEnum::CHARGE)
-            ->where('status', TransactionStatusEnum::COMPLETED)
+            ->where('type', \App\Enums\TransactionTypeEnum::CHARGE)
+            ->where('status', \App\Enums\TransactionStatusEnum::COMPLETED)
             ->sum('amount');
 
         $refunds = $this->transactions()
-            ->where('type', TransactionTypeEnum::REFUND)
+            ->where('type', \App\Enums\TransactionTypeEnum::REFUND)
             ->sum('amount');
 
         return max(0, $charge - $refunds);

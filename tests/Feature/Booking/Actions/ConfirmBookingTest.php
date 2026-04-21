@@ -15,25 +15,26 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Validation\ValidationException;
 
+use function Pest\Laravel\actingAs;
+
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
 it('confirme une réservation avec succès si la capacité le permet', function () {
-    $voyageur = User::factory()->create();
+    $voyageur = User::factory()->traveler()->verified()->create();
 
     $trip = Trip::factory()->create([
         'user_id' => $voyageur->id,
         'capacity' => 20,
     ]);
 
-    $expediteur = User::factory()->create();
+    $expediteur = User::factory()->sender()->verified()->create();
 
-    $booking = Booking::factory()
-        ->for($expediteur)
-        ->for($trip)
-        ->create([
-            'status' => BookingStatusEnum::EN_PAIEMENT,
-            'payment_expires_at' => now()->addMinutes(10),
-        ]);
+    $booking = Booking::factory()->create([
+        'user_id' => $expediteur->id,
+        'trip_id' => $trip->id,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
+        'payment_expires_at' => now()->addMinutes(10),
+    ]);
 
     $luggage = Luggage::factory()->for($expediteur)->create();
 
@@ -51,6 +52,8 @@ it('confirme une réservation avec succès si la capacité le permet', function 
         'type' => TransactionTypeEnum::CHARGE,
         'status' => TransactionStatusEnum::COMPLETED,
     ]);
+
+    actingAs($voyageur);
 
     $result = app(ConfirmBooking::class)->execute($booking, $voyageur);
 
@@ -63,22 +66,21 @@ it('confirme une réservation avec succès si la capacité le permet', function 
 it('dispatch BookingConfirmed lorsqu une réservation est confirmée', function () {
     Event::fake();
 
-    $voyageur = User::factory()->create();
+    $voyageur = User::factory()->traveler()->verified()->create();
 
     $trip = Trip::factory()->create([
         'user_id' => $voyageur->id,
         'capacity' => 20,
     ]);
 
-    $expediteur = User::factory()->create();
+    $expediteur = User::factory()->sender()->verified()->create();
 
-    $booking = Booking::factory()
-        ->for($expediteur)
-        ->for($trip)
-        ->create([
-            'status' => BookingStatusEnum::EN_PAIEMENT,
-            'payment_expires_at' => now()->addMinutes(10),
-        ]);
+    $booking = Booking::factory()->create([
+        'user_id' => $expediteur->id,
+        'trip_id' => $trip->id,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
+        'payment_expires_at' => now()->addMinutes(10),
+    ]);
 
     $luggage = Luggage::factory()->for($expediteur)->create();
 
@@ -97,6 +99,8 @@ it('dispatch BookingConfirmed lorsqu une réservation est confirmée', function 
         'status' => TransactionStatusEnum::COMPLETED,
     ]);
 
+    actingAs($voyageur);
+
     $result = app(ConfirmBooking::class)->execute($booking, $voyageur);
 
     Event::assertDispatched(BookingConfirmed::class, function (BookingConfirmed $event) use ($result) {
@@ -106,22 +110,21 @@ it('dispatch BookingConfirmed lorsqu une réservation est confirmée', function 
 });
 
 it('rejette la confirmation si aucune transaction de charge complétée n’existe', function () {
-    $voyageur = User::factory()->create();
+    $voyageur = User::factory()->traveler()->verified()->create();
 
     $trip = Trip::factory()->create([
         'user_id' => $voyageur->id,
         'capacity' => 20,
     ]);
 
-    $expediteur = User::factory()->create();
+    $expediteur = User::factory()->sender()->verified()->create();
 
-    $booking = Booking::factory()
-        ->for($expediteur)
-        ->for($trip)
-        ->create([
-            'status' => BookingStatusEnum::EN_PAIEMENT,
-            'payment_expires_at' => now()->addMinutes(10),
-        ]);
+    $booking = Booking::factory()->create([
+        'user_id' => $expediteur->id,
+        'trip_id' => $trip->id,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
+        'payment_expires_at' => now()->addMinutes(10),
+    ]);
 
     $luggage = Luggage::factory()->for($expediteur)->create();
 
@@ -132,6 +135,8 @@ it('rejette la confirmation si aucune transaction de charge complétée n’exis
         'kg_reserved' => 5,
         'price' => 50,
     ]);
+
+    actingAs($voyageur);
 
     expect($booking->transaction()->exists())->toBeFalse();
 

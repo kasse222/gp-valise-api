@@ -1,51 +1,78 @@
+Oui. Le fond est bon, mais le document peut être **resserré, clarifié et rendu plus crédible techniquement**.
+
+Je te passe une version **refactorisée propre**, plus alignée avec ton code actuel et plus solide en review.
+
+---
+
+## Branche utilisée
+
+`refactor/booking-lifecycle`
+
+## Objectif
+
+Clarifier le flow `Booking` autour de :
+
+- concurrence
+- locking
+- idempotence
+- capacité
+- séparation des responsabilités
+
+---
+
+# Version refactorisée
+
+````md
 # 🔐 Booking Flow — Concurrency, Locking & Idempotence
 
 ## 🎯 Objectif
 
-Mettre en place un système de réservation robuste capable de :
+Mettre en place un flow de réservation robuste capable de :
 
 - gérer la concurrence entre requêtes simultanées,
 - éviter le surbooking,
-- garantir la cohérence métier,
-- rester idempotent en cas de retry, replay batch ou double exécution.
+- préserver la cohérence métier,
+- rester idempotent en cas de retry HTTP, replay batch ou double exécution.
 
 ---
 
-## 📦 1. Sous-flow métier couvert par ce document
+## 📦 1. Périmètre métier couvert
 
-Ce document se concentre sur le sous-flow critique du paiement et de l’expiration d’un booking :
+Ce document se concentre sur le sous-flow critique de réservation, paiement et expiration :
 
 ```text
 EN_PAIEMENT → CONFIRMEE
       ↓
    EXPIREE
 ```
+````
 
 ### Règles métier
 
 - un booking est créé en `EN_PAIEMENT`,
-- la capacité est bloquée temporairement,
-- si le paiement aboutit, le booking passe en `CONFIRMEE`,
-- si le délai de paiement est dépassé, le booking passe en `EXPIREE`,
+- la capacité du trip est bloquée temporairement,
+- les valises associées sont réservées pendant la fenêtre de paiement,
+- si le paiement aboutit et que les conditions métier restent valides, le booking passe en `CONFIRMEE`,
+- si le délai de paiement expire, le booking passe en `EXPIREE`,
 - une expiration libère les ressources réservées.
 
-> Le modèle global de `BookingStatusEnum` est plus riche, mais ce document cible le cœur du flow paiement/expiration.
+> Le `BookingStatusEnum` couvre un cycle de vie plus large, mais ce document se limite volontairement au cœur du flow paiement / expiration.
 
 ---
 
-## ⚖️ 2. Capacity semantics
+## ⚖️ 2. Sémantique de capacité
 
 ### Règle métier
 
-Un trip considère comme occupés :
+Un trip considère comme **occupés** :
 
 - les bookings `CONFIRMEE`,
 - les bookings `EN_PAIEMENT` dont `payment_expires_at` n’est pas dépassé.
 
-Ne comptent pas :
+Un trip ne considère pas comme occupés :
 
 - les bookings `EN_PAIEMENT` expirés,
-- les bookings finaux non actifs (`ANNULE`, `REFUSE`, `EXPIREE`, etc.).
+- les bookings finaux non actifs (`ANNULE`, `EXPIREE`, etc.).
 
 ### Implémentation
 
@@ -55,17 +82,23 @@ La capacité réservée est calculée dans :
 Trip::kgReserved()
 ```
 
-et utilisée dans :
+et exploitée dans :
 
 ```php
 Trip::canAcceptKg()
 ```
 
-Cette règle aligne enfin le calcul de capacité avec le métier : `EN_PAIEMENT` bloque temporairement les kg, `EXPIREE` les libère.
+### Conséquence
+
+Cette règle aligne enfin le calcul de capacité avec le métier réel :
+
+- `EN_PAIEMENT` bloque temporairement les kg,
+- `EXPIREE` les libère,
+- `CONFIRMEE` les conserve jusqu’à l’étape suivante du lifecycle.
 
 ---
 
-## 🔒 3. Concurrence & locking
+## 🔒 3. Concurrence et verrouillage
 
 ### Risque
 
@@ -73,7 +106,8 @@ Sans verrouillage transactionnel :
 
 - deux requêtes lisent la même capacité disponible,
 - les deux passent la validation,
-- la capacité est dépassée.
+- les deux réservent,
+- la capacité réelle est dépassée.
 
 ### Réponse technique
 
@@ -83,27 +117,29 @@ Les opérations critiques sont exécutées dans :
 DB::transaction(...)
 ```
 
-avec verrouillage pessimiste :
+avec verrouillage pessimiste.
 
-#### verrou sur le Trip
-
-```php
-->lockForUpdate()
-```
-
-Il protège la décision sur la capacité globale.
-
-#### verrou sur les Luggages
+### Verrou sur le trip
 
 ```php
-->whereIn(...)->lockForUpdate()
+Trip::query()->lockForUpdate()->findOrFail(...)
 ```
 
-Il empêche la double réservation concurrente d’une même valise.
+Ce verrou protège la décision globale sur la capacité.
+
+### Verrou sur les valises
+
+```php
+Luggage::query()->whereIn(...)->lockForUpdate()->get()
+```
+
+Ce verrou empêche la double réservation concurrente d’une même valise.
 
 ### Principe
 
-> Une règle métier lue sans verrou peut devenir fausse immédiatement après lecture.
+> Une règle métier lue sans verrou peut devenir fausse immédiatement après la lecture.
+
+Le verrouillage garantit que la validation et l’écriture sont faites sur un état cohérent.
 
 ---
 
@@ -111,21 +147,25 @@ Il empêche la double réservation concurrente d’une même valise.
 
 ### Risques réels
 
+Le flow doit rester stable face à :
+
 - retry HTTP,
 - double clic utilisateur,
-- batch rejoué,
-- scheduler exécuté plusieurs fois,
-- job relancé après incident.
+- scheduler rejoué,
+- job relancé,
+- batch exécuté plusieurs fois.
 
 ### Stratégie
 
-#### 1. Relecture en base sous transaction
+#### 1. Relecture en base sous verrou
 
 ```php
 Booking::query()->lockForUpdate()->find(...)
 ```
 
-#### 2. Guards métier
+#### 2. Guards métier explicites
+
+Exemples :
 
 ```php
 if ($booking->status !== BookingStatusEnum::EN_PAIEMENT) {
@@ -149,34 +189,36 @@ if (! $booking->canTransitionTo(BookingStatusEnum::EXPIREE)) {
 
 - 1re exécution : effet métier réel,
 - 2e exécution : aucun effet secondaire supplémentaire,
-- état final stable.
+- état final stable et cohérent.
 
 L’objectif n’est pas seulement d’éviter l’erreur, mais d’éviter de **rejouer les side effects**.
 
 ---
 
-## 🧪 5. Tests couverts
+## 🧪 5. Couverture de tests
 
-Les tests vérifient notamment :
+Les tests couvrent notamment :
 
-- la bonne sémantique de capacité,
-- le blocage des kg en `EN_PAIEMENT` non expiré,
+- la sémantique de capacité,
+- le blocage temporaire des kg en `EN_PAIEMENT`,
 - la libération des valises à expiration,
-- l’absence de double historique lors d’une seconde expiration,
-- la stabilité de `expired_at` et de `payment_expires_at`,
-- la cohérence du flow batch d’expiration.
+- l’idempotence de l’expiration,
+- l’absence de double historique métier,
+- la stabilité de `expired_at` et `payment_expires_at`,
+- le comportement du batch d’expiration.
 
-Exemple d’idempotence :
+### Exemple d’idempotence
 
 ```php
 ExpirePendingBooking::execute($booking);
 ExpirePendingBooking::execute($booking);
 ```
 
-Attendu :
+### Attendu
 
 - pas de double expiration,
 - pas de double historique,
+- pas de double libération de ressources,
 - pas de side effects répétés.
 
 ---
@@ -197,7 +239,7 @@ Controller → Action → Model / Enum
 - `Enum` → états, transitions et comportements métier purs
 - `Policy` → contrôle d’accès
 
-Cette structure suit l’architecture cible du projet GP-Valise.
+Cette structure suit l’architecture cible de GP-Valise et permet de limiter la duplication des règles métier.
 
 ---
 
@@ -218,33 +260,41 @@ if ($newStatus === BookingStatusEnum::EXPIREE) {
 }
 ```
 
-Cela évite de dupliquer la logique dans plusieurs Actions et garantit un changement d’état cohérent.
+### Bénéfice
+
+Cela évite :
+
+- la duplication de logique dans plusieurs Actions,
+- les incohérences de timestamp,
+- les transitions partielles ou non traçables.
 
 ---
 
 ## 🚀 8. Résultat
 
-### Booking flow
+### Flow métier couvert
 
 - `EN_PAIEMENT -> CONFIRMEE`
 - `EN_PAIEMENT -> EXPIREE`
 
 ### Concurrence
 
-- verrouillage sur `Trip`
-- verrouillage sur `Luggage`
-- validation de capacité dans la transaction
+- verrouillage du `Trip`
+- verrouillage des `Luggage`
+- validation de capacité à l’intérieur de la transaction
 
 ### Idempotence
 
 - relecture DB sous verrou
 - guards métier
-- replays sans effets secondaires supplémentaires
+- replays sans side effects supplémentaires
 
 ### Robustesse
 
-- batch d’expiration cohérent,
+- expiration batch cohérente,
 - ressources libérées correctement,
-- comportement stable sous retry et sous charge.
+- comportement stable sous retry, replay et charge concurrente.
 
----
+```
+
+```

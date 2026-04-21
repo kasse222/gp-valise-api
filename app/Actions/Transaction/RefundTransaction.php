@@ -3,6 +3,7 @@
 namespace App\Actions\Transaction;
 
 use App\Contracts\Payments\PaymentProvider;
+use App\Enums\BookingStatusEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Events\TransactionRefunded;
@@ -46,13 +47,50 @@ class RefundTransaction
                 ->lockForUpdate()
                 ->get();
 
-            if (! $booking->canTriggerRefund()) {
+            if (! in_array($booking->status, [
+                BookingStatusEnum::CONFIRMEE,
+                BookingStatusEnum::LIVREE,
+                BookingStatusEnum::EN_LITIGE,
+            ], true)) {
                 throw ValidationException::withMessages([
                     'booking' => 'Ce booking ne peut pas déclencher de remboursement.',
                 ]);
             }
 
-            $refundAmount = $booking->refundableAmount();
+            $hasPayout = Transaction::query()
+                ->where('booking_id', $booking->id)
+                ->where('type', TransactionTypeEnum::PAYOUT)
+                ->exists();
+
+            if ($hasPayout) {
+                throw ValidationException::withMessages([
+                    'booking' => 'Ce booking ne peut pas déclencher de remboursement.',
+                ]);
+            }
+
+            $hasRefund = Transaction::query()
+                ->where('booking_id', $booking->id)
+                ->where('type', TransactionTypeEnum::REFUND)
+                ->exists();
+
+            if ($hasRefund) {
+                throw ValidationException::withMessages([
+                    'booking' => 'Ce booking ne peut pas déclencher de remboursement.',
+                ]);
+            }
+
+            $completedChargeAmount = (float) Transaction::query()
+                ->where('booking_id', $booking->id)
+                ->where('type', TransactionTypeEnum::CHARGE)
+                ->where('status', TransactionStatusEnum::COMPLETED)
+                ->sum('amount');
+
+            $completedRefundAmount = (float) Transaction::query()
+                ->where('booking_id', $booking->id)
+                ->where('type', TransactionTypeEnum::REFUND)
+                ->sum('amount');
+
+            $refundAmount = round($completedChargeAmount - $completedRefundAmount, 2);
 
             if ($refundAmount <= 0) {
                 throw ValidationException::withMessages([

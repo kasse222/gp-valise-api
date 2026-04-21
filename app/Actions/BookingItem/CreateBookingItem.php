@@ -11,8 +11,7 @@ class CreateBookingItem
     public static function execute(Booking $booking, array $data): BookingItem
     {
         // 1. Vérifications métier
-        app(BookingItemValidator::class)->validate($booking, $data);
-
+        app(BookingItemValidator::class)->validateCreate($booking, $data);
         // 2. Ajouts explicites
         $data['booking_id'] = $booking->id;
         $data['trip_id'] = $booking->trip_id; // 💡 fix critique ici

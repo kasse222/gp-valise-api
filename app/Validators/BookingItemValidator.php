@@ -11,13 +11,18 @@ class BookingItemValidator
 {
     public function validate(Booking $booking, array $data): void
     {
-        $luggage = Luggage::findOrFail($data['luggage_id']);
+        $this->validateCreate($booking, $data);
+    }
 
+    public function validateCreate(Booking $booking, array $data): void
+    {
         if ($booking->isFinal()) {
             throw ValidationException::withMessages([
                 'booking_item' => 'Impossible d’ajouter un élément à une réservation finalisée.',
             ]);
         }
+
+        $luggage = Luggage::findOrFail($data['luggage_id']);
 
         if ($luggage->user_id !== $booking->user_id) {
             throw ValidationException::withMessages([
@@ -34,6 +39,12 @@ class BookingItemValidator
         if (isset($data['kg_reserved']) && $data['kg_reserved'] <= 0) {
             throw ValidationException::withMessages([
                 'kg_reserved' => 'Le poids réservé doit être supérieur à zéro.',
+            ]);
+        }
+
+        if (isset($data['price']) && $data['price'] < 0) {
+            throw ValidationException::withMessages([
+                'price' => 'Le prix ne peut pas être négatif.',
             ]);
         }
     }

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Transaction;
 
+use App\Enums\BookingStatusEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Models\Booking;
@@ -21,13 +22,19 @@ class CreatePayoutTransaction
                 ->lockForUpdate()
                 ->findOrFail($booking->id);
 
-            if (! $booking->canTriggerPayout()) {
+            Transaction::query()
+                ->where('booking_id', $booking->id)
+                ->lockForUpdate()
+                ->get();
+
+            if ($booking->status !== BookingStatusEnum::LIVREE) {
                 throw ValidationException::withMessages([
                     'booking' => 'Ce booking ne peut pas déclencher de payout.',
                 ]);
             }
 
-            $charge = $booking->transactions()
+            $charge = Transaction::query()
+                ->where('booking_id', $booking->id)
                 ->where('type', TransactionTypeEnum::CHARGE)
                 ->where('status', TransactionStatusEnum::COMPLETED)
                 ->latest()
@@ -35,17 +42,29 @@ class CreatePayoutTransaction
 
             if (! $charge) {
                 throw ValidationException::withMessages([
-                    'booking' => 'Aucune transaction de charge complétée trouvée.',
+                    'booking' => 'Ce booking ne peut pas déclencher de payout.',
                 ]);
             }
 
-            $existingFee = $booking->transactions()
+            $hasPayout = Transaction::query()
+                ->where('booking_id', $booking->id)
+                ->where('type', TransactionTypeEnum::PAYOUT)
+                ->exists();
+
+            if ($hasPayout) {
+                throw ValidationException::withMessages([
+                    'booking' => 'Ce booking ne peut pas déclencher de payout.',
+                ]);
+            }
+
+            $hasFee = Transaction::query()
+                ->where('booking_id', $booking->id)
                 ->where('type', TransactionTypeEnum::FEE)
                 ->exists();
 
-            if ($existingFee) {
+            if ($hasFee) {
                 throw ValidationException::withMessages([
-                    'booking' => 'Une commission existe déjà pour ce booking.',
+                    'booking' => 'Ce booking ne peut pas déclencher de payout.',
                 ]);
             }
 
