@@ -289,6 +289,9 @@ Cela évite :
 - guards métier
 - replays sans side effects supplémentaires
 
+a faire
+"""Optimiser la réservation hot-spot avec une stratégie de capacité atomique ou une sérialisation par trip_id.
+
 ### Robustesse
 
 - expiration batch cohérente,
