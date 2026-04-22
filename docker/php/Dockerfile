@@ -80,6 +80,9 @@ COPY . .
 # Environnement Docker local
 COPY .env.docker .env
 
+# Configuration PHP custom
+COPY docker/php/conf.d/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
+
 # Permissions Laravel
 RUN mkdir -p storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache \
