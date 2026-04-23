@@ -13,12 +13,16 @@ GP-Valise modélise un **cas réel de marketplace transactionnelle**, avec gesti
 
 ---
 
-![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)
-[![Laravel 12](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com)
-[![Docker](https://img.shields.io/badge/containerized-Docker-blue)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-184%20passing-brightgreen)](#tests)
+[![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)](https://github.com/kasse222/gp-valise-api/actions)
+[![Tests](https://img.shields.io/badge/tests-185%20passing-brightgreen)](#tests)
 
----
+⚡ Runtime des tests :
+
+- ~8s en local (SQLite in-memory)
+- ~3.2s en CI (GitHub Actions)
+
+- ✅ **185 tests**
+- ✅ **531 assertions**
 
 ## 🚀 Vision produit
 
@@ -39,7 +43,7 @@ Le système repose sur trois piliers :
 ## 🧠 Core Capabilities
 
 - Booking lifecycle robuste (state machine métier)
-- Gestion de capacité avec concurrence (lockForUpdate)
+- Gestion de capacité avec concurrence (`lockForUpdate`)
 - Paiements asynchrones (webhook-driven)
 - Transactions traçables (charge / payout / refund)
 - Idempotence complète (webhook, batch, actions)
@@ -53,14 +57,18 @@ Le système repose sur trois piliers :
 
 ### Pattern principal
 
-```text
+```
+
 Controller → Action → Model / Enum / Validator
+
 ```
 
 ### Traitements async
 
-```text
+```
+
 WebhookController → Job → Action → Model
+
 ```
 
 ### Responsabilités
@@ -79,29 +87,33 @@ WebhookController → Job → Action → Model
 
 ### 📦 Booking lifecycle
 
-```text
+```
+
 EN_ATTENTE → EN_PAIEMENT → CONFIRMEE
-                     ↓
-                  EXPIREE
+↓
+EXPIREE
 
 CONFIRMEE → LIVREE → TERMINE
 
 LIVREE → EN_LITIGE → REMBOURSEE
+
 ```
 
 ---
 
 ### 💳 Paiement & refund (async)
 
-```text
-CHARGE → provider → COMPLETED / PENDING / FAILED
+```
+
+CHARGE → provider → COMPLETED / FAILED
 
 REFUND → PENDING
-           ↓
-        webhook
-           ↓
+↓
+webhook
+↓
 COMPLETED → booking REMBOURSEE
-FAILED    → booking reste EN_LITIGE
+FAILED → booking reste EN_LITIGE
+
 ```
 
 ✔️ Idempotence via `event_id`
@@ -109,62 +121,69 @@ FAILED    → booking reste EN_LITIGE
 
 ---
 
-### 📡 Supervision des queues
+## 📡 Monitoring & Queue Strategy
 
-```text
-Scheduler / Command
-   → QueueHealthService
-      → analyse backlog / age / failed / retry storm
-         → classification intelligente
-            → alert Slack async
+- Détection multi-signaux :
+    - backlog
+    - âge des jobs
+    - failed jobs
+    - retry storm
+- Classification :
+    - healthy
+    - traffic_spike
+    - slow_processing
+    - retry_storm_pressure
+    - capacity_pressure
+
+---
+
+## ⚙️ Environnement
+
+### Local (Docker)
+
+- PHP-FPM (app)
+- Nginx
+- Redis (queues)
+- MySQL
+- Horizon (workers)
+- Scheduler
+
+---
+
+## 🧪 Tests
+
+### Commande standard
+
+```bash
+php artisan optimize:clear
+php artisan migrate:fresh
+./vendor/bin/pest
 ```
 
-Statuts possibles :
+### Particularités
 
-- `healthy`
-- `traffic_spike`
-- `slow_processing`
-- `retry_storm_pressure`
-- `capacity_pressure`
+- DB = **SQLite in-memory**
+- Redis utilisé uniquement pour certains tests (monitoring)
+- isolation complète (cache, queue, session en mémoire)
 
----
-
-## ⚙️ Observability & Queue Strategy
-
-### Queues
-
-- `high` → webhooks paiement, jobs critiques
-- `default` → logique métier standard
-- `low` → alerting, tâches secondaires
-
-### Principes
-
-- isolation des charges
-- priorisation métier
-- détection multi-signaux :
-    - backlog
-    - âge du job
-    - failed_jobs
-    - retry storm
-
-### Alerting
-
-- Slack async (queue low)
-- fallback logs + email
-- contexte structuré pour diagnostic rapide
+👉 Configuration centralisée dans `phpunit.xml`
 
 ---
 
-## 🧱 Runtime (Docker)
+## ⚙️ CI (GitHub Actions)
 
-Architecture containerisée :
+Pipeline minimal :
 
-- `app` → PHP-FPM (API)
-- `horizon` → workers Redis
-- `scheduler` → tâches planifiées
-- `nginx` → reverse proxy
-- `redis` → queues / cache
-- `mysql` → base de données
+- install dependencies
+- bootstrap Laravel
+- migrate
+- run Pest
+
+### Points clés
+
+- SQLite pour rapidité
+- Redis service pour tests monitoring
+- aucune dépendance MySQL en CI
 
 ---
 
@@ -177,38 +196,20 @@ Types supportés :
 - `REFUND` → remboursement
 - `FEE` → commission plateforme
 
-### Règles clés
+### Règles métier
 
-- payout déclenché uniquement après livraison
-- refund uniquement si autorisé métier
+- payout après livraison uniquement
+- refund conditionné métier
 - blocage si payout déjà effectué
 - idempotence garantie
 
 ---
 
-## 🧪 Tests
-
-- ✅ **184 tests**
-- ✅ **524 assertions**
-- ⚡ ~6.6s en local
-
-### Couverture
-
-- booking lifecycle
-- expiration batch
-- concurrence
-- webhook async
-- refund
-- queue monitoring
-- sécurité Horizon
-
----
-
 ## 🔐 Sécurité
 
-- Sanctum (auth API)
+- Auth API → Laravel Sanctum
 - Policies par ressource
-- KYC / verified user
+- KYC / utilisateurs vérifiés
 - throttling opérations sensibles
 - signature webhook
 
@@ -216,30 +217,8 @@ Types supportés :
 
 ## 📚 Documentation
 
-- `ARCHITECTURE.md` → architecture complète
-- `AUDIT.md` → évolution technique & décisions
-- `BOOKING_FLOW.md` → concurrence & idempotence
-- `QUEUE_MONITORING_FLOW.md` → supervision & alerting (à venir)
-
----
-
-## 🚀 Installation locale
-
-```bash
-git clone https://github.com/kasse222/gp-valise-api.git
-cd gp-valise-api
-
-make copy-env
-make up
-make key
-make migrate
-make seed
-```
-
-### Accès
-
-- API → [http://localhost:8000](http://localhost:8000)
-- Swagger → [http://localhost:8000/api/documentation](http://localhost:8000/api/documentation)
+- `ARCHITECTURE.md`
+- `AUDIT.md`
 
 ---
 
@@ -247,15 +226,14 @@ make seed
 
 ### Court terme
 
-- finalisation Slack webhook
 - observabilité avancée
+- alerting Slack
 - métriques persistées
 
 ### Moyen terme
 
+- Stripe réel
 - payout async complet
-- refund partiel
-- intégration Stripe réelle
 - auto-scaling workers
 
 ---
@@ -270,10 +248,7 @@ Backend Developer (Laravel / API / SaaS)
 - Docker / CI/CD
 
 📧 [laminekasse.dev@gmail.com](mailto:laminekasse.dev@gmail.com)
-🌍 Objectif court terme : Remote / Maroc
-🌍 Objectif moyen terme : Remote international / Europe
-
----
+🌍 Objectif : Remote / Europe / Freelance
 
 ```
 
