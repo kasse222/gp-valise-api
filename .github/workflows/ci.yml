@@ -40,9 +40,9 @@ jobs:
 
       - name: Prepare Laravel bootstrap
         run: |
-          cp .env.example .env
+          cp .env.ci .env
           php artisan key:generate --force
-          php artisan optimize:clear
+          php artisan config:clear
 
       - name: Run migrations
         run: php artisan migrate --force
