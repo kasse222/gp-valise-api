@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - "feature/**"
+      - "fix/**"
+      - "refactor/**"
+      - "chore/**"
+  pull_request:
+
+jobs:
+  tests:
+    name: Pest test suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, bcmath, pdo_sqlite
+          coverage: none
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare Laravel bootstrap
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+          php artisan optimize:clear
+
+      - name: Run migrations
+        run: php artisan migrate --force
+
+      - name: Run Pest
+        run: ./vendor/bin/pest --colors=always
