@@ -1,255 +1,203 @@
-# ✈️ GP-Valise API — Backend Marketplace Logistique (Laravel)
+# GP-Valise API — Backend Marketplace Logistique (Laravel)
 
 Backend API Laravel pour une plateforme logistique entre voyageurs et expéditeurs.
 
-GP-Valise modélise un **cas réel de marketplace transactionnelle**, avec gestion complète :
-
-- réservations (booking lifecycle)
-- flux financiers (charge, payout, refund)
-- paiements asynchrones (webhooks type Stripe)
-- supervision des queues et alerting
-
-> 🎯 Objectif : construire un backend **cohérent, robuste et prêt pour un environnement SaaS réel**
+GP-Valise modélise un cas réel de marketplace transactionnelle avec gestion complète des réservations, des flux financiers, des paiements asynchrones et de la supervision des queues.
 
 ---
 
 [![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)](https://github.com/kasse222/gp-valise-api/actions)
-[![Tests](https://img.shields.io/badge/tests-185%20passing-brightgreen)](#tests)
-
-⚡ Runtime des tests :
-
-- ~8s en local (SQLite in-memory)
-- ~3.2s en CI (GitHub Actions)
-
-- ✅ **185 tests**
-- ✅ **531 assertions**
-
-## 🚀 Vision produit
-
-GP-Valise est une API backend pour une plateforme logistique de confiance entre :
-
-- **Voyageur** → publie un trajet avec capacité disponible
-- **Expéditeur** → réserve des kg pour transporter un colis
-- **Admin** → supervise flux, litiges et sécurité
-
-Le système repose sur trois piliers :
-
-- **Logistique** → trajets, capacité, livraison
-- **Confiance** → rôles, KYC, signalements
-- **Finance** → transactions, payout, refund
+[![Tests](https://img.shields.io/badge/tests-189%20passing-brightgreen)](#tests)
+[![Laravel](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com)
+[![PHP](https://img.shields.io/badge/PHP-8.2-blue.svg)](https://php.net)
 
 ---
 
-## 🧠 Core Capabilities
+## Contexte produit
 
-- Booking lifecycle robuste (state machine métier)
-- Gestion de capacité avec concurrence (`lockForUpdate`)
-- Paiements asynchrones (webhook-driven)
-- Transactions traçables (charge / payout / refund)
-- Idempotence complète (webhook, batch, actions)
-- Supervision des queues (Redis + Horizon)
-- Alerting critique (Slack async)
-- Architecture orientée cas d’usage (Action-first)
+GP-Valise met en relation trois types d'acteurs :
+
+- **Voyageur** — publie un trajet avec une capacité de transport disponible
+- **Expéditeur** — réserve des kilogrammes pour transporter un colis
+- **Admin** — supervise les flux, les litiges et la sécurité
+
+Le système repose sur trois piliers : logistique (trajets, capacité, livraison), confiance (rôles, KYC, signalements) et finance (transactions, payout, refund).
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
-### Pattern principal
+Pattern principal :
 
 ```
-
 Controller → Action → Model / Enum / Validator
-
 ```
 
-### Traitements async
+Traitements asynchrones :
 
 ```
-
 WebhookController → Job → Action → Model
-
 ```
 
-### Responsabilités
+Répartition des responsabilités :
 
-- Controller → orchestration HTTP
-- Action → logique métier
-- Policy → contrôle d’accès
-- FormRequest → validation
-- Enum → règles métier (state machine)
-- Job → traitement async
-- Service → logique transverse (rare)
+- **Controller** — orchestration HTTP uniquement
+- **Action** — logique métier isolée et testable
+- **Policy** — contrôle d'accès par ressource
+- **FormRequest** — validation des entrées
+- **Enum** — règles métier et state machine
+- **Job** — traitement asynchrone
+- **Service** — logique transverse (utilisé avec parcimonie)
 
 ---
 
-## 🔄 Flows métier clés
+## Flows métier
 
-### 📦 Booking lifecycle
+### Booking lifecycle
 
 ```
-
 EN_ATTENTE → EN_PAIEMENT → CONFIRMEE
-↓
-EXPIREE
+                    |
+                 EXPIREE
 
 CONFIRMEE → LIVREE → TERMINE
-
 LIVREE → EN_LITIGE → REMBOURSEE
-
 ```
 
----
-
-### 💳 Paiement & refund (async)
+### Paiement et refund (asynchrone)
 
 ```
-
 CHARGE → provider → COMPLETED / FAILED
 
-REFUND → PENDING
-↓
-webhook
-↓
-COMPLETED → booking REMBOURSEE
-FAILED → booking reste EN_LITIGE
-
+REFUND → PENDING → webhook → COMPLETED (booking REMBOURSEE)
+                           → FAILED    (booking EN_LITIGE)
 ```
 
-✔️ Idempotence via `event_id`
-✔️ Traitement async via queue `high`
+Idempotence garantie via `event_id`. Traitement via queue `high`.
+
+### Supervision des queues
+
+```
+Scheduler → QueueHealthService → classification → alerte Slack async
+```
+
+Classifications possibles : `healthy`, `traffic_spike`, `slow_processing`, `retry_storm_pressure`, `capacity_pressure`.
 
 ---
 
-## 📡 Monitoring & Queue Strategy
+## Points techniques notables
 
-- Détection multi-signaux :
-    - backlog
-    - âge des jobs
-    - failed jobs
-    - retry storm
-- Classification :
-    - healthy
-    - traffic_spike
-    - slow_processing
-    - retry_storm_pressure
-    - capacity_pressure
+- Concurrence maîtrisée via `lockForUpdate` sur les réservations et paiements
+- Idempotence complète sur les webhooks, batch et actions métier
+- `ShouldDispatchAfterCommit` sur tous les events pour éviter les dispatches avant commit DB
+- Trois tiers de queues (`high`, `default`, `low`) avec superviseurs configurés par environnement
+- Détection de retry storm via `QueueProtectionService`
+- Transactions comme source de vérité financière (charge / payout / refund / fee)
+- State machine métier dans les Enums avec matrice de transitions et audit trail
 
 ---
 
-## ⚙️ Environnement
-
-### Local (Docker)
-
-- PHP-FPM (app)
-- Nginx
-- Redis (queues)
-- MySQL
-- Horizon (workers)
-- Scheduler
-
----
-
-## 🧪 Tests
-
-### Commande standard
+## Tests
 
 ```bash
-php artisan optimize:clear
-php artisan migrate:fresh
-./vendor/bin/pest
+make test
 ```
 
-### Particularités
+- 189 tests, 537 assertions
+- Runtime : ~2s en local (SQLite in-memory via Docker), ~3.8s en CI
+- Base : SQLite in-memory — isolation complète par test
+- Redis réel utilisé pour les tests de monitoring des queues
 
-- DB = **SQLite in-memory**
-- Redis utilisé uniquement pour certains tests (monitoring)
-- isolation complète (cache, queue, session en mémoire)
-
-👉 Configuration centralisée dans `phpunit.xml`
-
----
-
-## ⚙️ CI (GitHub Actions)
-
-Pipeline minimal :
-
-- install dependencies
-- bootstrap Laravel
-- migrate
-- run Pest
-
-### Points clés
-
-- SQLite pour rapidité
-- Redis service pour tests monitoring
-- aucune dépendance MySQL en CI
+La configuration est centralisée dans `phpunit.xml` avec `force="true"` pour garantir l'isolation même lorsque les variables Docker écrasent l'environnement.
 
 ---
 
-## 💸 Transactions
+## CI (GitHub Actions)
 
-Types supportés :
+Pipeline déclenché sur chaque push et pull request :
 
-- `CHARGE` → paiement expéditeur
-- `PAYOUT` → paiement voyageur
-- `REFUND` → remboursement
-- `FEE` → commission plateforme
+1. Installation des dépendances (Composer avec cache)
+2. Bootstrap Laravel via `.env.ci`
+3. Migrations SQLite
+4. Exécution Pest
 
-### Règles métier
-
-- payout après livraison uniquement
-- refund conditionné métier
-- blocage si payout déjà effectué
-- idempotence garantie
+Redis est disponible comme service dans la CI pour les tests de monitoring. Aucune dépendance MySQL en CI.
 
 ---
 
-## 🔐 Sécurité
+## Installation locale
 
-- Auth API → Laravel Sanctum
+```bash
+git clone https://github.com/kasse222/gp-valise-api.git
+cd gp-valise-api
+
+make up
+make key
+make migrate
+make seed
+```
+
+Accès :
+
+- API : http://localhost:8000
+- Horizon : http://localhost:8000/horizon
+
+Stack Docker : PHP-FPM, Nginx, MySQL, Redis, Horizon, Scheduler.
+
+---
+
+## Transactions
+
+Types supportés : `CHARGE`, `PAYOUT`, `REFUND`, `FEE`.
+
+Règles métier :
+
+- Le payout est déclenché uniquement après livraison confirmée
+- Le refund est conditionné par le statut métier du booking
+- Blocage si un payout existe déjà pour le booking
+- Idempotence garantie sur toutes les opérations financières
+
+---
+
+## Sécurité
+
+- Authentification via Laravel Sanctum
 - Policies par ressource
-- KYC / utilisateurs vérifiés
-- throttling opérations sensibles
-- signature webhook
+- Vérification KYC sur les opérations sensibles
+- Rate limiting sur les endpoints financiers
+- Validation de signature webhook (HMAC SHA-256)
+- Aucun secret hardcodé en fallback de configuration
 
 ---
 
-## 📚 Documentation
+## Compromis techniques assumés
 
-- `ARCHITECTURE.md`
-- `AUDIT.md`
-
----
-
-## 🛣️ Roadmap
-
-### Court terme
-
-- observabilité avancée
-- alerting Slack
-- métriques persistées
-
-### Moyen terme
-
-- Stripe réel
-- payout async complet
-- auto-scaling workers
+- SQLite en CI et en test local — écart minimal avec MySQL pour les cas couverts
+- `FakePaymentProvider` en place — interface définie, provider réel à brancher
+- `Payment` model maintenu en lecture seule — `Transaction` est la source de vérité financière
+- Commission hardcodée à 15% — `Plan::getCommissionPercent()` existe, migration à faire
 
 ---
 
-## 👨‍💻 Auteur
+## Documentation
 
-Backend Developer (Laravel / API / SaaS)
+- `docs/ARCHITECTURE.md` — architecture complète et décisions techniques
+- `docs/AUDIT.md` — évolution du projet et choix de design
 
-- Laravel
-- architecture backend
-- systèmes transactionnels
-- Docker / CI/CD
+---
 
-📧 [laminekasse.dev@gmail.com](mailto:laminekasse.dev@gmail.com)
-🌍 Objectif : Remote / Europe / Freelance
+## Roadmap
 
-```
+Court terme : observabilité (Pulse, logs corrélés), alerting Slack complet.
 
-```
+Moyen terme : intégration Stripe réelle, payout asynchrone complet, coverage CI.
+
+---
+
+## Auteur
+
+Backend Developer — Laravel / API / Systèmes transactionnels
+
+Casablanca, Maroc — disponible immédiatement en CDI.
+
+[laminekasse.dev@gmail.com](mailto:laminekasse.dev@gmail.com)
