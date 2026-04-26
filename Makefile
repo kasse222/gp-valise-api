@@ -22,7 +22,7 @@ key:
 	docker-compose exec app php artisan key:generate
 
 test:
-	docker-compose exec app ./vendor/bin/pest
+	docker compose run --rm test_runner
 
 chmod-entrypoint:
 	chmod +x docker/php/entrypoint.sh

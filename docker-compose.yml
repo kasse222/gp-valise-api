@@ -114,9 +114,13 @@ services:
   test_runner:
     image: gp-valise-api-app
     container_name: gpvalise_test_runner
+    profiles: ["test"]
     working_dir: /var/www
-    entrypoint: ["/bin/sh", "-lc"]
-    command: "./vendor/bin/pest"
+    entrypoint: /bin/sh
+    volumes:
+      - .:/var/www:cached
+      - .env.testing:/var/www/.env
+    command: ["-c", "php artisan config:clear && ./vendor/bin/pest"]
     environment:
       APP_ENV: testing
       DB_CONNECTION: sqlite
@@ -124,6 +128,12 @@ services:
       CACHE_STORE: array
       SESSION_DRIVER: array
       QUEUE_CONNECTION: sync
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - redis
+    networks:
+      - gpvalise
 
 volumes:
   db_data:
