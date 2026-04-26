@@ -36,9 +36,8 @@ enum TripStatusEnum: string
     public function isReservable(): bool
     {
         return in_array($this, [
-            self::COMPLETED,
             self::PENDING,
             self::ACTIVE,
-        ]);
+        ], true);
     }
 }

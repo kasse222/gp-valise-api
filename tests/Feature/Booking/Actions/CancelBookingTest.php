@@ -43,7 +43,7 @@ it('annule une réservation en paiement avec succès', function () {
 
     actingAs($sender);
 
-    $result = app(CancelBooking::class)->execute($booking->id);
+    $result = app(CancelBooking::class)->execute($booking, $sender);
 
     $luggage->refresh();
     $result->load('statusHistories');
@@ -55,7 +55,24 @@ it('annule une réservation en paiement avec succès', function () {
         ->and($luggage->status)->toBe(LuggageStatusEnum::EN_ATTENTE)
         ->and($result->statusHistories->last()->new_status)->toBe(BookingStatusEnum::ANNULE);
 });
+it('peut annuler une réservation sans erreur de type', function () {
+    $user = User::factory()->sender()->verified()->create();
+    $trip = Trip::factory()->create();
 
+    $booking = Booking::factory()->create([
+        'user_id' => $user->id,
+        'trip_id' => $trip->id,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
+        'payment_expires_at' => now()->addMinutes(15),
+    ]);
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/v1/bookings/{$booking->id}/cancel");
+
+    $response->assertOk();
+
+    expect($booking->fresh()->status)->toBe(BookingStatusEnum::ANNULE);
+});
 it('dispatch BookingCanceled lorsqu une réservation est annulée', function () {
     Event::fake();
 
@@ -71,7 +88,7 @@ it('dispatch BookingCanceled lorsqu une réservation est annulée', function () 
 
     actingAs($sender);
 
-    $result = app(CancelBooking::class)->execute($booking->id);
+    $result = app(CancelBooking::class)->execute($booking, $sender);
 
     Event::assertDispatched(BookingCanceled::class, function (BookingCanceled $event) use ($result) {
         return $event->booking->id === $result->id

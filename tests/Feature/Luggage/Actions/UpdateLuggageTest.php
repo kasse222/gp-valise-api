@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Actions\Luggage\CreateLuggage;
 use App\Enums\LuggageStatusEnum;
+use App\Models\Luggage;
 use App\Models\Trip;
 
 uses(
@@ -36,4 +37,15 @@ it('crée une valise avec les données valides', function () {
         ->pickup_city->toBe('Toulouse')
         ->delivery_city->toBe('Bamako')
         ->trip_id->toBe($trip->id);
+});
+
+
+it('calcule automatiquement le volume du colis à la sauvegarde', function () {
+    $luggage = Luggage::factory()->create([
+        'length_cm' => 10,
+        'width_cm' => 20,
+        'height_cm' => 30,
+    ]);
+
+    expect($luggage->fresh()->volume_cm3)->toBe(6000.0);
 });

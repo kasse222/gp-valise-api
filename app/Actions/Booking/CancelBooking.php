@@ -6,19 +6,19 @@ use App\Enums\BookingStatusEnum;
 use App\Enums\LuggageStatusEnum;
 use App\Events\BookingCanceled;
 use App\Models\Booking;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CancelBooking
 {
-    public function execute(int $bookingId): Booking
+    public function execute(Booking $booking, ?User $actor = null): Booking
     {
-        return DB::transaction(function () use ($bookingId) {
-            /** @var Booking $booking */
+        return DB::transaction(function () use ($booking, $actor) {
             $booking = Booking::query()
                 ->with(['bookingItems.luggage', 'trip', 'user'])
                 ->lockForUpdate()
-                ->findOrFail($bookingId);
+                ->findOrFail($booking->id);
 
             if (! $booking->status->canBeCancelled()) {
                 throw ValidationException::withMessages([
@@ -38,7 +38,7 @@ class CancelBooking
 
             $booking->transitionTo(
                 BookingStatusEnum::ANNULE,
-                auth()->user(),
+                $actor,
                 'Annulation manuelle de la réservation'
             );
 
@@ -50,7 +50,12 @@ class CancelBooking
                 }
             }
 
-            $booking = $booking->fresh(['bookingItems.luggage', 'trip', 'user', 'statusHistories']);
+            $booking = $booking->fresh([
+                'bookingItems.luggage',
+                'trip',
+                'user',
+                'statusHistories',
+            ]);
 
             event(new BookingCanceled($booking));
 
