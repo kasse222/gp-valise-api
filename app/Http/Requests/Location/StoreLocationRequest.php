@@ -11,7 +11,7 @@ class StoreLocationRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // ✅ La policy est gérée dans le contrôleur
+        return true;
     }
 
     public function rules(): array

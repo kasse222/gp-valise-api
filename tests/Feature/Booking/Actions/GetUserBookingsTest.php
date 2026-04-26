@@ -12,34 +12,28 @@ uses(Tests\TestCase::class, Illuminate\Foundation\Testing\RefreshDatabase::class
 
 it('retourne les réservations liées aux trajets du voyageur', function () {
     Booking::disableAutoStatusCreation();
-    // 👤 Voyageur
+
     $voyageur = User::factory()->traveler()->create();
 
-    // ✈️ Trajet appartenant au voyageur
     $trip = Trip::factory()->for($voyageur)->create();
 
-    // 📦 Réservation faite par un expéditeur sur ce trajet
     $expediteur = User::factory()->sender()->create();
     $booking = Booking::factory()
         ->for($expediteur)
         ->for($trip)
         ->create();
 
-    // 🧳 Luggage + BookingItem + Status
     $luggage = Luggage::factory()->for($expediteur)->create();
     BookingItem::factory()->for($booking)->create(['luggage_id' => $luggage->id]);
 
     BookingStatusHistory::factory()->for($booking)->create();
 
-    // 🚀 Appel de l’action
     $result = app(GetUserBookings::class)->execute($voyageur);
 
 
-    // 🎯 On isole le booking attendu
     $target = $result->firstWhere('id', $booking->id);
 
 
-    // ✅ Assertions
     expect($result->pluck('id'))->toContain($booking->id);
     expect($target)->not->toBeNull();
     expect($target->trip->user_id)->toBe($voyageur->id);
@@ -49,11 +43,11 @@ it('retourne les réservations liées aux trajets du voyageur', function () {
 
 it('retourne les propres réservations de l’expéditeur', function () {
     Booking::disableAutoStatusCreation();
-    // 👤 Expéditeur
+
     $expediteur = User::factory()->sender()->create();
     $trip = Trip::factory()->create();
 
-    // 📦 Réservation sur un trajet
+
     $booking = Booking::factory()
         ->for($expediteur)
         ->for($trip)

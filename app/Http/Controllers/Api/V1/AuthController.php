@@ -16,9 +16,7 @@ use Throwable;
 
 class AuthController extends Controller
 {
-    /**
-     * 🔐 Inscription
-     */
+
     public function register(RegisterRequest $request)
     {
         try {
@@ -50,9 +48,7 @@ class AuthController extends Controller
         }
     }
 
-    /**
-     * 🔓 Connexion
-     */
+
     public function login(LoginRequest $request)
     {
         $user = User::where('email', $request->email)->first();
@@ -75,9 +71,7 @@ class AuthController extends Controller
         ]);
     }
 
-    /**
-     * 👤 Données de l'utilisateur connecté
-     */
+
     public function me(Request $request)
     {
         /** @var User $user */
@@ -92,9 +86,7 @@ class AuthController extends Controller
         ]);
     }
 
-    /**
-     * 🔒 Déconnexion
-     */
+
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
@@ -104,9 +96,7 @@ class AuthController extends Controller
         ]);
     }
 
-    /**
-     * 🔒 Déconnexion de toutes les sessions (optionnel)
-     */
+
     public function logoutAll(Request $request)
     {
         $request->user()->tokens()->delete();

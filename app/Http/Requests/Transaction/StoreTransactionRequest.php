@@ -15,7 +15,7 @@ class StoreTransactionRequest extends FormRequest
     public function authorize(): bool
     {
 
-        return true; // ou Auth::check(), ou hasVerifiedEmail()
+        return true;
     }
 
     public function rules(): array
@@ -30,7 +30,7 @@ class StoreTransactionRequest extends FormRequest
                     $query->where('user_id', Auth::id());
                 }),
             ],
-            // 'processed_at' et 'status' sont gérés en interne
+
         ];
     }
 

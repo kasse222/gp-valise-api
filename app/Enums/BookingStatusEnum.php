@@ -30,7 +30,7 @@ enum BookingStatusEnum: int
             self::PAIEMENT_ECHOUE->value,
             self::CONFIRMEE->value,
             self::ANNULE->value,
-            self::EXPIREE->value, // ✅ ajout critique
+            self::EXPIREE->value,
         ],
 
         self::PAIEMENT_ECHOUE->value => [

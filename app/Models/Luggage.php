@@ -44,11 +44,7 @@ class Luggage extends Model
     ];
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Boot: génération automatique du tracking_id UUID
-    |--------------------------------------------------------------------------
-    */
+
     protected static function booted(): void
     {
         static::creating(function (self $luggage) {
@@ -64,29 +60,17 @@ class Luggage extends Model
         });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Relations
-    |--------------------------------------------------------------------------
-    */
 
-    /**
-     * 🔗 Propriétaire du bagage
-     */
+
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Accesseurs personnalisés
-    |--------------------------------------------------------------------------
-    */
 
-    /**
-     * 📦 Volume du bagage (en cm³)
-     */
+
+
     public function getVolumeCm3Attribute(): ?float
     {
         if ($this->length_cm && $this->width_cm && $this->height_cm) {
@@ -101,31 +85,20 @@ class Luggage extends Model
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Helpers métier
-    |--------------------------------------------------------------------------
-    */
 
-    /**
-     * ✅ Vérifie si le bagage est dans un état final (livré, perdu, annulé)
-     */
+
     public function isFinal(): bool
     {
         return $this->status?->isFinal() ?? false;
     }
 
-    /**
-     * 🔍 Bagage prêt à être réservé ?
-     */
+
     public function isAvailable(): bool
     {
         return $this->status === LuggageStatusEnum::EN_ATTENTE;
     }
 
-    /**
-     * 🛑 Bagage annulé ?
-     */
+
     public function isCancelled(): bool
     {
         return $this->status === LuggageStatusEnum::ANNULEE;

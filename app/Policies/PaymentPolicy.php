@@ -9,7 +9,7 @@ class PaymentPolicy
 {
     public function viewAny(User $user): bool
     {
-        return true; // ou une logique : return $user->isAdmin();
+        return true;
     }
 
     public function view(User $user, Payment $payment): bool

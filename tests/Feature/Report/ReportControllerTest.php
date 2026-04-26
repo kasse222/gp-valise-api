@@ -58,7 +58,7 @@ it('rejette la création si le motif est invalide', function () {
     $payload = [
         'reportable_id'   => $booking->id,
         'reportable_type' => Booking::class,
-        'reason'          => 'fraude', // ❌ invalide
+        'reason'          => 'fraude',
     ];
 
     $response = postJson('/api/v1/reports', $payload);

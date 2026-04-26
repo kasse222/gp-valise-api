@@ -32,11 +32,7 @@ class PaymentFactory extends Factory
         ];
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | États nommés : pour les tests ciblés
-    |--------------------------------------------------------------------------
-    */
+
 
     public function paid(): static
     {

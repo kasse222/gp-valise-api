@@ -7,9 +7,7 @@ use Illuminate\Support\Facades\Auth;
 
 class UpdateInvitationRequest extends FormRequest
 {
-    /**
-     * 🔐 Seul l’expéditeur ou un admin peut modifier une invitation
-     */
+
     public function authorize(): bool
     {
         $user = Auth::user();
@@ -20,9 +18,7 @@ class UpdateInvitationRequest extends FormRequest
         );
     }
 
-    /**
-     * ✅ Règles de validation des champs partiellement modifiables
-     */
+
     public function rules(): array
     {
         return [
@@ -32,9 +28,7 @@ class UpdateInvitationRequest extends FormRequest
         ];
     }
 
-    /**
-     * 🧾 Messages d’erreur personnalisés
-     */
+
     public function messages(): array
     {
         return [

@@ -48,11 +48,6 @@ class Trip extends Model
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🔗 Relations
-    |--------------------------------------------------------------------------
-    */
 
     public function user(): BelongsTo
     {
@@ -78,11 +73,6 @@ class Trip extends Model
         return $this->morphMany(Report::class, 'reportable');
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | ⚙️ Logique métier
-    |--------------------------------------------------------------------------
-    */
 
     public function isPast(): bool
     {
@@ -99,7 +89,6 @@ class Trip extends Model
         return ($this->kgReserved() + $kg) <= $this->capacity;
     }
 
-    //(status = CONFIRMEE) OR (status = EN_PAIEMENT AND payment_expires_at > now())
     public function kgReserved(): float
     {
         $now = now();
@@ -128,11 +117,7 @@ class Trip extends Model
         return $this->status?->isFinal() ?? false;
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🔍 Scopes
-    |--------------------------------------------------------------------------
-    */
+
 
     public function scopeOpen(Builder $query): Builder
     {

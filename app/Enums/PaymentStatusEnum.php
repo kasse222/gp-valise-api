@@ -4,13 +4,13 @@ namespace App\Enums;
 
 enum PaymentStatusEnum: int
 {
-    case EN_ATTENTE     = 0; // Initié mais non confirmé
-    case EN_COURS       = 1; // En traitement (ex: Stripe pending)
-    case SUCCES         = 2; // Payé avec succès
-    case ECHEC          = 3; // Paiement refusé
-    case REMBOURSE      = 4; // Montant remboursé
-    case ANNULE         = 5; // Annulé avant paiement
-    case FRAUDE         = 6; // Détecté comme suspect
+    case EN_ATTENTE     = 0;
+    case EN_COURS       = 1;
+    case SUCCES         = 2;
+    case ECHEC          = 3;
+    case REMBOURSE      = 4;
+    case ANNULE         = 5;
+    case FRAUDE         = 6;
 
     public static function values(): array
     {

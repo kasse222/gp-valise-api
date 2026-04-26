@@ -25,37 +25,22 @@ class BookingStatusHistory extends Model
         'new_status' => BookingStatusEnum::class,
     ];
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🔗 Relations
-    |--------------------------------------------------------------------------
-    */
 
-    /**
-     * 🔗 Réservation concernée
-     */
+
+
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
     }
 
-    /**
-     * 🔗 Utilisateur ayant effectué le changement
-     */
     public function changedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'changed_by');
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | ⚙️ Méthodes Métier
-    |--------------------------------------------------------------------------
-    */
 
-    /**
-     * 🧾 Logger un changement de statut
-     */
+
+
     public static function log(Booking $booking, BookingStatusEnum $from, BookingStatusEnum $to, User $user, ?string $reason = null): void
     {
         self::create([
@@ -67,17 +52,12 @@ class BookingStatusHistory extends Model
         ]);
     }
 
-    /**
-     * ✅ Transition manuelle ?
-     */
     public function isManual(): bool
     {
         return filled($this->reason) && str($this->reason)->contains(['admin', 'manuel', 'override']);
     }
 
-    /**
-     * 🕒 Formatage date + transition
-     */
+
     public function label(): string
     {
         return sprintf(

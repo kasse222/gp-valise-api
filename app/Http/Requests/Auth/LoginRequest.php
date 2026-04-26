@@ -11,7 +11,7 @@ class LoginRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // Inscription publique
+        return true;
     }
 
     public function rules(): array

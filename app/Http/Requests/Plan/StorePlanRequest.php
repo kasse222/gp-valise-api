@@ -11,7 +11,7 @@ class StorePlanRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Auth::check(); // à restreindre si besoin
+        return Auth::check();
     }
 
     public function rules(): array

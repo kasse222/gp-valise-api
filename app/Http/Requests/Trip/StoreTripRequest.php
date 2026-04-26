@@ -12,7 +12,7 @@ class StoreTripRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Auth::check(); // Possibilité de restreindre au rôle VOYAGEUR plus tard
+        return Auth::check();
     }
 
     public function rules(): array
@@ -24,7 +24,7 @@ class StoreTripRequest extends FormRequest
             'flight_number'  => ['nullable', 'string', 'max:255'],
             'capacity'       => ['required', 'integer', 'min:1'],
             'price_per_kg'   => ['required', 'numeric', 'min:0'],
-            'status'         => ['nullable', new Enum(TripStatusEnum::class)], // facultatif à la création
+            'status'         => ['nullable', new Enum(TripStatusEnum::class)],
             'type_trip'      => ['required', new Enum(TripTypeEnum::class)],
         ];
     }

@@ -13,7 +13,7 @@ uses(
 );
 
 beforeEach(function () {
-    $this->user = User::factory()->sender()->create(); // 👈 rôle valide
+    $this->user = User::factory()->sender()->create();
     $this->luggage = Luggage::factory()->create([
         'user_id' => $this->user->id,
     ]);
@@ -68,10 +68,10 @@ it('affiche une valise si utilisateur autorisé', function () {
 });
 
 it('rejette l’accès à une valise si utilisateur non autorisé', function () {
-    $other = User::factory()->sender()->create(); // 👈 même rôle, mais pas propriétaire
+    $other = User::factory()->sender()->create();
     actingAs($other);
 
-    $luggage = Luggage::factory()->create(); // non lié à $other
+    $luggage = Luggage::factory()->create();
 
     $response = getJson(route('api.v1.luggages.show', $luggage));
 
@@ -79,7 +79,7 @@ it('rejette l’accès à une valise si utilisateur non autorisé', function () 
 });
 
 it('met à jour une valise', function () {
-    $user = User::factory()->sender()->create(); // 👈 il faut être le propriétaire
+    $user = User::factory()->sender()->create();
     $luggage = Luggage::factory()->create(['user_id' => $user->id]);
 
     actingAs($user);

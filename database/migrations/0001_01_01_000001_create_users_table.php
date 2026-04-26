@@ -12,7 +12,6 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
 
-            // Identité & authentification
             $table->string('first_name');
             $table->string('last_name');
             $table->string('email')->unique();
@@ -21,17 +20,14 @@ return new class extends Migration
             $table->string('country')->nullable();
             $table->string('password');
 
-            // Rôle utilisateur aligné avec UserRoleEnum:int
             $table->unsignedTinyInteger('role')
                 ->default(UserRoleEnum::SENDER->value)
                 ->comment('Rôle utilisateur stocké en int et casté via UserRoleEnum');
 
-            // Vérifications
             $table->boolean('verified_user')->default(false);
             $table->timestamp('email_verified_at')->nullable();
             $table->timestamp('kyc_passed_at')->nullable();
 
-            // Gestion de plan
             $table->foreignId('plan_id')
                 ->nullable()
                 ->constrained('plans')
@@ -39,7 +35,6 @@ return new class extends Migration
 
             $table->timestamp('plan_expires_at')->nullable();
 
-            // Auth & timestamps
             $table->rememberToken();
             $table->timestamps();
 

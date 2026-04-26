@@ -11,7 +11,7 @@ class UpdateLocationRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user() !== null; // 🔐 Ou appeler la Policy LocationPolicy::update()
+        return $this->user() !== null;
     }
 
     public function rules(): array

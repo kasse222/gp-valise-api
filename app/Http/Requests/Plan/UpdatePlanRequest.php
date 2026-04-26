@@ -11,7 +11,7 @@ class UpdatePlanRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // À restreindre via middleware ou policy si modification réservée à un admin
+
         return Auth::check();
     }
 

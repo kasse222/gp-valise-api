@@ -37,7 +37,6 @@ class UserSeeder extends Seeder
             ]
         );
 
-        // ✅ 2. Voyageur
         User::factory()->create([
             'email'         => 'voyageur@example.com',
             'role'          => UserRoleEnum::TRAVELER->value,
@@ -55,7 +54,6 @@ class UserSeeder extends Seeder
             'plan_id'       => $defaultPlan->id,
         ]);
 
-        // ✅ 4. Génération de 10 utilisateurs avec rôles aléatoires
         collect(range(1, 10))->each(function () use ($defaultPlan) {
             User::factory()->create([
                 'role'          => fake()->randomElement([

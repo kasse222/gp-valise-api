@@ -22,7 +22,7 @@ class CheckPlanFeatures
             return response()->json(['message' => 'Aucun plan actif.'], Response::HTTP_FORBIDDEN);
         }
 
-        // ⚠️ Vérification : la colonne 'features' doit être un tableau JSON bien casté
+
         $features = $user->plan->features;
 
         if (! is_array($features)) {

@@ -11,7 +11,7 @@ class QueueHealthService
     /**
      * Queues supervisées par défaut.
      *
-     * 👉 On centralise ici pour éviter les magic strings répétées
+     *  On centralise ici pour éviter les magic strings répétées
      * dans plusieurs méthodes.
      */
     private const QUEUES = ['high', 'default', 'low'];
@@ -24,7 +24,7 @@ class QueueHealthService
      * - âge du plus vieux job en attente
      * - nombre de failed jobs récents
      *
-     * 👉 Cette méthode sert de "contrat principal" pour la supervision.
+     *  Cette méthode sert de "contrat principal" pour la supervision.
      */
     public function collect(int $failedJobsWindowMinutes = 15): array
     {
@@ -43,7 +43,7 @@ class QueueHealthService
      * - on compte combien de fois chaque type de job apparaît
      * - si un job dominant dépasse un seuil, on considère qu'il y a tempête
      *
-     * 👉 Ce signal est utile pour distinguer :
+     *  Ce signal est utile pour distinguer :
      * - un problème de capacité
      * - d’un problème applicatif ou provider ciblé
      */
@@ -124,7 +124,7 @@ class QueueHealthService
      * - une queue modérée peut déjà être en souffrance si le plus vieux job
      *   attend depuis trop longtemps
      *
-     * 👉 On retourne un âge positif en secondes, ou null si aucun job exploitable.
+     *  On retourne un âge positif en secondes, ou null si aucun job exploitable.
      */
     public function oldestJobAge(string $queue): ?int
     {
@@ -185,7 +185,7 @@ class QueueHealthService
     /**
      * Compte les failed_jobs récents sur une fenêtre donnée.
      *
-     * 👉 Ce signal reste volontairement global pour le moment.
+     *  Ce signal reste volontairement global pour le moment.
      * Il pourra être affiné plus tard par type de job ou par queue.
      */
     private function countRecentFailedJobs(int $minutes): int
@@ -277,7 +277,7 @@ class QueueHealthService
     /**
      * Fabrique une réponse de diagnostic homogène.
      *
-     * 👉 L’intérêt :
+     *  L’intérêt :
      * - format stable pour les logs / Slack / tests
      * - plus facile à étendre plus tard
      */

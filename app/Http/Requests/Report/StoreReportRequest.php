@@ -11,7 +11,7 @@ class StoreReportRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Auth::check(); // 📌 Tous les utilisateurs connectés peuvent signaler
+        return Auth::check();
     }
 
     public function rules(): array

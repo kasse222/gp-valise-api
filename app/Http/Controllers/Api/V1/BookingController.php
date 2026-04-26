@@ -20,9 +20,7 @@ class BookingController extends Controller
 {
     use AuthorizesRequests;
 
-    /**
-     * 📦 Lister les réservations de l'utilisateur
-     */
+
     public function index(Request $request, GetUserBookings $action)
     {
         $bookings = $action->execute($request->user());
@@ -30,9 +28,7 @@ class BookingController extends Controller
         return BookingResource::collection($bookings);
     }
 
-    /**
-     * 🛒 Réserver une valise pour un trajet
-     */
+
     public function store(StoreBookingRequest $request, ReserveBooking $action)
     {
         $data = $request->validated();
@@ -45,9 +41,7 @@ class BookingController extends Controller
             ->setStatusCode(201);
     }
 
-    /**
-     * 🔍 Voir une réservation précise
-     */
+
     public function show(Booking $booking, GetBookingDetails $action)
     {
         $this->authorize('view', $booking);
@@ -57,9 +51,7 @@ class BookingController extends Controller
         return new BookingResource($booking->loadMissing('bookingItems.luggage'));
     }
 
-    /**
-     * ❌ Supprimer une réservation
-     */
+
     public function destroy(Booking $booking, DeleteBooking $action)
     {
         $this->authorize('delete', $booking);
@@ -71,9 +63,7 @@ class BookingController extends Controller
         ]);
     }
 
-    /**
-     * ✅ Confirmer une réservation
-     */
+
     public function confirm(Request $request, Booking $booking, ConfirmBooking $action)
     {
         $this->authorize('confirm', $booking);
@@ -83,9 +73,7 @@ class BookingController extends Controller
         return new BookingResource($booking->load('bookingItems.luggage'));
     }
 
-    /**
-     * ❌ Annuler une réservation
-     */
+
     public function cancel(Request $request, Booking $booking, CancelBooking $action)
     {
         $this->authorize('cancel', $booking);
@@ -97,9 +85,7 @@ class BookingController extends Controller
         );
     }
 
-    /**
-     * 📦 Marquer comme livrée
-     */
+
     public function complete(Request $request, Booking $booking, CompleteBooking $action)
     {
         $this->authorize('complete', $booking);

@@ -10,13 +10,13 @@ class CreateBookingItem
 {
     public static function execute(Booking $booking, array $data): BookingItem
     {
-        // 1. Vérifications métier
-        app(BookingItemValidator::class)->validateCreate($booking, $data);
-        // 2. Ajouts explicites
-        $data['booking_id'] = $booking->id;
-        $data['trip_id'] = $booking->trip_id; // 💡 fix critique ici
 
-        // 3. Création de l’item
+        app(BookingItemValidator::class)->validateCreate($booking, $data);
+
+        $data['booking_id'] = $booking->id;
+        $data['trip_id'] = $booking->trip_id;
+
+
         return BookingItem::create($data);
     }
 }

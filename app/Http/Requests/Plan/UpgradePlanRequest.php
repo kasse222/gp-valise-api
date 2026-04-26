@@ -11,7 +11,7 @@ class UpgradePlanRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Auth::check(); // Le user doit être connecté pour upgrader
+        return Auth::check();
     }
 
     public function rules(): array

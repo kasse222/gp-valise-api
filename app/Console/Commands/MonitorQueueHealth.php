@@ -12,7 +12,7 @@ class MonitorQueueHealth extends Command
     /**
      * Signature CLI.
      *
-     * 👉 Tous les seuils sont configurables à l’exécution
+     *  Tous les seuils sont configurables à l’exécution
      * pour éviter de modifier le code à chaque ajustement.
      */
     protected $signature = 'monitoring:queues
@@ -75,7 +75,7 @@ class MonitorQueueHealth extends Command
     /**
      * Lit et normalise les options CLI.
      *
-     * 👉 On centralise ici pour éviter de disperser les casts
+     *  On centralise ici pour éviter de disperser les casts
      * et rendre le handle() plus lisible.
      */
     private function readOptions(): array
@@ -91,7 +91,7 @@ class MonitorQueueHealth extends Command
     /**
      * Affiche un état instantané lisible dans la console.
      *
-     * 👉 Très utile en debug local, en cron manuel,
+     *  Très utile en debug local, en cron manuel,
      * ou en incident review.
      */
     private function displaySnapshot(
@@ -130,7 +130,7 @@ class MonitorQueueHealth extends Command
      * - retry storm
      * - ageing du plus vieux job
      *
-     * 👉 Cela évite les diagnostics simplistes du type
+     *  Cela évite les diagnostics simplistes du type
      * "high est haut donc il faut scaler".
      */
     private function shouldTriggerAlert(
@@ -151,7 +151,7 @@ class MonitorQueueHealth extends Command
     /**
      * Construit le contexte envoyé dans les logs et dans Slack.
      *
-     * 👉 Ce contexte est essentiel :
+     *  Ce contexte est essentiel :
      * il permet de comprendre l’incident sans SSH immédiat.
      */
     private function buildAlertContext(
@@ -180,7 +180,7 @@ class MonitorQueueHealth extends Command
      * - log critique
      * - Slack async via queue low
      *
-     * 👉 On évite toute dépendance réseau synchrone
+     *  On évite toute dépendance réseau synchrone
      * dans le chemin principal de supervision.
      */
     private function triggerAlert(string $message, array $context): void

@@ -17,7 +17,6 @@ beforeEach(function () {
     actingAs($this->user);
 });
 
-// ✅ Liste les invitations envoyées par l’utilisateur connecté
 it('liste les invitations envoyées par l’utilisateur connecté', function () {
     Invitation::factory()
         ->count(3)
@@ -40,7 +39,6 @@ it('envoie une invitation valide', function () {
         ->assertJsonStructure(['data' => ['token']]);
 });
 
-// ❌ Refuse l’auto-invitation
 it('rejette une invitation envoyée à soi-même', function () {
     postJson('/api/v1/invitations', [
         'recipient_email' => $this->user->email,
@@ -49,7 +47,6 @@ it('rejette une invitation envoyée à soi-même', function () {
         ->assertJsonValidationErrors(['recipient_email']);
 });
 
-// ✅ Accepte une invitation avec un token valide
 it('accepte une invitation avec un token valide', function () {
     $invitation = Invitation::factory()->create([
         'token'           => (string) Str::uuid(),
@@ -66,7 +63,6 @@ it('accepte une invitation avec un token valide', function () {
     expect(Invitation::find($invitation->id)->used_at)->not->toBeNull();
 });
 
-// ✅ Rejette une invitation avec un token invalide
 it('rejette une invitation avec un token invalide', function () {
     postJson("/api/v1/invitations/accept", [
         'token' => (string) Str::uuid(), // Token invalide

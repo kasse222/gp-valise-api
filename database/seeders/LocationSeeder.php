@@ -15,7 +15,6 @@ class LocationSeeder extends Seeder
         Trip::all()->each(function (Trip $trip) {
             $locations = [];
 
-            // 1. 📍 Départ
             $locations[] = [
                 'trip_id'     => $trip->id,
                 'latitude'    => fake()->latitude(),
@@ -26,7 +25,6 @@ class LocationSeeder extends Seeder
                 'order_index' => 0,
             ];
 
-            // 2. 🔁 Étapes intermédiaires (0 à 3)
             $nbEtapes = rand(0, 3);
             for ($i = 0; $i < $nbEtapes; $i++) {
                 $locations[] = [
@@ -40,7 +38,6 @@ class LocationSeeder extends Seeder
                 ];
             }
 
-            // 3. 📍 Arrivée
             $locations[] = [
                 'trip_id'     => $trip->id,
                 'latitude'    => fake()->latitude(),
@@ -51,16 +48,13 @@ class LocationSeeder extends Seeder
                 'order_index' => count($locations),
             ];
 
-            // Enregistrement des locations
             Location::insert($locations);
         });
 
         $this->command->info('✔ Locations générées pour chaque trip.');
     }
 
-    /**
-     * 🔁 Renvoie un type logique selon la position
-     */
+
     protected function randomTypeForPosition(LocationPositionEnum $position): LocationTypeEnum
     {
         return match ($position) {

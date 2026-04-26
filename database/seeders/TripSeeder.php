@@ -48,7 +48,6 @@ class TripSeeder extends Seeder
                     'price_per_kg'  => fake()->randomFloat(2, 5, 25),
                 ]);
 
-                // Ajout des locations associées (départ + arrivée)
                 $trip->locations()->createMany([
                     [
                         'city'        => $departureCity,

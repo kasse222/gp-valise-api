@@ -15,14 +15,13 @@ class Invitation extends Model
     use HasFactory;
 
     protected $fillable = [
-        'sender_id',         // L’utilisateur qui invite
-        'recipient_id',      // L’utilisateur invité (si déjà inscrit)
-        'recipient_email',   // Email de l’invité
-        'token',             // Jeton d’invitation unique
-        'used_at',           // Date d’utilisation
-        'expires_at',        // Date d’expiration (facultative)
+        'sender_id',
+        'recipient_id',
+        'recipient_email',
+        'token',
+        'used_at',
+        'expires_at',
         'status',
-        'message',           // Message personnalisé (facultatif)
     ];
 
     protected $casts = [
@@ -34,11 +33,7 @@ class Invitation extends Model
 
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Relations
-    |--------------------------------------------------------------------------
-    */
+
 
     public function sender(): BelongsTo
     {
@@ -51,11 +46,7 @@ class Invitation extends Model
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Scopes
-    |--------------------------------------------------------------------------
-    */
+
 
     public function scopeAvailable($query)
     {
@@ -66,57 +57,41 @@ class Invitation extends Model
             });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Helpers métier
-    |--------------------------------------------------------------------------
-    */
+
     protected function isAuthorized(Request $request): bool
     {
         $user = $request->user();
         return $user && ($user->id === $this->sender_id || $user->is_admin);
     }
 
-    /**
-     * ✅ L’invitation a-t-elle été utilisée ?
-     */
+
     public function isUsed(): bool
     {
         return !is_null($this->used_at);
     }
 
-    /**
-     * ✅ L’invitation est-elle expirée ?
-     */
     public function isExpired(): bool
     {
         return $this->expires_at && $this->expires_at->isPast();
     }
 
-    // Exemple de méthode métier
     public function isPending(): bool
     {
         return $this->status === InvitationStatusEnum::PENDING;
     }
-    /**
-     * ✅ L’invitation peut-elle encore être acceptée ?
-     */
+
     public function canBeAccepted(): bool
     {
         return !$this->isUsed() && !$this->isExpired();
     }
 
-    /**
-     * ⏱ Marque comme utilisée
-     */
+
     public function markAsUsed(): void
     {
         $this->update(['used_at' => now()]);
     }
 
-    /**
-     * 🕒 Durée restante en secondes avant expiration
-     */
+
     public function timeLeft(): ?int
     {
         return $this->expires_at ? now()->diffInSeconds($this->expires_at, false) : null;

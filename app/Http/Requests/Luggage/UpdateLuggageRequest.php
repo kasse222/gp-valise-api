@@ -11,7 +11,7 @@ class UpdateLuggageRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Auth::check(); // 🔐 ou à renforcer avec LuggagePolicy
+        return Auth::check();
     }
 
     public function rules(): array

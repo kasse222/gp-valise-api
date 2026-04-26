@@ -9,17 +9,13 @@ enum PlanTypeEnum: string
     case PREMIUM = 'premium';
     case ENTREPRISE = 'entreprise';
 
-    /**
-     * Pour validation dans les FormRequest
-     */
+
     public static function values(): array
     {
         return array_column(self::cases(), 'value');
     }
 
-    /**
-     * Libellé lisible (affichage UI ou API)
-     */
+
     public function label(): string
     {
         return match ($this) {
@@ -30,9 +26,7 @@ enum PlanTypeEnum: string
         };
     }
 
-    /**
-     * Indique si le plan est payant
-     */
+
     public function isPaid(): bool
     {
         return in_array($this, [
@@ -42,9 +36,7 @@ enum PlanTypeEnum: string
         ], true);
     }
 
-    /**
-     * Peut-on offrir ce plan gratuitement (pour marketing) ?
-     */
+
     public function isGiftable(): bool
     {
         return in_array($this, [
@@ -53,9 +45,7 @@ enum PlanTypeEnum: string
         ]);
     }
 
-    /**
-     * Plans visibles dans l'UI publique
-     */
+
     public static function visible(): array
     {
         return [

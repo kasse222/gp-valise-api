@@ -34,17 +34,17 @@ class PlanService
     {
         $plan = Plan::findOrFail($planId);
 
-        // ⏱️ Calcul d’une date d’expiration si nécessaire
+        // ⏱ Calcul d’une date d’expiration si nécessaire
         $expiresAt = now()->addDays($plan->duration_days);
 
-        // 🔄 Mise à jour de l’utilisateur
+        //  Mise à jour de l’utilisateur
         $user->update([
             'plan_id'        => $plan->id,
             'plan_expires_at' => $expiresAt,
             'is_premium'     => true, // si applicable
         ]);
 
-        // 🔔 Event, notification ou log éventuel
+        //  Event, notification ou log éventuel
         // event(new PlanUpgraded($user, $plan)); (optionnel)
     }
 }

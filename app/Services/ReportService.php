@@ -8,12 +8,9 @@ use Illuminate\Support\Facades\Log;
 
 class ReportService
 {
-    /**
-     * Crée un nouveau signalement.
-     */
+
     public function create(User $user, array $data): Report
     {
-        // Exemple : vérifier qu’un report similaire n’existe pas déjà
         $existing = Report::where([
             'user_id'          => $user->id,
             'reportable_type'  => $data['reportable_type'],
@@ -26,7 +23,6 @@ class ReportService
 
         $report = $user->reports()->create($data);
 
-        // Log ou dispatch d’un event (optionnel)
         Log::info("Report créé par {$user->id}", [
             'type' => $data['reportable_type'],
             'id'   => $data['reportable_id'],

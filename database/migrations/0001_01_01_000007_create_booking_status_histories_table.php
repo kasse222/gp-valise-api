@@ -11,22 +11,19 @@ return new class extends Migration
         Schema::create('booking_status_histories', function (Blueprint $table) {
             $table->id();
 
-            // 🔗 Référence vers la réservation concernée
             $table->foreignId('booking_id')
                 ->constrained('bookings')
                 ->onDelete('cascade');
 
-            // 🔁 Statuts avant / après
-            $table->string('old_status', 50)->nullable(); // Peut être null si premier statut
-            $table->string('new_status', 50); // Jamais null : le statut final après changement
+            $table->string('old_status', 50)->nullable();
+            $table->string('new_status', 50);
 
-            // 👤 Utilisateur ayant provoqué le changement (admin, support, ou utilisateur)
+
             $table->foreignId('changed_by')
                 ->nullable()
                 ->constrained('users')
-                ->nullOnDelete(); // Ne supprime pas l’historique si user supprimé
+                ->nullOnDelete();
 
-            // 📝 Raison du changement (facultatif)
             $table->text('reason')->nullable();
 
             $table->timestamps();

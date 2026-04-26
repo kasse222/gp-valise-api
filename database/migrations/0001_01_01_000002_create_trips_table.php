@@ -17,11 +17,11 @@ return new class extends Migration
                 ->constrained()
                 ->cascadeOnDelete();
 
-            $table->string('departure', 255);     // ✅ Ajouté
+            $table->string('departure', 255);
             $table->string('destination', 255);
 
             $table->dateTime('date');
-            $table->float('capacity'); // en kg
+            $table->float('capacity');
 
             $table->string('status', 20)
                 ->default(TripStatusEnum::ACTIVE->value);

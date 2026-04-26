@@ -40,7 +40,7 @@ enum PaymentMethodEnum: string
         ]);
     }
 
-    //une vérification manuelle (ex: chèque, virement).
+
     public function requiresVerification(): bool
     {
         return in_array($this, [

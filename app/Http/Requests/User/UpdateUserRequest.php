@@ -11,7 +11,7 @@ class UpdateUserRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Auth::check(); // ou par Policy (user owner || admin)
+        return Auth::check();
     }
 
     public function rules(): array

@@ -32,11 +32,7 @@ class Payment extends Model
         'method'   => PaymentMethodEnum::class,
     ];
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🔗 Relations
-    |--------------------------------------------------------------------------
-    */
+
 
     public function user(): BelongsTo
     {
@@ -48,11 +44,6 @@ class Payment extends Model
         return $this->belongsTo(Booking::class);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | ⚙️ Méthodes métier
-    |--------------------------------------------------------------------------
-    */
 
     public function isPaid(): bool
     {
@@ -76,11 +67,7 @@ class Payment extends Model
         $this->save();
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🔎 Query scopes
-    |--------------------------------------------------------------------------
-    */
+
 
     public function scopePaid($query)
     {

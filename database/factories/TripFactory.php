@@ -16,37 +16,34 @@ class TripFactory extends Factory
     public function definition(): array
     {
         return [
-            'user_id' => User::factory()->traveler(), // 💡 Laisse Laravel gérer la création
+            'user_id' => User::factory()->traveler(),
             'departure'      => $this->faker->city() . ', ' . $this->faker->countryCode(),
             'destination'    => $this->faker->city() . ', ' . $this->faker->countryCode(),
             'date' => $this->faker->dateTimeBetween('+1 day', '+1 month'),
             'capacity' => $this->faker->randomFloat(1, 10, 50),
             'status' => TripStatusEnum::ACTIVE->value,
-            'type_trip' => TripTypeEnum::STANDARD->value,      // ✅ idem
+            'type_trip' => TripTypeEnum::STANDARD->value,
             'flight_number' => strtoupper(Str::random(2)) . $this->faker->numberBetween(100, 9999),
             'price_per_kg' => $this->faker->randomFloat(2, 5, 30),
         ];
     }
 
-    /**
-     * 🧪 Ajoute automatiquement des localisations cohérentes à ce trip
-     */
+
     public function withLocations(int $steps = 0): static
     {
         return $this->afterCreating(function (Trip $trip) use ($steps) {
-            // 👣 Départ
+
             $trip->locations()->create(
                 \Database\Factories\LocationFactory::new()->departure()->make()->toArray()
             );
 
-            // 🔁 Étapes intermédiaires (douane, hub…)
+
             for ($i = 1; $i <= $steps; $i++) {
                 $trip->locations()->create(
                     \Database\Factories\LocationFactory::new()->step($i)->make()->toArray()
                 );
             }
 
-            // 🎯 Arrivée
             $trip->locations()->create(
                 \Database\Factories\LocationFactory::new()->arrival($steps + 1)->make()->toArray()
             );

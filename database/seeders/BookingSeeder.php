@@ -14,7 +14,6 @@ class BookingSeeder extends Seeder
 {
     public function run(): void
     {
-        // Récupère les utilisateurs expéditeurs (SENDER)
         $senders = User::where('role', \App\Enums\UserRoleEnum::SENDER->value)->get();
         $trips = Trip::all();
 
@@ -23,7 +22,6 @@ class BookingSeeder extends Seeder
             return;
         }
 
-        // On crée ~1000 réservations (selon le nombre de senders)
         $bookingsToCreate = 1000;
 
         DB::transaction(function () use ($senders, $trips, $bookingsToCreate) {
@@ -32,7 +30,6 @@ class BookingSeeder extends Seeder
                 $trip   = $trips->random();
                 $status = fake()->randomElement(BookingStatusEnum::cases());
 
-                // Détermination des timestamps associés au statut
                 $confirmedAt = $status === BookingStatusEnum::CONFIRMEE ? now()->subDays(rand(1, 5)) : null;
                 $completedAt = $status === BookingStatusEnum::TERMINE ? now()->subDay() : null;
                 $cancelledAt = $status === BookingStatusEnum::ANNULE ? now()->subDays(rand(2, 10)) : null;
