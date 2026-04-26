@@ -56,12 +56,11 @@ class Luggage extends Model
                 $luggage->tracking_id = Str::uuid()->toString();
             }
         });
-    }
 
-    protected static function save_booted(): void
-    {
-        static::saving(function ($luggage) {
-            $luggage->volume_cm3 = $luggage->length_cm * $luggage->width_cm * $luggage->height_cm;
+        static::saving(function (self $luggage) {
+            if ($luggage->length_cm && $luggage->width_cm && $luggage->height_cm) {
+                $luggage->volume_cm3 = $luggage->length_cm * $luggage->width_cm * $luggage->height_cm;
+            }
         });
     }
 

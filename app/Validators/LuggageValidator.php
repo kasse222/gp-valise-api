@@ -2,6 +2,7 @@
 
 namespace App\Validators;
 
+use App\Enums\LuggageStatusEnum;
 use App\Models\Luggage;
 use App\Models\Trip;
 use Illuminate\Validation\ValidationException;
@@ -22,9 +23,9 @@ class LuggageValidator
             ]);
         }
 
-        if ($luggage->status !== 'disponible') {
+        if ($luggage->status !== LuggageStatusEnum::EN_ATTENTE) {
             throw ValidationException::withMessages([
-                'luggage' => 'Ce colis n’est pas disponible pour la réservation.',
+                'luggage' => 'Ce colis n\'est pas disponible pour la réservation.',
             ]);
         }
     }

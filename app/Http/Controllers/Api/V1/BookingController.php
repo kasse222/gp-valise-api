@@ -92,7 +92,9 @@ class BookingController extends Controller
 
         $booking = $action->execute($booking, $request->user());
 
-        return new BookingResource($booking->loadMissing('bookingItems.luggage'));
+        return new BookingResource(
+            $booking->loadMissing('bookingItems.luggage')
+        );
     }
 
     /**

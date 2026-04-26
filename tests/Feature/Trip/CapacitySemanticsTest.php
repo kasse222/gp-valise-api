@@ -2,6 +2,7 @@
 
 use App\Enums\BookingStatusEnum;
 use App\Enums\LuggageStatusEnum;
+use App\Enums\TripStatusEnum;
 use App\Enums\UserRoleEnum;
 use App\Models\Booking;
 use App\Models\BookingItem;
@@ -9,15 +10,16 @@ use App\Models\Luggage;
 use App\Models\Trip;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
-function createBookingItemForTrip(
+function createCapacityBookingItemForTrip(
     Trip $trip,
     User $sender,
     BookingStatusEnum $status,
     float $kgReserved,
-    ?\Illuminate\Support\Carbon $paymentExpiresAt = null
+    ?Carbon $paymentExpiresAt = null
 ): Booking {
     $booking = Booking::factory()->create([
         'user_id' => $sender->id,
@@ -56,7 +58,7 @@ beforeEach(function () {
 });
 
 it('compte les bookings confirmés dans les kg réservés', function () {
-    createBookingItemForTrip(
+    createCapacityBookingItemForTrip(
         trip: $this->trip,
         sender: $this->sender,
         status: BookingStatusEnum::CONFIRMEE,
@@ -67,7 +69,7 @@ it('compte les bookings confirmés dans les kg réservés', function () {
 });
 
 it('compte les bookings en paiement non expirés dans les kg réservés', function () {
-    createBookingItemForTrip(
+    createCapacityBookingItemForTrip(
         trip: $this->trip,
         sender: $this->sender,
         status: BookingStatusEnum::EN_PAIEMENT,
@@ -79,7 +81,7 @@ it('compte les bookings en paiement non expirés dans les kg réservés', functi
 });
 
 it('ne compte pas les bookings en paiement expirés dans les kg réservés', function () {
-    createBookingItemForTrip(
+    createCapacityBookingItemForTrip(
         trip: $this->trip,
         sender: $this->sender,
         status: BookingStatusEnum::EN_PAIEMENT,
@@ -91,14 +93,14 @@ it('ne compte pas les bookings en paiement expirés dans les kg réservés', fun
 });
 
 it('additionne les bookings confirmés et en paiement non expirés', function () {
-    createBookingItemForTrip(
+    createCapacityBookingItemForTrip(
         trip: $this->trip,
         sender: $this->sender,
         status: BookingStatusEnum::CONFIRMEE,
         kgReserved: 10
     );
 
-    createBookingItemForTrip(
+    createCapacityBookingItemForTrip(
         trip: $this->trip,
         sender: $this->sender,
         status: BookingStatusEnum::EN_PAIEMENT,
@@ -106,7 +108,7 @@ it('additionne les bookings confirmés et en paiement non expirés', function ()
         paymentExpiresAt: now()->addMinutes(15)
     );
 
-    createBookingItemForTrip(
+    createCapacityBookingItemForTrip(
         trip: $this->trip,
         sender: $this->sender,
         status: BookingStatusEnum::EN_PAIEMENT,
@@ -114,19 +116,21 @@ it('additionne les bookings confirmés et en paiement non expirés', function ()
         paymentExpiresAt: now()->subMinutes(15)
     );
 
-    expect($this->trip->fresh()->kgReserved())->toBe(17.0)
-        ->and($this->trip->fresh()->kgDisponible())->toBe(33.0);
+    $trip = $this->trip->fresh();
+
+    expect($trip->kgReserved())->toBe(17.0)
+        ->and($trip->kgDisponible())->toBe(33.0);
 });
 
 it('canAcceptKg tient compte des bookings confirmés et en paiement non expirés', function () {
-    createBookingItemForTrip(
+    createCapacityBookingItemForTrip(
         trip: $this->trip,
         sender: $this->sender,
         status: BookingStatusEnum::CONFIRMEE,
         kgReserved: 30
     );
 
-    createBookingItemForTrip(
+    createCapacityBookingItemForTrip(
         trip: $this->trip,
         sender: $this->sender,
         status: BookingStatusEnum::EN_PAIEMENT,
@@ -134,6 +138,17 @@ it('canAcceptKg tient compte des bookings confirmés et en paiement non expirés
         paymentExpiresAt: now()->addMinutes(10)
     );
 
-    expect($this->trip->fresh()->canAcceptKg(4))->toBeTrue()
-        ->and($this->trip->fresh()->canAcceptKg(6))->toBeFalse();
+    $trip = $this->trip->fresh();
+
+    expect($trip->canAcceptKg(4))->toBeTrue()
+        ->and($trip->canAcceptKg(6))->toBeFalse();
+});
+
+it('ne considère pas un trajet terminé comme réservable', function () {
+    expect(TripStatusEnum::COMPLETED->isReservable())->toBeFalse();
+});
+
+it('considère les trajets actifs et pending comme réservables', function () {
+    expect(TripStatusEnum::ACTIVE->isReservable())->toBeTrue()
+        ->and(TripStatusEnum::PENDING->isReservable())->toBeTrue();
 });
