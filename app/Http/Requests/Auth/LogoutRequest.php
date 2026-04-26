@@ -9,14 +9,14 @@ class LogoutRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // On suppose que seul un utilisateur authentifié peut se déconnecter
+
         return Auth::check();
     }
 
     public function rules(): array
     {
         return [
-            // Tu peux ajouter un champ optionnel pour dire s’il faut révoquer tous les tokens
+
             'token' => ['required', 'string'],
         ];
     }

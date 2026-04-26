@@ -21,47 +21,31 @@ class Report extends Model
     ];
 
     protected $casts = [
-        'reason' => ReportReasonEnum::class, // 🧠 Enum pour sécuriser les motifs
+        'reason' => ReportReasonEnum::class,
     ];
-    /*
-    |--------------------------------------------------------------------------
-    | Relations
-    |--------------------------------------------------------------------------
-    */
 
-    /**
-     * 🔗 Utilisateur ayant signalé
-     */
+
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * 🔀 Élément polymorphe signalé (Trip, Booking, Luggage…)
-     */
+
     public function reportable(): MorphTo
     {
         return $this->morphTo();
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Helpers
-    |--------------------------------------------------------------------------
-    */
 
-    /**
-     * 🛡️ Vérifie si un utilisateur est autorisé à consulter ce signalement
-     */
+
+
     public function canBeViewedBy(User $user): bool
     {
-        return $user->id === $this->user_id || $user->isAdmin(); // méthode à implémenter
+        return $user->id === $this->user_id || $user->isAdmin();
     }
 
-    /**
-     * 📌 Résumé compact (utile pour les listes)
-     */
+
     public function summary(): string
     {
         return "{$this->reason->label()} - {$this->reportable_type} #{$this->reportable_id}";

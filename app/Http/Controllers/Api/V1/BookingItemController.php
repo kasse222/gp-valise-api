@@ -19,7 +19,7 @@ class BookingItemController extends Controller
     public function index(Booking $booking)
     {
         $this->authorize('view', $booking);
-        // 🧠 On trie pour UX / prédictibilité
+
         return BookingItemResource::collection(
             $booking->bookingItems()->orderBy('created_at')->get()
         );

@@ -14,14 +14,12 @@ class BookingStatusHistoryFactory extends Factory
 
     public function definition(): array
     {
-        // 💡 Statut initial réaliste
         $oldStatus = $this->faker->randomElement([
             BookingStatusEnum::EN_ATTENTE,
             BookingStatusEnum::CONFIRMEE,
             BookingStatusEnum::EN_PAIEMENT,
         ]);
 
-        // ✅ On filtre les transitions valides uniquement
         $possibleNewStatuses = array_filter(
             BookingStatusEnum::cases(),
             fn(BookingStatusEnum $status) =>
@@ -39,9 +37,7 @@ class BookingStatusHistoryFactory extends Factory
         ];
     }
 
-    /**
-     * 🔄 Historique initial à la création de la réservation
-     */
+
     public function initial(BookingStatusEnum $status = BookingStatusEnum::EN_ATTENTE): static
     {
         return $this->state(fn() => [

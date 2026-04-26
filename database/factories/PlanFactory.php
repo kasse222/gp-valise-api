@@ -43,11 +43,7 @@ class PlanFactory extends Factory
         };
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | États spécialisés pour tests / seeders ciblés
-    |--------------------------------------------------------------------------
-    */
+
 
     public function free(): static
     {

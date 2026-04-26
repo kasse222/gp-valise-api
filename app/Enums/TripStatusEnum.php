@@ -4,10 +4,10 @@ namespace App\Enums;
 
 enum TripStatusEnum: string
 {
-    case PENDING   = 'pending';    // En attente de confirmation
-    case ACTIVE    = 'active';     // Disponible à la réservation
-    case CANCELLED = 'cancelled';  // Annulé par le voyageur
-    case COMPLETED = 'completed';  // Voyage terminé
+    case PENDING   = 'pending';
+    case ACTIVE    = 'active';
+    case CANCELLED = 'cancelled';
+    case COMPLETED = 'completed';
 
     public function label(): string
     {

@@ -18,9 +18,7 @@ class TripController extends Controller
 {
     use AuthorizesRequests;
 
-    /**
-     * 📦 Lister les trajets
-     */
+
     public function index(ListTrips $action)
     {
         $trips = $action->execute();
@@ -28,9 +26,7 @@ class TripController extends Controller
         return TripResource::collection($trips);
     }
 
-    /**
-     * 🔍 Voir un trajet spécifique
-     */
+
     public function show(Trip $trip, GetTripDetails $action)
     {
         $trip = $action->execute($trip);
@@ -38,9 +34,6 @@ class TripController extends Controller
         return new TripResource($trip);
     }
 
-    /**
-     * ➕ Créer un trajet (voyageur)
-     */
     public function store(StoreTripRequest $request, CreateTrip $action)
     {
         $trip = $action->execute($request->user(), $request->validated());
@@ -50,9 +43,7 @@ class TripController extends Controller
             ->setStatusCode(201);
     }
 
-    /**
-     * ✏️ Modifier un trajet
-     */
+
     public function update(UpdateTripRequest $request, Trip $trip, UpdateTrip $action)
     {
         $this->authorize('update', $trip);
@@ -62,9 +53,7 @@ class TripController extends Controller
         return new TripResource($trip);
     }
 
-    /**
-     * ❌ Supprimer un trajet
-     */
+
     public function destroy(Trip $trip)
     {
         $this->authorize('delete', $trip);

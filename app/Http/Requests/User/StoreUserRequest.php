@@ -11,7 +11,7 @@ class StoreUserRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Auth::check(); // à restreindre par Policy si besoin (admin only)
+        return Auth::check();
     }
 
     public function rules(): array

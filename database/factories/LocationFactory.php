@@ -21,7 +21,7 @@ class LocationFactory extends Factory
             'city'        => $this->faker->city(),
             'position'    => LocationPositionEnum::DEPART, // Par défaut, mais overridable
             'type'        => LocationTypeEnum::AEROPORT,   // Par défaut pour un départ
-            'order_index' => 0, // À ajuster manuellement dans les states
+            'order_index' => 0,
         ];
     }
 
@@ -29,7 +29,7 @@ class LocationFactory extends Factory
     {
         return $this->state(fn() => [
             'position' => LocationPositionEnum::DEPART,
-            'type' => LocationTypeEnum::AEROPORT, // ou VILLE aléatoire
+            'type' => LocationTypeEnum::AEROPORT,
             'order_index' => 0,
         ]);
     }

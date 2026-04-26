@@ -4,32 +4,18 @@ namespace App\Enums;
 
 enum LuggageStatusEnum: string
 {
-    /*
-    |--------------------------------------------------------------------------
-    | 🔄 Cycle de vie standard
-    |--------------------------------------------------------------------------
-    */
 
-    case EN_ATTENTE  = 'en_attente';   // En attente de réservation
-    case RESERVEE    = 'reservee';     // Réservée pour un trajet
-    case EN_TRANSIT  = 'en_transit';   // En cours de transport
-    case LIVREE      = 'livree';       // Livrée au destinataire
+    case EN_ATTENTE  = 'en_attente';
+    case RESERVEE    = 'reservee';
+    case EN_TRANSIT  = 'en_transit';
+    case LIVREE      = 'livree';
 
-        /*
-    |--------------------------------------------------------------------------
-    | 🛑 États terminaux ou exceptionnels
-    |--------------------------------------------------------------------------
-    */
 
-    case ANNULEE     = 'annulee';      // Annulée avant départ
-    case PERDUE      = 'perdue';       // Perdue ou litige
-    case RETOUR      = 'retour';       // Renvoyée à l’expéditeur
+    case ANNULEE     = 'annulee';
+    case PERDUE      = 'perdue';
+    case RETOUR      = 'retour';
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🎨 UI helpers (label + couleur)
-    |--------------------------------------------------------------------------
-    */
+
 
     public function label(): string
     {
@@ -57,11 +43,7 @@ enum LuggageStatusEnum: string
         };
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | ⚙️ Logique métier
-    |--------------------------------------------------------------------------
-    */
+
 
     public function isReservable(): bool
     {
@@ -104,11 +86,6 @@ enum LuggageStatusEnum: string
         return $this === self::LIVREE;
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🔁 Utilitaires divers
-    |--------------------------------------------------------------------------
-    */
 
     public static function values(): array
     {

@@ -40,7 +40,6 @@ it('expire un booking de manière idempotente', function () {
 
     $action = app(ExpirePendingBooking::class);
 
-    // 1er appel : expiration réelle
     $firstResult = $action->execute($booking);
 
     $booking->refresh();
@@ -55,7 +54,6 @@ it('expire un booking de manière idempotente', function () {
     $firstExpiredAt = $booking->expired_at;
     $historyCountAfterFirstCall = $booking->statusHistories()->count();
 
-    // 2e appel : ne doit rien recasser ni recréer de side effects
     $secondResult = $action->execute($booking);
 
     $booking->refresh();

@@ -8,17 +8,13 @@ use Illuminate\Validation\Rule;
 
 class StoreInvitationRequest extends FormRequest
 {
-    /**
-     * 🔐 Seuls les utilisateurs connectés peuvent envoyer une invitation
-     */
+
     public function authorize(): bool
     {
         return Auth::check();
     }
 
-    /**
-     * ✅ Règles de validation des champs
-     */
+
     public function rules(): array
     {
         $user = Auth::user();
@@ -28,10 +24,10 @@ class StoreInvitationRequest extends FormRequest
                 'required',
                 'email:rfc,dns',
                 'max:255',
-                Rule::notIn([$user?->email]), // ⛔ Empêche de s’auto-inviter
+                Rule::notIn([$user?->email]),
                 Rule::unique('invitations', 'recipient_email')
                     ->where('sender_id', $user?->id)
-                    ->whereNull('used_at'), // ✅ Évite les doublons non encore utilisés
+                    ->whereNull('used_at'),
             ],
             'message' => [
                 'nullable',
@@ -46,9 +42,7 @@ class StoreInvitationRequest extends FormRequest
         ];
     }
 
-    /**
-     * 🧾 Messages personnalisés
-     */
+
     public function messages(): array
     {
         return [

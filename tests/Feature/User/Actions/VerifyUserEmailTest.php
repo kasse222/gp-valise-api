@@ -11,7 +11,7 @@ use Illuminate\Support\Carbon;
 
 it('met à jour la vérification email', function () {
     $fakeNow = Carbon::parse('2025-07-03 22:00:00');
-    Carbon::setTestNow($fakeNow); // ← gel du temps
+    Carbon::setTestNow($fakeNow);
 
     $user = User::factory()->create([
         'email_verified_at' => null,
@@ -22,5 +22,5 @@ it('met à jour la vérification email', function () {
     $user->refresh();
 
     expect($user->email_verified_at)->not()->toBeNull()
-        ->and($user->email_verified_at->eq($fakeNow))->toBeTrue(); // ← compare au même instant figé
+        ->and($user->email_verified_at->eq($fakeNow))->toBeTrue();
 });

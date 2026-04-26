@@ -14,7 +14,7 @@ uses(
 
 it('crée une valise avec les données valides', function () {
     $user = User::factory()->sender()->create();
-    $trip = Trip::factory()->for($user)->create(); // ✅ Création du voyage
+    $trip = Trip::factory()->for($user)->create();
 
     $data = [
         'weight_kg'     => 25,
@@ -25,14 +25,14 @@ it('crée une valise avec les données valides', function () {
         'delivery_city' => 'Bamako',
         'pickup_date'   => now()->addDays(2)->toDateString(),
         'delivery_date' => now()->addDays(5)->toDateString(),
-        'trip_id'       => $trip->id, // ✅ Important
+        'trip_id'       => $trip->id,
     ];
 
     $luggage = CreateLuggage::execute($user, $data);
 
     expect($luggage)
         ->user_id->toBe($user->id)
-        ->trip_id->toBe($trip->id) // 💡 on peut aussi tester ce lien
+        ->trip_id->toBe($trip->id) // 
         ->status->toBe(LuggageStatusEnum::EN_ATTENTE)
         ->pickup_city->toBe('Toulouse')
         ->delivery_city->toBe('Bamako')

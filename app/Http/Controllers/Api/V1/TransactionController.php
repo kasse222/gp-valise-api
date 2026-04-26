@@ -24,9 +24,7 @@ class TransactionController extends Controller
         $this->authorizeResource(Transaction::class, 'transaction');
     }
 
-    /**
-     * 📄 Lister les transactions de l'utilisateur connecté
-     */
+
     public function index(Request $request): AnonymousResourceCollection
     {
         $transactions = $request->user()
@@ -37,17 +35,13 @@ class TransactionController extends Controller
         return TransactionResource::collection($transactions);
     }
 
-    /**
-     * 🔍 Afficher une transaction
-     */
+
     public function show(Transaction $transaction): TransactionResource
     {
         return new TransactionResource($transaction);
     }
 
-    /**
-     * ➕ Créer une transaction
-     */
+
     public function store(
         StoreTransactionRequest $request,
         CreateTransaction $action
@@ -62,9 +56,7 @@ class TransactionController extends Controller
             ->setStatusCode(Response::HTTP_CREATED);
     }
 
-    /**
-     * 💸 Déclencher un remboursement manuel
-     */
+
     public function refund(
         RefundTransactionRequest $request,
         Transaction $transaction,

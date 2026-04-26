@@ -13,7 +13,7 @@ class EnsureRole
     {
         $user = $request->user();
 
-        // 🧱 Vérification de base
+
         if (! $user || ! $user->role instanceof UserRoleEnum) {
             report("Utilisateur sans rôle ou rôle invalide : " . optional($user)->id);
             return response()->json([
@@ -21,14 +21,14 @@ class EnsureRole
             ], Response::HTTP_FORBIDDEN);
         }
 
-        // 🔄 Conversion dynamique (string ou int → UserRoleEnum)
+
         $authorized = collect($roles)
             ->map(function ($role) {
                 if (is_numeric($role)) {
                     return UserRoleEnum::tryFrom((int) $role);
                 }
 
-                // Convertit 'ADMIN' → UserRoleEnum::ADMIN
+
                 $roleConst = strtoupper($role);
                 if (defined(UserRoleEnum::class . "::{$roleConst}")) {
                     return constant(UserRoleEnum::class . "::{$roleConst}");
@@ -39,7 +39,7 @@ class EnsureRole
             ->filter()
             ->contains($user->role);
 
-        // ❌ Accès refusé
+
         if (! $authorized) {
             report("Accès refusé à l’utilisateur #{$user->id} avec rôle {$user->role->value}");
 

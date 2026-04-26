@@ -10,7 +10,7 @@ enum ReportReasonEnum: string
     case INAPPROPRIATE = 'inappropriate_communication';
     case SCAM_SUSPECT  = 'suspected_scam';
 
-    /* Helpers facultatifs */
+
     public static function values(): array
     {
         return array_column(self::cases(), 'value');

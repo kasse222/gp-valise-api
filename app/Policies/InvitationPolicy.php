@@ -9,7 +9,7 @@ class InvitationPolicy
 {
     public function create(User $user): bool
     {
-        return $user->isVerified(); // Optionnel : ou un rôle particulier
+        return $user->isVerified();
     }
 
     public function view(User $user, Invitation $invitation): bool

@@ -18,9 +18,7 @@ class InvitationController extends Controller
 {
     use AuthorizesRequests;
 
-    /**
-     * 🔍 Liste les invitations envoyées par l’utilisateur connecté
-     */
+
     public function index(Request $request)
     {
         $invitations = $request->user()
@@ -31,9 +29,7 @@ class InvitationController extends Controller
         return InvitationResource::collection($invitations);
     }
 
-    /**
-     * ✉️ Crée une nouvelle invitation
-     */
+
     public function store(StoreInvitationRequest $request): JsonResponse
     {
         $this->authorize('create', Invitation::class);
@@ -50,20 +46,16 @@ class InvitationController extends Controller
             ->setStatusCode(201);
     }
 
-    /**
-     * 🔎 Affiche les détails d’une invitation
-     */
+
     public function show(Invitation $invitation): InvitationResource
     {
         $this->authorize('view', $invitation);
 
         return (new InvitationResource($invitation))
-            ->withCanSeeToken(); // 🧠 Peut être optionnel selon rôle
+            ->withCanSeeToken();
     }
 
-    /**
-     * ✅ Accepte une invitation via token (user non connecté)
-     */
+
     public function accept(AcceptInvitationRequest $request): JsonResponse
     {
         $invitation = AcceptInvitation::execute(
@@ -76,9 +68,7 @@ class InvitationController extends Controller
         ]);
     }
 
-    /**
-     * 🗑 Supprime une invitation (si non utilisée)
-     */
+
     public function destroy(Invitation $invitation): JsonResponse
     {
         $this->authorize('delete', $invitation);

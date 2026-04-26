@@ -81,9 +81,7 @@ enum TransactionStatusEnum: string
         return in_array($to, $transitions[$this] ?? [], true);
     }
 
-    /**
-     * ✅ Peut-on rembourser cette transaction ?
-     */
+
     public function canBeRefunded(): bool
     {
         return in_array($this, [
@@ -92,9 +90,7 @@ enum TransactionStatusEnum: string
         ], true);
     }
 
-    /**
-     * ✅ Peut-on encore annuler cette transaction ?
-     */
+
     public function isCancelable(): bool
     {
         return in_array($this, [

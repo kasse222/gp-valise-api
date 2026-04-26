@@ -8,17 +8,13 @@ use Illuminate\Validation\Rule;
 
 class AcceptInvitationRequest extends FormRequest
 {
-    /**
-     * 🔐 Seuls les invités non connectés peuvent accepter une invitation
-     */
+
     public function authorize(): bool
     {
-        return true; // 👤 Interdit aux utilisateurs connectés
+        return true;
     }
 
-    /**
-     * ✅ Validation des champs
-     */
+
     public function rules(): array
     {
         return [
@@ -35,9 +31,7 @@ class AcceptInvitationRequest extends FormRequest
         ];
     }
 
-    /**
-     * 🧾 Messages d’erreur personnalisés
-     */
+
     public function messages(): array
     {
         return [

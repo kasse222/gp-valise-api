@@ -17,7 +17,7 @@ class InvitationFactory extends Factory
     {
         return [
             'sender_id'       => User::factory()->sender(),
-            'recipient_id'    => User::factory()->expeditor(), // 💡 Ajouter recipient_id proprement
+            'recipient_id'    => User::factory()->expeditor(),
             'recipient_email' => $this->faker->unique()->safeEmail(),
             'token'           => Str::uuid(),
             'used_at'         => null,
@@ -43,9 +43,7 @@ class InvitationFactory extends Factory
         ]);
     }
 
-    /**
-     * ✅ Invitation non encore utilisée
-     */
+
     public function unused(): static
     {
         return $this->state(fn() => [
@@ -55,9 +53,7 @@ class InvitationFactory extends Factory
 
 
 
-    /**
-     * ⏳ Invitation valide (non utilisée, non expirée)
-     */
+
     public function active(): static
     {
         return $this->unused()->state(fn() => [

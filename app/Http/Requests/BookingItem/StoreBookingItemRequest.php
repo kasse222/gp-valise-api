@@ -19,7 +19,7 @@ class StoreBookingItemRequest extends FormRequest
     {
         return [
             'kg_reserved' => ['required', 'numeric', 'min:0.1', 'max:100'],
-            'price'       => ['nullable', 'numeric', 'min:0'], // nullable si prix auto
+            'price'       => ['nullable', 'numeric', 'min:0'],
             'luggage_id'  => ['required', 'exists:luggages,id'],
         ];
     }

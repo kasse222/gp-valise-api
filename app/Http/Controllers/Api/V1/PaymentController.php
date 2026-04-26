@@ -19,9 +19,7 @@ class PaymentController extends Controller
         $this->authorizeResource(Payment::class, 'payment');
     }
 
-    /**
-     * 💳 Lister les paiements de l’utilisateur connecté
-     */
+
     public function index(Request $request, ListPayments $action)
     {
         $payments = $action->execute($request->user());
@@ -29,9 +27,7 @@ class PaymentController extends Controller
         return PaymentResource::collection($payments);
     }
 
-    /**
-     * 🔍 Afficher un paiement spécifique
-     */
+
     public function show(Payment $payment, GetPaymentDetails $action)
     {
         $payment = $action->execute($payment);

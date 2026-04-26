@@ -20,50 +20,25 @@ use App\Http\Controllers\Api\V1\{
 use App\Http\Middleware\EnsureRole;
 use App\Enums\UserRoleEnum;
 
-/*
-|--------------------------------------------------------------------------
-| 🌐 API v1 – Routes publiques
-|--------------------------------------------------------------------------
-*/
-
 Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::post('/register', [AuthController::class, 'register'])->name('auth.register');
     Route::post('/login', [AuthController::class, 'login'])->name('auth.login');
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🔔 Webhook paiement public mais signé
-    |--------------------------------------------------------------------------
-    */
+    // Public but signature-verified webhook endpoint
     Route::post('/webhooks/payment', WebhookController::class)
         ->middleware(['webhook.signature', 'throttle:webhooks'])
         ->name('webhooks.payment');
 });
 
-/*
-|--------------------------------------------------------------------------
-| 🔐 API v1 – Routes protégées
-|--------------------------------------------------------------------------
-*/
 Route::prefix('v1')
     ->middleware(['auth:sanctum'])
     ->name('api.v1.')
     ->group(function () {
 
-        /*
-        |--------------------------------------------------------------------------
-        | 🔑 Auth
-        |--------------------------------------------------------------------------
-        */
         Route::get('/me', [AuthController::class, 'me'])->name('auth.me');
         Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::post('/logout-all', [AuthController::class, 'logoutAll'])->name('auth.logoutAll');
 
-        /*
-        |--------------------------------------------------------------------------
-        | 👤 Users
-        |--------------------------------------------------------------------------
-        */
         Route::prefix('users')->name('users.')->group(function () {
             Route::get('/{user}', [UserController::class, 'show'])->name('show');
             Route::put('/{user}', [UserController::class, 'update'])->name('update');
@@ -73,11 +48,6 @@ Route::prefix('v1')
             Route::post('/{user}/upgrade-plan', [UserController::class, 'upgradePlan'])->name('upgrade_plan');
         });
 
-        /*
-        |--------------------------------------------------------------------------
-        | ✈️ Trips
-        |--------------------------------------------------------------------------
-        */
         Route::get('/trips', [TripController::class, 'index'])->name('trips.index');
         Route::get('/trips/{trip}', [TripController::class, 'show'])->name('trips.show');
 
@@ -87,11 +57,6 @@ Route::prefix('v1')
             Route::delete('/trips/{trip}', [TripController::class, 'destroy'])->name('trips.destroy');
         });
 
-        /*
-        |--------------------------------------------------------------------------
-        | 📦 Plans
-        |--------------------------------------------------------------------------
-        */
         Route::get('/plans', [PlanController::class, 'index'])->name('plans.index');
         Route::get('/plans/{plan}', [PlanController::class, 'show'])->name('plans.show');
 
@@ -103,11 +68,6 @@ Route::prefix('v1')
 
         Route::post('/plans/{user}/upgrade', [PlanController::class, 'upgradePlan'])->name('plans.upgrade');
 
-        /*
-        |--------------------------------------------------------------------------
-        | 📍 Locations
-        |--------------------------------------------------------------------------
-        */
         Route::prefix('locations')->name('locations.')->group(function () {
             Route::get('/', [LocationController::class, 'index'])->name('index');
             Route::get('/{location}', [LocationController::class, 'show'])->name('show');
@@ -117,11 +77,6 @@ Route::prefix('v1')
                 ->name('store');
         });
 
-        /*
-        |--------------------------------------------------------------------------
-        | 📦 Bookings
-        |--------------------------------------------------------------------------
-        */
         Route::get('/bookings', [BookingController::class, 'index'])->name('bookings.index');
         Route::get('/bookings/{booking}', [BookingController::class, 'show'])->name('bookings.show');
 
@@ -142,11 +97,6 @@ Route::prefix('v1')
             ->middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)
             ->name('bookings.complete');
 
-        /*
-        |--------------------------------------------------------------------------
-        | 📦 Booking items + status histories
-        |--------------------------------------------------------------------------
-        */
         Route::prefix('bookings/{booking}')->name('bookings.')->group(function () {
             Route::get('items', [BookingItemController::class, 'index'])->name('items.index');
             Route::post('items', [BookingItemController::class, 'store'])->name('items.store');
@@ -160,11 +110,6 @@ Route::prefix('v1')
             Route::delete('{item}', [BookingItemController::class, 'destroy'])->name('destroy');
         });
 
-        /*
-        |--------------------------------------------------------------------------
-        | 🎒 Luggages
-        |--------------------------------------------------------------------------
-        */
         Route::get('/luggages', [LuggageController::class, 'index'])->name('luggages.index');
         Route::get('/luggages/{luggage}', [LuggageController::class, 'show'])->name('luggages.show');
 
@@ -174,11 +119,6 @@ Route::prefix('v1')
             Route::delete('/luggages/{luggage}', [LuggageController::class, 'destroy'])->name('luggages.destroy');
         });
 
-        /*
-        |--------------------------------------------------------------------------
-        | 📧 Invitations
-        |--------------------------------------------------------------------------
-        */
         Route::prefix('invitations')->name('invitations.')->group(function () {
             Route::get('/', [InvitationController::class, 'index'])->name('index');
             Route::post('/', [InvitationController::class, 'store'])->name('store');
@@ -187,22 +127,12 @@ Route::prefix('v1')
             Route::delete('/{invitation}', [InvitationController::class, 'destroy'])->name('destroy');
         });
 
-        /*
-        |--------------------------------------------------------------------------
-        | 🚨 Reports
-        |--------------------------------------------------------------------------
-        */
         Route::prefix('reports')->name('reports.')->group(function () {
             Route::get('/', [ReportController::class, 'index'])->name('index');
             Route::post('/', [ReportController::class, 'store'])->name('store');
             Route::get('/{report}', [ReportController::class, 'show'])->name('show');
         });
 
-        /*
-        |--------------------------------------------------------------------------
-        | 💰 Transactions = seule API financière publique
-        |--------------------------------------------------------------------------
-        */
         Route::middleware(['verified_user'])->group(function () {
             Route::apiResource('transactions', TransactionController::class)
                 ->only(['index', 'show', 'store']);
@@ -216,14 +146,9 @@ Route::prefix('v1')
         });
     });
 
-/*
-|--------------------------------------------------------------------------
-| 🚨 Fallback JSON
-|--------------------------------------------------------------------------
-*/
 Route::fallback(function () {
     return response()->json([
-        'message' => '🔍 Route introuvable.',
+        'message' => 'Route introuvable.',
         'status'  => 404,
     ], 404);
 });

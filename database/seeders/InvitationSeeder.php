@@ -12,11 +12,10 @@ class InvitationSeeder extends Seeder
 {
     public function run(): void
     {
-        // 🧑‍✈️ Tous les utilisateurs expéditeurs
         $senders = User::where('role', UserRoleEnum::SENDER)->get();
 
         foreach ($senders as $sender) {
-            // Génère 1 à 3 invitations par expéditeur
+
             $count = rand(1, 3);
 
             Invitation::factory()
@@ -36,7 +35,6 @@ class InvitationSeeder extends Seeder
                 ->create();
         }
 
-        // 🔁 Invitations expirées (sans destinataire connu)
         Invitation::factory()
             ->count(5)
             ->expired()
@@ -46,7 +44,6 @@ class InvitationSeeder extends Seeder
             ])
             ->create();
 
-        // 🔁 Invitations déjà utilisées (destinataire connu ou inconnu)
         Invitation::factory()
             ->count(5)
             ->used()

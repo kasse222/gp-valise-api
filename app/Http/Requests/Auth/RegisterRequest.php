@@ -11,7 +11,7 @@ class RegisterRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // Inscription publique
+        return true;
     }
 
     public function rules(): array
@@ -21,10 +21,10 @@ class RegisterRequest extends FormRequest
             'last_name'       => ['required', 'string', 'max:100'],
             'email'           => ['required', 'email', 'unique:users,email'],
             'password'        => ['required', 'confirmed', Password::min(8)],
-            'role'       => ['required', Rule::in(UserRoleEnum::values())], // ✅ corrigé ici
+            'role'       => ['required', Rule::in(UserRoleEnum::values())],
             'phone'           => ['required', 'string', 'max:20'],
             'country'         => ['nullable', 'string', 'max:100'],
-            'plan_id'         => ['nullable', 'exists:plans,id'], // facultatif à l'inscription
+            'plan_id'         => ['nullable', 'exists:plans,id'],
         ];
     }
 }

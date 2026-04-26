@@ -16,9 +16,7 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
-    /**
-     * Les attributs pouvant être assignés en masse.
-     */
+
     protected $fillable = [
         'first_name',
         'last_name',
@@ -35,9 +33,7 @@ class User extends Authenticatable
         'plan_expires_at',
     ];
 
-    /**
-     * Les attributs castés automatiquement.
-     */
+
     protected $casts = [
         'email_verified_at' => 'datetime',
         'kyc_passed_at'      => 'datetime',
@@ -47,9 +43,7 @@ class User extends Authenticatable
         'role'               => UserRoleEnum::class,
     ];
 
-    /**
-     * Relation avec le plan de l'utilisateur.
-     */
+
     public function plan(): BelongsTo
     {
         return $this->belongsTo(Plan::class);
@@ -81,9 +75,7 @@ class User extends Authenticatable
         return $this->hasMany(Invitation::class, 'sender_id');
     }
 
-    /**
-     * Vérifie si l'utilisateur est premium.
-     */
+
     public function isPremium(): bool
     {
         return $this->plan?->type === PlanTypeEnum::PREMIUM
@@ -98,18 +90,14 @@ class User extends Authenticatable
     }
 
 
-    /**
-     * Vérifie si l'utilisateur a un type de plan donné et actif.
-     */
+
     public function hasPlan(PlanTypeEnum $type): bool
     {
         return $this->plan?->type === $type
             && $this->plan_expires_at?->isFuture();
     }
 
-    /**
-     * Vérifie si l'utilisateur est administrateur.
-     */
+
     public function isAdmin(): bool
     {
         return $this->role === UserRoleEnum::ADMIN
@@ -137,9 +125,7 @@ class User extends Authenticatable
     {
         return $this->role === UserRoleEnum::TRAVELER;
     }
-    /**
-     * Vérifie si l'utilisateur a validé son KYC.
-     */
+
     public function hasKyc(): bool
     {
         return !is_null($this->kyc_passed_at);
@@ -164,9 +150,7 @@ class User extends Authenticatable
             'role' => UserRoleEnum::ADMIN,
         ]);
     }
-    /**
-     * Vérifie si l’utilisateur est globalement vérifié (utilisé pour les invitations).
-     */
+
     public function isVerified(): bool
     {
         return (bool) $this->verified_user;

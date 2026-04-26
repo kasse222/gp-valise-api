@@ -17,9 +17,7 @@ class LuggageController extends Controller
 {
     use AuthorizesRequests;
 
-    /**
-     * 📦 Lister les valises de l'utilisateur connecté
-     */
+
     public function index(Request $request)
     {
         $luggages = $request->user()->luggages()->latest()->paginate(10);
@@ -27,9 +25,7 @@ class LuggageController extends Controller
         return LuggageResource::collection($luggages);
     }
 
-    /**
-     * ➕ Créer une nouvelle valise
-     */
+
     public function store(StoreLuggageRequest $request)
     {
         $luggage = CreateLuggage::execute($request->user(), $request->validated());
@@ -37,9 +33,7 @@ class LuggageController extends Controller
         return response()->json(new LuggageResource($luggage), 201);
     }
 
-    /**
-     * 👁️ Voir une valise en détail
-     */
+
     public function show(Luggage $luggage)
     {
         $this->authorize('view', $luggage);
@@ -47,9 +41,7 @@ class LuggageController extends Controller
         return new LuggageResource($luggage);
     }
 
-    /**
-     * ✏️ Modifier une valise
-     */
+
     public function update(UpdateLuggageRequest $request, Luggage $luggage)
     {
         $this->authorize('update', $luggage);
@@ -59,9 +51,7 @@ class LuggageController extends Controller
         return new LuggageResource($luggage);
     }
 
-    /**
-     * 🗑️ Supprimer une valise
-     */
+
     public function destroy(Luggage $luggage)
     {
         $this->authorize('delete', $luggage);

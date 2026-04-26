@@ -9,7 +9,7 @@ class ChangePasswordRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Auth::check(); // utilisateur connecté uniquement
+        return Auth::check();
     }
 
     public function rules(): array

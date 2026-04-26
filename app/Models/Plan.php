@@ -30,26 +30,15 @@ class Plan extends Model
         'is_active'            => 'boolean',
     ];
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🔗 Relations
-    |--------------------------------------------------------------------------
-    */
+
 
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | ⚙️ Méthodes métier
-    |--------------------------------------------------------------------------
-    */
 
-    /**
-     * Pourcentage de réduction actuel (si encore valable)
-     */
+
     public function getCommissionPercent(): float
     {
         return $this->hasActiveDiscount()
@@ -57,35 +46,25 @@ class Plan extends Model
             : 0;
     }
 
-    /**
-     * Le plan a-t-il une réduction valide ?
-     */
+
     public function hasActiveDiscount(): bool
     {
         return $this->discount_expires_at?->isFuture();
     }
 
-    /**
-     * Est-ce un plan premium ?
-     */
+
     public function isPremium(): bool
     {
         return $this->type === PlanTypeEnum::PREMIUM;
     }
 
-    /**
-     * Est-il actif ?
-     */
+
     public function isAvailable(): bool
     {
         return $this->is_active;
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🧪 Scope utiles
-    |--------------------------------------------------------------------------
-    */
+
 
     public function scopeActive($query)
     {

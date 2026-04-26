@@ -31,39 +31,23 @@ class Location extends Model
         'type'         => LocationTypeEnum::class,
     ];
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🔗 Relations
-    |--------------------------------------------------------------------------
-    */
 
-    /**
-     * 🔗 Le trajet auquel ce point appartient
-     */
+
+
     public function trip(): BelongsTo
     {
         return $this->belongsTo(Trip::class);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🔍 Scopes
-    |--------------------------------------------------------------------------
-    */
 
-    /**
-     * 🔁 Scope pour trier les étapes d’un trajet
-     */
+
+
     public function scopeOrdered(Builder $query): Builder
     {
         return $query->orderBy('order_index');
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🧠 Helpers métier
-    |--------------------------------------------------------------------------
-    */
+
 
     public function isDeparture(): bool
     {

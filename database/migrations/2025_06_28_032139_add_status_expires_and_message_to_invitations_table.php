@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('invitations', function (Blueprint $table) {
-            // Ajoute uniquement si la colonne n'existe pas déjà
+
             if (! Schema::hasColumn('invitations', 'expires_at')) {
                 $table->timestamp('expires_at')
                     ->nullable()

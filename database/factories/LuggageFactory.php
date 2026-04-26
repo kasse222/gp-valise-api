@@ -20,7 +20,7 @@ class LuggageFactory extends Factory
 
         return [
             'user_id'        => User::factory()->expeditor(),
-            'trip_id'        => Trip::factory(), // 💡 Association automatique
+            'trip_id'        => Trip::factory(),
             'description'    => $this->faker->sentence(5),
             'weight_kg'      => $this->faker->randomFloat(1, 1, 25),
             'length_cm'      => $this->faker->numberBetween(20, 80),
@@ -37,11 +37,7 @@ class LuggageFactory extends Factory
         ];
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | États spécifiques (facilitent tests ciblés)
-    |--------------------------------------------------------------------------
-    */
+
 
     public function reservee(): static
     {

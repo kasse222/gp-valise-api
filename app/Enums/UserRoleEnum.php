@@ -28,9 +28,7 @@ enum UserRoleEnum: int
         };
     }
 
-    /**
-     * 🛡️ Accès staff (back-office / support)
-     */
+
     public function isStaff(): bool
     {
         return in_array($this, [
@@ -41,9 +39,7 @@ enum UserRoleEnum: int
         ], true);
     }
 
-    /**
-     * 👑 Admin (admin + super admin)
-     */
+
     public function isAdmin(): bool
     {
         return in_array($this, [
@@ -52,9 +48,7 @@ enum UserRoleEnum: int
         ], true);
     }
 
-    /**
-     * 👑 Super admin uniquement
-     */
+
     public function isSuperAdmin(): bool
     {
         return $this === self::SUPER_ADMIN;

@@ -11,15 +11,12 @@ return new class extends Migration
         Schema::create('reports', function (Blueprint $table) {
             $table->id();
 
-            // 🧑 Utilisateur ayant effectué le signalement
             $table->foreignId('user_id')
                 ->constrained()
                 ->cascadeOnDelete();
 
-            // 🎯 Cible du signalement (polymorphique)
-            $table->morphs('reportable'); // Génère automatiquement reportable_id et reportable_type + index
+            $table->morphs('reportable');
 
-            // 📝 Raison et détails
             $table->string('reason', 50)
                 ->nullable()
                 ->comment('Motif du signalement (ex: arnaque, propos inappropriés...)');

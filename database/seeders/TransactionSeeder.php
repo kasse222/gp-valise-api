@@ -14,7 +14,6 @@ class TransactionSeeder extends Seeder
 {
     public function run(): void
     {
-        // 🎯 On cible les bookings confirmés ou terminés
         $bookings = Booking::whereIn('status', [
             \App\Enums\BookingStatusEnum::CONFIRMEE->value,
             \App\Enums\BookingStatusEnum::TERMINE->value,

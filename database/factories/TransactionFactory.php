@@ -28,18 +28,16 @@ class TransactionFactory extends Factory
             'currency' => CurrencyEnum::EUR->value,
             'method'   => PaymentMethodEnum::CARTE_BANCAIRE->value,
 
-            // 🔥 cohérence métier
+
             'status'       => TransactionStatusEnum::PENDING->value,
             'processed_at' => null,
 
-            // 🔥 essentiel pour webhook
+
             'provider_transaction_id' => 'fake_' . Str::uuid(),
         ];
     }
 
-    /**
-     * 🔗 Lier à un user + booking cohérent
-     */
+
     public function forUserWithBooking(User $user): self
     {
         return $this->state([
@@ -48,9 +46,7 @@ class TransactionFactory extends Factory
         ]);
     }
 
-    /**
-     * ⏳ Pending
-     */
+
     public function pending(): static
     {
         return $this->state([
@@ -59,9 +55,7 @@ class TransactionFactory extends Factory
         ]);
     }
 
-    /**
-     * ✅ Completed
-     */
+
     public function success(): static
     {
         return $this->state([
@@ -70,9 +64,7 @@ class TransactionFactory extends Factory
         ]);
     }
 
-    /**
-     * ❌ Failed
-     */
+
     public function failed(): static
     {
         return $this->state([
@@ -81,9 +73,7 @@ class TransactionFactory extends Factory
         ]);
     }
 
-    /**
-     * 💳 Charge
-     */
+
     public function charge(): static
     {
         return $this->state([
@@ -91,9 +81,7 @@ class TransactionFactory extends Factory
         ]);
     }
 
-    /**
-     * 💸 Refund
-     */
+
     public function refund(): static
     {
         return $this->state([
@@ -101,9 +89,7 @@ class TransactionFactory extends Factory
         ]);
     }
 
-    /**
-     * 💼 Payout (future-proof)
-     */
+
     public function payout(): static
     {
         return $this->state([

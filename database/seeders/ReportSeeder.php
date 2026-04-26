@@ -17,7 +17,7 @@ class ReportSeeder extends Seeder
         $users = User::inRandomOrder()->take(10)->get();
 
         $reportables = collect()
-            ->merge(Booking::inRandomOrder()->limit(5)->get())   // → get()
+            ->merge(Booking::inRandomOrder()->limit(5)->get())
             ->merge(Luggage::inRandomOrder()->limit(5)->get());
 
         if ($reportables->isEmpty() || $users->isEmpty()) {

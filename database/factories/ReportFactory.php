@@ -38,11 +38,7 @@ class ReportFactory extends Factory
         ];
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | États spécialisés : BookingReport, LuggageReport, etc.
-    |--------------------------------------------------------------------------
-    */
+
 
     public function forBooking(): static
     {

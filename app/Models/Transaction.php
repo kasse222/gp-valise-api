@@ -34,11 +34,7 @@ class Transaction extends Model
         'processed_at' => 'datetime',
     ];
 
-    /*
-    |--------------------------------------------------------------------------
-    | Relations
-    |--------------------------------------------------------------------------
-    */
+
 
     public function user(): BelongsTo
     {
@@ -50,11 +46,7 @@ class Transaction extends Model
         return $this->belongsTo(Booking::class);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Helpers métier
-    |--------------------------------------------------------------------------
-    */
+
 
     public function isProcessed(): bool
     {

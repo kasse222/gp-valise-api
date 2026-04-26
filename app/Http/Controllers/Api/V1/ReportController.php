@@ -16,18 +16,14 @@ class ReportController extends Controller
 {
     use AuthorizesRequests;
 
-    /**
-     * 🗂️ Liste des signalements faits par l’utilisateur
-     */
+
     public function index(Request $request)
     {
         $reports = $request->user()->reports()->latest()->paginate(10);
         return ReportResource::collection($reports);
     }
 
-    /**
-     * 🔍 Voir un signalement
-     */
+
     public function show(Report $report): ReportResource
     {
         if (Auth::id() !== $report->user_id) {
@@ -37,9 +33,7 @@ class ReportController extends Controller
         return new ReportResource($report);
     }
 
-    /**
-     * 🆕 Créer un nouveau signalement
-     */
+
     public function store(StoreReportRequest $request, ReportService $service)
     {
         $report = $service->create($request->user(), $request->validated());

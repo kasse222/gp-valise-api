@@ -24,22 +24,18 @@ class UserResource extends JsonResource
             'phone'       => $this->phone,
             'country'     => $this->country,
 
-            // 🎯 Rôle enrichi
             'role'        => $this->role->value,
             'role_label'  => $this->role->label(),
 
-            // 🔐 Sécurité
             'verified_user' => $this->verified_user,
             'kyc_passed_at' => optional($this->kyc_passed_at)?->toDateTimeString(),
             'email_verified_at' => optional($this->email_verified_at)?->toDateTimeString(),
 
-            // 💳 Abonnement
             'plan_id'         => $this->plan_id,
             'plan_expires_at' => optional($this->plan_expires_at)?->toDateTimeString(),
             'is_premium'      => $this->isPremium(),
             'plan'            => new PlanResource($this->whenLoaded('plan')),
 
-            // 🕓 Création
             'created_at'      => $this->created_at->toDateTimeString(),
         ];
     }

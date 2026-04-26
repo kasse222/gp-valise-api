@@ -24,7 +24,7 @@ class LuggageSeeder extends Seeder
         }
 
         foreach ($senders as $sender) {
-            $count = rand(1, 4); // chaque expéditeur peut avoir 1 à 4 valises
+            $count = rand(1, 4);
 
             for ($i = 0; $i < $count; $i++) {
                 $pickupDate = now()->addDays(rand(1, 10));
@@ -39,7 +39,7 @@ class LuggageSeeder extends Seeder
 
                 Luggage::create([
                     'user_id'             => $sender->id,
-                    'trip_id'             => $trips->random()->id, // ✅ lien valide
+                    'trip_id'             => $trips->random()->id,
                     'description'         => fake()->words(3, true),
                     'weight_kg'           => fake()->randomFloat(1, 2, 25),
                     'length_cm'           => $length,
@@ -52,8 +52,8 @@ class LuggageSeeder extends Seeder
                     'delivery_date'       => $deliveryDate,
                     'status'              => $status->value,
                     'tracking_id'         => (string) Str::uuid(),
-                    'is_fragile'          => fake()->boolean(30),         // 30% fragile
-                    'insurance_requested' => fake()->boolean(20),         // 20% demandent assurance
+                    'is_fragile'          => fake()->boolean(30),
+                    'insurance_requested' => fake()->boolean(20),
                 ]);
             }
         }

@@ -25,7 +25,7 @@ class BookingStatusHistorySeeder extends Seeder
 
         Booking::all()->each(function ($booking) use ($admin, &$count) {
             if ($booking->status === BookingStatusEnum::TERMINE || $booking->status === BookingStatusEnum::REMBOURSEE) {
-                return; // on ne génère pas d'historique pour les terminés/remboursés
+                return;
             }
 
             $statuses = [
@@ -37,7 +37,7 @@ class BookingStatusHistorySeeder extends Seeder
             ];
 
             $previous = null;
-            $date = Carbon::now()->subDays(count($statuses)); // point de départ
+            $date = Carbon::now()->subDays(count($statuses));
 
             foreach ($statuses as $status) {
                 if ($previous && !$previous->canTransitionTo($status)) {

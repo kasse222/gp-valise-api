@@ -12,7 +12,7 @@ class UpdateTripRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // MVP = modification par le propriétaire seulement (à sécuriser via Policy côté controller)
+
         return Auth::check();
     }
 

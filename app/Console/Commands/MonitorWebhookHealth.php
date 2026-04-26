@@ -98,7 +98,7 @@ class MonitorWebhookHealth extends Command
 
         Mail::raw(
             json_encode(compact('message') + $context, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
-            fn($mail) => $mail->to($email)->subject('Alerte Monitoring Webhook 🚨')
+            fn($mail) => $mail->to($email)->subject('Alerte Monitoring Webhook ')
         );
     }
 }

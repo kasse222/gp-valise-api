@@ -16,7 +16,6 @@ return new class extends Migration
             $table->string('provider_transaction_id')->nullable()->index();
 
             $table->string('status')->default('received')->index();
-            // received | processed | ignored | failed
 
             $table->json('payload');
             $table->text('error_message')->nullable();

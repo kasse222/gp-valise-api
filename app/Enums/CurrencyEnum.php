@@ -34,7 +34,7 @@ enum CurrencyEnum: string
 
     public static function default(): self
     {
-        return self::EUR;       // tu peux changer ici si la devise par défaut évolue
+        return self::EUR;
     }
     public static function values(): array
     {

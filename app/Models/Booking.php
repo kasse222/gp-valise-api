@@ -62,11 +62,7 @@ class Booking extends Model
         });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Relations
-    |--------------------------------------------------------------------------
-    */
+
 
     public function user(): BelongsTo
     {
@@ -93,9 +89,7 @@ class Booking extends Model
         return $this->hasMany(BookingStatusHistory::class);
     }
 
-    /**
-     * Compat legacy : certains flux regardent encore la charge principale.
-     */
+
     public function transaction(): HasOne
     {
         return $this->hasOne(Transaction::class)
@@ -112,11 +106,7 @@ class Booking extends Model
         return $this->morphMany(Report::class, 'reportable');
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Helpers métier
-    |--------------------------------------------------------------------------
-    */
+
 
     public function statusIs(BookingStatusEnum $expected): bool
     {

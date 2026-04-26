@@ -15,10 +15,10 @@ return new class extends Migration
             $table->string('name');
             $table->enum('type', PlanTypeEnum::values())->default(PlanTypeEnum::FREE->value);
 
-            $table->decimal('price', 8, 2)->unsigned()->default(0);               // ✅ corrigé
-            $table->json('features')->nullable();                                // ✅ ajouté
+            $table->decimal('price', 8, 2)->unsigned()->default(0);
+            $table->json('features')->nullable();
             $table->unsignedInteger('duration_days')->nullable();
-            $table->decimal('discount_percent', 5, 2)->unsigned()->nullable();   // ✅ corrigé
+            $table->decimal('discount_percent', 5, 2)->unsigned()->nullable();
             $table->timestamp('discount_expires_at')->nullable();
 
             $table->boolean('is_active')->default(true);
