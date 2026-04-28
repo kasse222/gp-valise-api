@@ -184,7 +184,9 @@ Règles métier :
 - `docs/ARCHITECTURE.md` — architecture complète et décisions techniques
 - `docs/AUDIT.md` — évolution du projet et choix de design
 
----
+## Engineering Notes
+
+## See `.adamas/` for architecture rules, audit methodology and coding standards.
 
 ## Roadmap
 
