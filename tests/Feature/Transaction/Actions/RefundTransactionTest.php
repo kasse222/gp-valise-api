@@ -146,3 +146,37 @@ it('rejette le remboursement si un refund existe déjà', function () {
     expect(fn() => app(RefundTransaction::class)->execute($charge))
         ->toThrow(ValidationException::class, 'Ce booking ne peut pas déclencher de remboursement.');
 });
+
+it('refuse un remboursement si un payout existe déjà', function () {
+    $user = User::factory()->verified()->create();
+
+    $booking = Booking::factory()->create([
+        'user_id' => $user->id,
+        'status' => BookingStatusEnum::LIVREE,
+    ]);
+
+    $charge = Transaction::factory()->create([
+        'user_id' => $user->id,
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::CHARGE,
+        'status' => TransactionStatusEnum::COMPLETED,
+    ]);
+
+    Transaction::factory()->create([
+        'user_id' => $user->id,
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::PAYOUT,
+        'status' => TransactionStatusEnum::PENDING,
+    ]);
+
+    expect(
+        fn() =>
+        app(RefundTransaction::class)->execute($charge, 'Payout déjà existant')
+    )->toThrow(ValidationException::class);
+
+    expect(
+        Transaction::where('booking_id', $booking->id)
+            ->where('type', TransactionTypeEnum::REFUND)
+            ->exists()
+    )->toBeFalse();
+});

@@ -1,8 +1,10 @@
 <?php
 
 use App\Actions\Booking\ExpirePendingBooking;
+use App\Actions\Transaction\CreateTransaction;
 use App\Enums\BookingStatusEnum;
 use App\Enums\LuggageStatusEnum;
+use App\Enums\PaymentMethodEnum;
 use App\Events\BookingExpired;
 use App\Models\Booking;
 use App\Models\BookingItem;
@@ -11,6 +13,7 @@ use App\Models\Trip;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Validation\ValidationException;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
@@ -99,4 +102,26 @@ it('dispatch l event BookingExpired lorsqu une réservation expire', function ()
         return $event->booking->id === $booking->id
             && $event->booking->status === BookingStatusEnum::EXPIREE;
     });
+});
+
+it('refuse la création de transaction si le booking est expiré', function () {
+    $user = User::factory()->verified()->create();
+
+    $booking = Booking::factory()->create([
+        'user_id' => $user->id,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
+        'payment_expires_at' => now()->subMinutes(1),
+    ]);
+
+    $data = [
+        'booking_id' => $booking->id,
+        'amount' => 100,
+        'currency' => 'MAD',
+        'method' => PaymentMethodEnum::CARTE_BANCAIRE->value,
+    ];
+
+    expect(
+        fn() =>
+        app(CreateTransaction::class)->execute($user, $data)
+    )->toThrow(ValidationException::class);
 });
