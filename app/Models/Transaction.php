@@ -23,6 +23,7 @@ class Transaction extends Model
         'status',
         'method',
         'processed_at',
+        'provider_transaction_id',
     ];
 
     protected $casts = [

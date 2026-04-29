@@ -168,3 +168,26 @@ it('rejette la création si une transaction existe déjà pour ce booking', func
 
     app(CreateTransaction::class)->execute($user, $data);
 })->throws(ValidationException::class, 'Une transaction existe déjà pour ce booking.');
+
+it('stocke le provider_transaction_id lors de la création', function () {
+
+    $user = User::factory()->verified()->create();
+
+    $booking = Booking::factory()->create([
+        'user_id' => $user->id,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
+        'payment_expires_at' => now()->addMinutes(10),
+    ]);
+
+    $data = [
+        'booking_id' => $booking->id,
+        'amount' => 100,
+        'currency' => 'MAD',
+        'method' => PaymentMethodEnum::CARTE_BANCAIRE->value,
+    ];
+
+    $transaction = app(CreateTransaction::class)->execute($user, $data);
+
+    expect($transaction)->not->toBeNull();
+    expect($transaction->provider_transaction_id)->not->toBeNull();
+});
