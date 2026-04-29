@@ -129,7 +129,12 @@ it('est idempotent si le même event_id est reçu deux fois', function () {
 
     expect($refund->status)->toBe(TransactionStatusEnum::COMPLETED)
         ->and($booking->status)->toBe(BookingStatusEnum::REMBOURSEE)
-        ->and(WebhookLog::where('event_id', 'evt_789')->count())->toBe(1);
+        ->and(WebhookLog::where('event_id', 'evt_789')->count())->toBe(1)
+        ->and(
+            $booking->statusHistories()
+                ->where('new_status', BookingStatusEnum::REMBOURSEE)
+                ->count()
+        )->toBe(1);
 });
 
 it('lève une exception retryable si la transaction est introuvable', function () {
@@ -209,4 +214,44 @@ it('ignore un payload incomplet sans créer de log', function () {
     ]);
 
     expect(WebhookLog::count())->toBe(0);
+});
+
+it('ignore un refund déjà finalisé même avec un nouvel event_id', function () {
+    $user = User::factory()->create();
+    $trip = Trip::factory()->create();
+
+    $booking = Booking::factory()->create([
+        'user_id' => $user->id,
+        'trip_id' => $trip->id,
+        'status' => BookingStatusEnum::REMBOURSEE,
+    ]);
+
+    $refund = Transaction::factory()
+        ->refund()
+        ->create([
+            'user_id' => $user->id,
+            'booking_id' => $booking->id,
+            'status' => TransactionStatusEnum::COMPLETED,
+            'processed_at' => now()->subMinute(),
+            'provider_transaction_id' => 'fake_refund_finalized',
+        ]);
+
+    $payload = [
+        'event_id' => 'evt_new_duplicate_finalized',
+        'event' => 'refund.completed',
+        'provider_transaction_id' => 'fake_refund_finalized',
+    ];
+
+    app(HandlePaymentWebhook::class)->execute($payload);
+
+    $refund->refresh();
+    $booking->refresh();
+
+    $log = WebhookLog::where('event_id', 'evt_new_duplicate_finalized')->first();
+
+    expect($refund->status)->toBe(TransactionStatusEnum::COMPLETED)
+        ->and($booking->status)->toBe(BookingStatusEnum::REMBOURSEE)
+        ->and($log)->not->toBeNull()
+        ->and($log->status)->toBe(WebhookLog::STATUS_IGNORED)
+        ->and($log->error_message)->toBe('Transaction déjà finalisée');
 });
