@@ -37,6 +37,14 @@ Le projet suit une approche :
 - **Enums comme source de vérité métier**
 - **Séparation stricte des responsabilités**
 
+## 🎯 Usage
+
+Ce dossier est utilisé pour :
+
+- audit manuel
+- audit IA (ChatGPT / Codex / Claude)
+- préparation entretien technique
+
 Flux standard :
 
 HTTP Request → Controller → FormRequest (validation)
