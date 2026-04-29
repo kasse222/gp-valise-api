@@ -191,3 +191,28 @@ it('stocke le provider_transaction_id lors de la création', function () {
     expect($transaction)->not->toBeNull();
     expect($transaction->provider_transaction_id)->not->toBeNull();
 });
+
+
+it('refuse une deuxième transaction de charge pour le même booking', function () {
+    $user = User::factory()->verified()->create();
+
+    $booking = Booking::factory()->create([
+        'user_id' => $user->id,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
+        'payment_expires_at' => now()->addMinutes(10),
+    ]);
+
+    $data = [
+        'booking_id' => $booking->id,
+        'amount' => 100,
+        'currency' => 'MAD',
+        'method' => PaymentMethodEnum::CARTE_BANCAIRE->value,
+    ];
+
+    app(CreateTransaction::class)->execute($user, $data);
+
+    expect(fn() => app(CreateTransaction::class)->execute($user, $data))
+        ->toThrow(ValidationException::class);
+
+    expect(Transaction::where('booking_id', $booking->id)->count())->toBe(1);
+});
