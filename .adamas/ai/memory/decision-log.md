@@ -1,0 +1,393 @@
+# 🧠 Decision Log — GP-Valise
+
+## 🎯 Objectif
+
+Ce fichier trace les décisions techniques et métier importantes du projet.
+
+Il permet de :
+
+- comprendre pourquoi un choix a été fait
+- éviter de re-débattre les mêmes sujets
+- aligner les décisions futures avec les choix passés
+- guider l'IA dans ses recommandations
+
+> Une décision documentée vaut mieux qu'un bon code oublié.
+
+---
+
+## 🧾 Format d'une décision
+
+```
+## [DATE] — Titre court
+
+### Contexte
+Pourquoi la décision est nécessaire
+
+### Décision
+Choix effectué
+
+### Alternatives considérées
+Options rejetées et pourquoi
+
+### Conséquences
+Impacts techniques / métier
+
+### Statut
+- ✅ actif
+- 🟡 en cours
+- 🔴 à revoir
+- ⬛ obsolète
+```
+
+---
+
+# 📌 Décisions actives
+
+---
+
+## [2026-04] — Transaction = source de vérité financière
+
+### Contexte
+
+Le système nécessite une cohérence financière forte avec paiements async, webhooks, retry et idempotence.
+
+### Décision
+
+La **Transaction** est la seule source de vérité financière.
+
+- Payment = vue métier / workflow utilisateur
+- Transaction = réalité comptable atomique
+
+### Alternatives considérées
+
+- Stocker l'état financier directement dans Booking ❌ (couplage fort, pas de traçabilité)
+- Dépendre du provider comme source de vérité ❌ (fragile, async non maîtrisé)
+
+### Conséquences
+
+- forte traçabilité financière
+- découplage total du provider
+- complexité légèrement plus élevée
+
+### Statut
+
+✅ actif
+
+---
+
+## [2026-04] — Séparation FEE / PAYMENT_FEE
+
+### Contexte
+
+Besoin de distinguer le revenu plateforme du coût PSP / bancaire pour un calcul de rentabilité réel.
+
+### Décision
+
+Deux types de transactions distincts :
+
+- `FEE` = revenu GP-Valise (commission)
+- `PAYMENT_FEE` = coût externe (PSP, banque)
+
+### Alternatives considérées
+
+- Fusionner les deux en un seul type ❌ (perte de visibilité financière)
+- Ignorer les frais PSP en MVP ❌ (données de rentabilité faussées)
+
+### Conséquences
+
+- modèle financier propre et lisible
+- prêt pour multi-pays / multi-PSP
+- calcul réel de rentabilité (`profit_net = FEE - PAYMENT_FEE`)
+
+### Statut
+
+✅ actif
+
+---
+
+## [2026-04] — FEE dynamique via FeeCalculator
+
+### Contexte
+
+La commission dépend du pays, du type utilisateur (B2C / B2B) et de règles métier futures (volume, plan, partenaire).
+
+### Décision
+
+Introduire un `FeeCalculator` dédié, isolé de toute Action :
+
+```php
+interface FeeCalculator
+{
+    public function calculate(Booking $booking): Money;
+}
+```
+
+### Alternatives considérées
+
+- Hardcoder le taux dans l'Action ❌ (duplication, incohérence multi-pays)
+- Config simple globale ❌ (non extensible, pas multi-pays)
+
+### Conséquences
+
+- extensibilité forte (pays / B2B / volume)
+- centralisation de la logique de calcul
+- testabilité améliorée
+
+### Statut
+
+🟡 en cours — interface définie, implémentation à faire
+
+---
+
+## [2026-04] — PAYMENT_FEE persistée dès le MVP
+
+### Contexte
+
+Les frais PSP impactent la rentabilité réelle. Les ignorer en MVP crée une dette de données non récupérable.
+
+### Décision
+
+`PAYMENT_FEE` est persistée en base dès maintenant, même en estimation.
+
+- Source idéale : webhook PSP (`charge.completed`)
+- Fallback MVP : configuration locale (`payment_fee_rate = 2%`)
+
+### Alternatives considérées
+
+- Ignorer complètement en MVP ❌ (données manquantes, pas récupérables)
+- Calcul externe uniquement ❌ (pas de traçabilité)
+
+### Conséquences
+
+- meilleure visibilité financière dès le début
+- prêt pour PSP réel sans migration de données
+- légère complexité ajoutée au MVP
+
+### Statut
+
+✅ actif
+
+---
+
+## [2026-04] — FEE créée au moment du PAYOUT
+
+### Contexte
+
+Éviter de prélever une commission sur un booking finalement annulé.
+
+### Décision
+
+La `FEE` est créée lors du `PAYOUT`, pas à la confirmation.
+
+### Alternatives considérées
+
+- Créer à la CHARGE ❌ (commission prélevée avant livraison)
+- Créer à la confirmation booking ❌ (même problème)
+
+### Conséquences
+
+- cohérence escrow
+- simplification du refund v1
+- alignement avec la réalité métier (la plateforme gagne quand la livraison est faite)
+
+### Statut
+
+✅ actif
+
+---
+
+## [2026-04] — Refund limité en MVP
+
+### Contexte
+
+Le refund complet (partiel, multi-refunds, compensation post-payout) est complexe et risqué.
+
+### Décision
+
+MVP simplifié :
+
+- refund total uniquement
+- un seul refund par booking
+- refund bloqué si payout existe
+- refund après livraison → via litige uniquement
+- `PAYMENT_FEE` non remboursable
+
+```
+refund_possible = CHARGE - FEE
+```
+
+### Alternatives considérées
+
+- Refund partiel ❌ (trop complexe pour le MVP)
+- Refund automatique post-livraison ❌ (trop risqué)
+
+### Conséquences
+
+- système stable et prévisible
+- limitations fonctionnelles acceptées et documentées
+- base propre pour les cas complexes en v5
+
+### Statut
+
+✅ actif
+
+---
+
+## [2026-04] — Webhook idempotent via event_id
+
+### Contexte
+
+Les providers peuvent envoyer plusieurs fois le même event (retry, bug réseau, double envoi).
+
+### Décision
+
+Idempotence basée sur `event_id` :
+
+- stocké dans `webhook_logs`
+- vérifié avant tout traitement
+- combiné avec `lockForUpdate()` sur la transaction
+
+### Alternatives considérées
+
+- Pas d'idempotence ❌ (double paiement / double refund possible)
+- Idempotence faible (sur transaction ID seul) ❌ (insuffisant)
+
+### Conséquences
+
+- robustesse élevée sur les flows async
+- sécurité financière garantie
+- complexité maîtrisée
+
+### Statut
+
+✅ actif
+
+---
+
+## [2026-04] — Booking indépendant du provider PSP
+
+### Contexte
+
+Les providers peuvent changer (Stripe → CMI → Mobile Money). Le Booking ne doit pas en dépendre.
+
+### Décision
+
+Le Booking ne référence jamais directement un provider. Le lien se fait uniquement via Transaction.
+
+### Alternatives considérées
+
+- Lier directement Booking au provider ❌ (couplage fort, migration impossible)
+
+### Conséquences
+
+- découplage total
+- multi-PSP ready sans refacto Booking
+- meilleure testabilité (mock facile)
+
+### Statut
+
+✅ actif
+
+---
+
+## [2026-04] — Architecture .adamas modulaire
+
+### Contexte
+
+Un fichier unique de contexte IA devient ingérable au-delà de quelques semaines.
+
+### Décision
+
+Séparation en 4 dossiers :
+
+```
+.adamas/ai/
+├── core/        → règles IA (system prompt, contraintes)
+├── capabilities/→ compétences (audit, coding, review)
+├── context/     → projet (architecture, business, payment)
+└── memory/      → décisions (decision-log)
+```
+
+### Alternatives considérées
+
+- Fichier unique ❌ (non maintenable, contexte trop lourd)
+- Mélange logique / règles IA ❌ (confusion, hallucinations)
+
+### Conséquences
+
+- IA plus fiable et prévisible
+- maintenance facilitée
+- évolutivité forte (nouveaux modules sans tout réécrire)
+
+### Statut
+
+✅ actif
+
+---
+
+## [2026-04] — platform_accounts : migration progressive
+
+### Contexte
+
+Multi-comptes bancaires : Maroc (MAD/EUR), Sénégal (XOF), Stripe ailleurs.
+La contrainte `transactions.user_id` ne peut pas être cassée immédiatement.
+
+### Décision
+
+Migration en 3 étapes :
+
+1. MVP : user technique "Plateforme" par devise via `getPlatformAccountId(string $currency)`
+2. Maintenant : table `platform_accounts` créée avec `user_id` nullable
+3. Futur : `transactions.user_id` → `platform_account_id` sans douleur
+
+### Alternatives considérées
+
+- Migration directe immédiate ❌ (trop risqué, casse le système actuel)
+- Ignorer le multi-comptes ❌ (incompatible avec la réalité bancaire)
+
+### Conséquences
+
+- zéro risque de régression immédiate
+- base multi-pays posée dès maintenant
+- migration future sans refacto majeure
+
+### Statut
+
+🟡 en cours — table à créer
+
+---
+
+# 🔮 Décisions à venir
+
+---
+
+## Escrow avancé (v5)
+
+- retenue de fonds conditionnelle
+- libération en plusieurs étapes
+- compatible dispute system
+
+## Dispute system (v5)
+
+- workflow litige structuré
+- arbitrage manuel / automatique
+- compensation post-payout
+
+## Multi-platform accounts (v5)
+
+- comptes par pays / devise
+- routing financier automatique
+- intégration PSP réels (Stripe, CMI, Wave)
+
+## Ledger interne (v5+)
+
+- journal financier complet
+- `parent_transaction_id`
+- audit avancé et reporting
+
+---
+
+# 🧠 Principe clé
+
+> Une décision non documentée est une dette future.
+> Une décision documentée est un accélérateur.
