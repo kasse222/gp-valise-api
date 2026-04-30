@@ -11,26 +11,33 @@ use Illuminate\Validation\ValidationException;
 
 class CompleteBooking
 {
-    /**
-     * Marquer une réservation comme livrée par le voyageur.
-     */
-    public function execute(Booking $booking, User $user): Booking
+    public function execute(Booking $booking, User $actor): Booking
     {
-        $booking = DB::transaction(function () use ($booking, $user) {
+        $booking = DB::transaction(function () use ($booking, $actor) {
             $booking = Booking::query()
                 ->with(['bookingItems.luggage', 'trip'])
                 ->lockForUpdate()
                 ->findOrFail($booking->id);
 
-            if (! $booking->canBeUpdatedTo(BookingStatusEnum::LIVREE, $user)) {
+            $trip = $booking->trip()
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($actor->id !== $trip->user_id) {
                 throw ValidationException::withMessages([
-                    'booking' => 'Livraison non autorisée ou statut invalide.',
+                    'booking' => 'Seul le voyageur du trajet peut marquer cette réservation comme livrée.',
+                ]);
+            }
+
+            if (! $booking->status->canTransitionTo(BookingStatusEnum::LIVREE)) {
+                throw ValidationException::withMessages([
+                    'booking' => 'Cette réservation ne peut pas être marquée comme livrée depuis son statut actuel.',
                 ]);
             }
 
             $booking->transitionTo(
                 BookingStatusEnum::LIVREE,
-                $user,
+                $actor,
                 'Livraison confirmée par le voyageur'
             );
 

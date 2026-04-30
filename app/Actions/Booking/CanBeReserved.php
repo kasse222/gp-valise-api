@@ -2,8 +2,8 @@
 
 namespace App\Actions\Booking;
 
-use App\Models\Trip;
 use App\Enums\TripStatusEnum;
+use App\Models\Trip;
 
 class CanBeReserved
 {
@@ -13,14 +13,14 @@ class CanBeReserved
             return false;
         }
 
-        if (!$trip->date || $trip->date->isPast()) {
+        if ($trip->date === null || $trip->date->isPast()) {
             return false;
         }
 
-        if (!$trip->status instanceof TripStatusEnum || !$trip->status->isReservable()) {
+        if (! $trip->status instanceof TripStatusEnum) {
             return false;
         }
 
-        return true;
+        return $trip->status->isReservable();
     }
 }

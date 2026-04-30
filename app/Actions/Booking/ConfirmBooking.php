@@ -3,11 +3,11 @@
 namespace App\Actions\Booking;
 
 use App\Enums\BookingStatusEnum;
+use App\Events\BookingConfirmed;
 use App\Models\Booking;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use App\Events\BookingConfirmed;
 
 class ConfirmBooking
 {
@@ -23,9 +23,15 @@ class ConfirmBooking
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (! $booking->canBeUpdatedTo(BookingStatusEnum::CONFIRMEE, $actor)) {
+            if ($actor->id !== $trip->user_id) {
                 throw ValidationException::withMessages([
-                    'booking' => 'Confirmation non autorisée ou transition invalide.',
+                    'booking' => 'Seul le voyageur du trajet peut confirmer cette réservation.',
+                ]);
+            }
+
+            if (! $booking->status->canTransitionTo(BookingStatusEnum::CONFIRMEE)) {
+                throw ValidationException::withMessages([
+                    'booking' => 'Cette réservation ne peut pas être confirmée depuis son statut actuel.',
                 ]);
             }
 
@@ -36,7 +42,6 @@ class ConfirmBooking
             }
 
             $thisBookingKg = (float) $booking->bookingItems->sum('kg_reserved');
-
             $occupiedKg = $trip->kgReserved();
 
             if (

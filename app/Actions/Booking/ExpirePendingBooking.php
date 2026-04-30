@@ -12,7 +12,9 @@ class ExpirePendingBooking
 {
     public function execute(Booking $booking): Booking
     {
-        return DB::transaction(function () use ($booking) {
+        $expired = false;
+
+        $booking = DB::transaction(function () use ($booking, &$expired) {
             $booking = Booking::query()
                 ->with('bookingItems.luggage')
                 ->lockForUpdate()
@@ -26,7 +28,7 @@ class ExpirePendingBooking
                 return $booking->fresh(['bookingItems.luggage', 'statusHistories']);
             }
 
-            if (! $booking->canTransitionTo(BookingStatusEnum::EXPIREE)) {
+            if (! $booking->status->canTransitionTo(BookingStatusEnum::EXPIREE)) {
                 return $booking->fresh(['bookingItems.luggage', 'statusHistories']);
             }
 
@@ -44,11 +46,15 @@ class ExpirePendingBooking
                 }
             }
 
-            $booking = $booking->fresh(['bookingItems.luggage', 'statusHistories']);
+            $expired = true;
 
-            event(new BookingExpired($booking));
-
-            return $booking;
+            return $booking->fresh(['bookingItems.luggage', 'statusHistories']);
         });
+
+        if ($expired) {
+            event(new BookingExpired($booking));
+        }
+
+        return $booking;
     }
 }

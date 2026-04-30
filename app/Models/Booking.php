@@ -12,7 +12,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Auth;
 
 class Booking extends Model
 {
@@ -62,8 +61,6 @@ class Booking extends Model
         });
     }
 
-
-
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -89,7 +86,6 @@ class Booking extends Model
         return $this->hasMany(BookingStatusHistory::class);
     }
 
-
     public function transaction(): HasOne
     {
         return $this->hasOne(Transaction::class)
@@ -101,12 +97,10 @@ class Booking extends Model
         return $this->hasMany(Transaction::class);
     }
 
-    public function reports()
+    public function reports(): HasMany
     {
         return $this->morphMany(Report::class, 'reportable');
     }
-
-
 
     public function statusIs(BookingStatusEnum $expected): bool
     {
@@ -123,8 +117,11 @@ class Booking extends Model
         return $this->status->canTransitionTo($to);
     }
 
-    public function transitionTo(BookingStatusEnum $newStatus, ?User $changer = null, ?string $reason = null): void
-    {
+    public function transitionTo(
+        BookingStatusEnum $newStatus,
+        ?User $changer = null,
+        ?string $reason = null
+    ): void {
         if (! $this->canTransitionTo($newStatus)) {
             throw new DomainException(
                 "Transition non autorisée de {$this->status->value} vers {$newStatus->value}"
@@ -140,17 +137,17 @@ class Booking extends Model
             default => null,
         };
 
-        if ($newStatus !== BookingStatusEnum::EN_PAIEMENT) {
-            $this->payment_expires_at = match ($newStatus) {
-                BookingStatusEnum::CONFIRMEE,
-                BookingStatusEnum::ANNULE,
-                BookingStatusEnum::EXPIREE,
-                BookingStatusEnum::PAIEMENT_ECHOUE => null,
-                default => $this->payment_expires_at,
-            };
+        if (in_array($newStatus, [
+            BookingStatusEnum::CONFIRMEE,
+            BookingStatusEnum::ANNULE,
+            BookingStatusEnum::EXPIREE,
+            BookingStatusEnum::PAIEMENT_ECHOUE,
+        ], true)) {
+            $this->payment_expires_at = null;
         }
 
         $oldStatus = $this->status;
+
         $this->status = $newStatus;
         $this->save();
 
@@ -162,38 +159,6 @@ class Booking extends Model
         ]);
     }
 
-    public function canBeUpdatedTo(BookingStatusEnum $newStatus, ?User $user = null): bool
-    {
-        $user ??= Auth::user();
-
-        if (! $user) {
-            return false;
-        }
-
-        $travelerId = $this->trip?->user_id;
-        $senderId = $this->user_id;
-
-        return match (true) {
-            $this->status === BookingStatusEnum::EN_PAIEMENT
-                && $newStatus === BookingStatusEnum::ANNULE
-                && $user->id === $senderId => true,
-
-            $this->status === BookingStatusEnum::EN_PAIEMENT
-                && $newStatus === BookingStatusEnum::CONFIRMEE
-                && $user->id === $travelerId => true,
-
-            $this->status === BookingStatusEnum::CONFIRMEE
-                && $newStatus === BookingStatusEnum::LIVREE
-                && $user->id === $travelerId => true,
-
-            $this->status === BookingStatusEnum::LIVREE
-                && $newStatus === BookingStatusEnum::EN_LITIGE
-                && in_array($user->id, [$senderId, $travelerId], true) => true,
-
-            default => false,
-        };
-    }
-
     public function isConfirmed(): bool
     {
         return $this->status === BookingStatusEnum::CONFIRMEE;
@@ -202,31 +167,6 @@ class Booking extends Model
     public function isCancelled(): bool
     {
         return $this->status === BookingStatusEnum::ANNULE;
-    }
-
-    public function canBeCancelled(): bool
-    {
-        return $this->status->canBeCancelled();
-    }
-
-    public function canBeConfirmed(): bool
-    {
-        return $this->status->canBeConfirmed();
-    }
-
-    public function canBeDelivered(): bool
-    {
-        return $this->status->canBeDelivered();
-    }
-
-    public function canBeDisputed(): bool
-    {
-        return $this->status->canBeDisputed();
-    }
-
-    public function canBeRefunded(): bool
-    {
-        return $this->status->canBeRefunded();
     }
 
     public function isPaymentExpired(): bool
@@ -264,44 +204,22 @@ class Booking extends Model
             ->exists();
     }
 
-    public function canTriggerPayout(): bool
-    {
-        return $this->status === BookingStatusEnum::LIVREE
-            && $this->hasCompletedChargeTransaction()
-            && ! $this->hasPayoutTransaction();
-    }
-
-    public function canTriggerRefund(): bool
-    {
-        return in_array($this->status, [
-            BookingStatusEnum::CONFIRMEE,
-            BookingStatusEnum::LIVREE,
-            BookingStatusEnum::EN_LITIGE,
-        ], true)
-            && $this->hasCompletedChargeTransaction()
-            && ! $this->hasRefundTransaction()
-            && ! $this->hasPayoutTransaction();
-    }
-
     public function hasSuccessfulChargeTransaction(): bool
     {
-        return $this->transactions()
-            ->where('type', \App\Enums\TransactionTypeEnum::CHARGE)
-            ->where('status', \App\Enums\TransactionStatusEnum::COMPLETED)
-            ->exists();
+        return $this->hasCompletedChargeTransaction();
     }
 
     public function refundableAmount(): float
     {
         $charge = $this->transactions()
-            ->where('type', \App\Enums\TransactionTypeEnum::CHARGE)
-            ->where('status', \App\Enums\TransactionStatusEnum::COMPLETED)
+            ->where('type', TransactionTypeEnum::CHARGE)
+            ->where('status', TransactionStatusEnum::COMPLETED)
             ->sum('amount');
 
         $refunds = $this->transactions()
-            ->where('type', \App\Enums\TransactionTypeEnum::REFUND)
+            ->where('type', TransactionTypeEnum::REFUND)
             ->sum('amount');
 
-        return max(0, $charge - $refunds);
+        return max(0, (float) $charge - (float) $refunds);
     }
 }

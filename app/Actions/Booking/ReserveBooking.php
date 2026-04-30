@@ -7,6 +7,7 @@ use App\Enums\LuggageStatusEnum;
 use App\Models\Booking;
 use App\Models\Luggage;
 use App\Models\Trip;
+use App\Models\User;
 use App\Validators\BookingValidator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -17,15 +18,14 @@ class ReserveBooking
         protected BookingValidator $validator
     ) {}
 
-    public function execute(array $data): Booking
+    public function execute(User $user, array $data): Booking
     {
-        return DB::transaction(function () use ($data) {
-            /** @var Trip $trip */
+        return DB::transaction(function () use ($user, $data) {
             $trip = Trip::query()
                 ->lockForUpdate()
                 ->findOrFail($data['trip_id']);
 
-            $this->validator->validateReservation($trip, $data);
+            $this->validator->validateReservation($user, $trip, $data);
 
             $luggageIds = collect($data['items'] ?? [])
                 ->pluck('luggage_id')
@@ -45,8 +45,8 @@ class ReserveBooking
                 ]);
             }
 
-            $booking = Booking::create([
-                'user_id' => $data['user_id'],
+            $booking = Booking::query()->create([
+                'user_id' => $user->id,
                 'trip_id' => $trip->id,
                 'status' => BookingStatusEnum::EN_PAIEMENT,
                 'payment_expires_at' => now()->addMinutes(15),

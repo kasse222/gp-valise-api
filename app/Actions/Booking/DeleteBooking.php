@@ -2,9 +2,11 @@
 
 namespace App\Actions\Booking;
 
-use App\Models\Booking;
+use App\Enums\BookingStatusEnum;
 use App\Enums\LuggageStatusEnum;
+use App\Models\Booking;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class DeleteBooking
 {
@@ -15,6 +17,18 @@ class DeleteBooking
                 ->with('bookingItems.luggage')
                 ->lockForUpdate()
                 ->findOrFail($booking->id);
+
+            if ($booking->status->isFinal()) {
+                throw ValidationException::withMessages([
+                    'booking' => 'Une réservation finalisée ne peut pas être supprimée.',
+                ]);
+            }
+
+            if (! $booking->status->canTransitionTo(BookingStatusEnum::ANNULE)) {
+                throw ValidationException::withMessages([
+                    'booking' => 'Cette réservation ne peut pas être supprimée depuis son statut actuel.',
+                ]);
+            }
 
             foreach ($booking->bookingItems as $item) {
                 if ($item->luggage) {

@@ -7,9 +7,10 @@ use App\Models\Booking;
 use App\Models\Luggage;
 use App\Models\Trip;
 use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 
-uses(Tests\TestCase::class, Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(Tests\TestCase::class, RefreshDatabase::class);
 
 beforeEach(function () {
     $this->expediteur = User::factory()->sender()->verified()->create();
@@ -27,7 +28,6 @@ it('crée une réservation avec une valise disponible', function () {
     ]);
 
     $validated = [
-        'user_id' => $this->expediteur->id,
         'trip_id' => $trip->id,
         'items' => [
             [
@@ -38,7 +38,7 @@ it('crée une réservation avec une valise disponible', function () {
         ],
     ];
 
-    $booking = app(ReserveBooking::class)->execute($validated);
+    $booking = app(ReserveBooking::class)->execute($this->expediteur, $validated);
 
     expect($booking)->toBeInstanceOf(Booking::class)
         ->and($booking->trip_id)->toBe($trip->id)
@@ -64,7 +64,6 @@ it('rejette une valise déjà réservée', function () {
     ]);
 
     $validated = [
-        'user_id' => $this->expediteur->id,
         'trip_id' => $trip->id,
         'items' => [
             [
@@ -75,7 +74,7 @@ it('rejette une valise déjà réservée', function () {
         ],
     ];
 
-    expect(fn() => app(ReserveBooking::class)->execute($validated))
+    expect(fn() => app(ReserveBooking::class)->execute($this->expediteur, $validated))
         ->toThrow(ValidationException::class);
 });
 
@@ -90,7 +89,6 @@ it('rejette si la capacité est dépassée', function () {
     ]);
 
     $validated = [
-        'user_id' => $this->expediteur->id,
         'trip_id' => $trip->id,
         'items' => [
             [
@@ -101,6 +99,6 @@ it('rejette si la capacité est dépassée', function () {
         ],
     ];
 
-    expect(fn() => app(ReserveBooking::class)->execute($validated))
+    expect(fn() => app(ReserveBooking::class)->execute($this->expediteur, $validated))
         ->toThrow(ValidationException::class);
 });
