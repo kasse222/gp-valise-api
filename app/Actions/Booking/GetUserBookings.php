@@ -4,10 +4,11 @@ namespace App\Actions\Booking;
 
 use App\Models\Booking;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 
 class GetUserBookings
 {
-    public function execute(User $user)
+    public function execute(User $user): Collection
     {
         $relations = [
             'bookingItems.luggage',
@@ -15,16 +16,18 @@ class GetUserBookings
             'statusHistories',
         ];
 
+        $query = Booking::query()
+            ->with($relations)
+            ->latest();
+
         if ($user->isVoyageur()) {
-            return Booking::with($relations)
+            return $query
                 ->whereHas('trip', fn($q) => $q->where('user_id', $user->id))
-                ->latest()
                 ->get();
         }
 
-        return Booking::with($relations)
+        return $query
             ->where('user_id', $user->id)
-            ->latest()
             ->get();
     }
 }

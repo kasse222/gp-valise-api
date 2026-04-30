@@ -14,25 +14,15 @@ class CancelBooking
 {
     public function execute(Booking $booking, ?User $actor = null): Booking
     {
-        return DB::transaction(function () use ($booking, $actor) {
+        $booking = DB::transaction(function () use ($booking, $actor) {
             $booking = Booking::query()
                 ->with(['bookingItems.luggage', 'trip', 'user'])
                 ->lockForUpdate()
                 ->findOrFail($booking->id);
 
-            if (! $booking->status->canBeCancelled()) {
+            if (! $booking->status->canTransitionTo(BookingStatusEnum::ANNULE)) {
                 throw ValidationException::withMessages([
-                    'booking' => 'Cette réservation ne peut pas être annulée.',
-                ]);
-            }
-
-            if (! in_array($booking->status, [
-                BookingStatusEnum::EN_PAIEMENT,
-                BookingStatusEnum::ACCEPTE,
-                BookingStatusEnum::PAIEMENT_ECHOUE,
-            ], true)) {
-                throw ValidationException::withMessages([
-                    'booking' => 'Le statut actuel ne permet pas une annulation manuelle.',
+                    'booking' => 'Cette réservation ne peut pas être annulée depuis son statut actuel.',
                 ]);
             }
 
@@ -50,16 +40,16 @@ class CancelBooking
                 }
             }
 
-            $booking = $booking->fresh([
+            return $booking->fresh([
                 'bookingItems.luggage',
                 'trip',
                 'user',
                 'statusHistories',
             ]);
-
-            event(new BookingCanceled($booking));
-
-            return $booking;
         });
+
+        event(new BookingCanceled($booking));
+
+        return $booking;
     }
 }

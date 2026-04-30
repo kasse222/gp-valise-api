@@ -13,7 +13,7 @@ uses(
 
 it('met à jour un booking item existant', function () {
     $booking = Booking::factory()->create([
-        'status' => BookingStatusEnum::ACCEPTE,
+        'status' => BookingStatusEnum::CONFIRMEE,
     ]);
 
     $item = BookingItem::factory()->create([

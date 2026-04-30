@@ -16,30 +16,40 @@ class RunExpirePendingBookingsBatch
     {
         $chunkSize = max(1, $chunkSize);
 
-        $scanned = 0;
-        $expired = 0;
-        $skipped = 0;
-        $failed = 0;
+        $result = [
+            'scanned' => 0,
+            'expired' => 0,
+            'skipped' => 0,
+            'failed' => 0,
+        ];
 
         Booking::query()
-            ->where('status', BookingStatusEnum::EN_PAIEMENT->value)
+            ->where('status', BookingStatusEnum::EN_PAIEMENT)
             ->whereNotNull('payment_expires_at')
             ->where('payment_expires_at', '<=', now())
             ->orderBy('id')
-            ->chunkById($chunkSize, function ($bookings) use (&$scanned, &$expired, &$skipped, &$failed) {
+            ->chunkById($chunkSize, function ($bookings) use (&$result) {
                 foreach ($bookings as $booking) {
-                    $scanned++;
+                    $result['scanned']++;
 
                     try {
                         if (! $booking->isPaymentExpired()) {
-                            $skipped++;
+                            $result['skipped']++;
                             continue;
                         }
 
-                        $this->action->execute($booking);
-                        $expired++;
+                        $beforeStatus = $booking->status;
+
+                        $booking = $this->action->execute($booking);
+
+                        if ($beforeStatus !== $booking->status) {
+                            $result['expired']++;
+                            continue;
+                        }
+
+                        $result['skipped']++;
                     } catch (Throwable $e) {
-                        $failed++;
+                        $result['failed']++;
 
                         report($e);
 
@@ -53,6 +63,6 @@ class RunExpirePendingBookingsBatch
                 }
             });
 
-        return compact('scanned', 'expired', 'skipped', 'failed');
+        return $result;
     }
 }

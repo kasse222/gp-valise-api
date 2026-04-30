@@ -2,204 +2,174 @@
 
 namespace App\Enums;
 
-enum BookingStatusEnum: int
+enum BookingStatusEnum: string
 {
-    case EN_ATTENTE      = 0;
-    case EN_PAIEMENT     = 1;
-    case PAIEMENT_ECHOUE = 2;
-    case ACCEPTE         = 3;
-    case REFUSE          = 4;
-    case CONFIRMEE       = 5;
-    case LIVREE          = 6;
-    case TERMINE         = 7;
-    case ANNULE          = 8;
-    case REMBOURSEE      = 9;
-    case EXPIREE         = 10;
-    case EN_LITIGE       = 11;
-    case SUSPENDUE       = 12;
+    case EN_ATTENTE = 'en_attente';
+    case EN_PAIEMENT = 'en_paiement';
+    case PAIEMENT_ECHOUE = 'paiement_echoue';
 
-    private const TRANSITIONS = [
-        self::EN_ATTENTE->value => [
-            self::EN_PAIEMENT->value,
-            self::ACCEPTE->value,
-            self::REFUSE->value,
-            self::ANNULE->value,
-        ],
+    case CONFIRMEE = 'confirmee';
+    case LIVREE = 'livree';
+    case TERMINE = 'termine';
 
-        self::EN_PAIEMENT->value => [
-            self::PAIEMENT_ECHOUE->value,
-            self::CONFIRMEE->value,
-            self::ANNULE->value,
-            self::EXPIREE->value,
-        ],
+    case ANNULE = 'annule';
+    case REMBOURSEE = 'remboursee';
+    case EXPIREE = 'expiree';
+    case EN_LITIGE = 'en_litige';
+    case SUSPENDUE = 'suspendue';
 
-        self::PAIEMENT_ECHOUE->value => [
-            self::EN_PAIEMENT->value,
-            self::ANNULE->value,
-        ],
+    public function canTransitionTo(self $target): bool
+    {
+        return in_array($target, $this->allowedTransitions(), true);
+    }
 
-        self::ACCEPTE->value => [
-            self::CONFIRMEE->value,
-            self::ANNULE->value,
-        ],
+    public function allowedTransitions(): array
+    {
+        return match ($this) {
+            self::EN_ATTENTE => [
+                self::EN_PAIEMENT,
+                self::ANNULE,
+            ],
 
-        self::CONFIRMEE->value => [
-            self::LIVREE->value,
-            self::EN_LITIGE->value,
-            self::TERMINE->value,
-        ],
+            self::EN_PAIEMENT => [
+                self::CONFIRMEE,
+                self::PAIEMENT_ECHOUE,
+                self::EXPIREE,
+                self::ANNULE,
+            ],
 
-        self::LIVREE->value => [
-            self::TERMINE->value,
-            self::EN_LITIGE->value,
-        ],
+            self::PAIEMENT_ECHOUE => [
+                self::EN_PAIEMENT,
+                self::ANNULE,
+            ],
 
-        self::EN_LITIGE->value => [
-            self::TERMINE->value,
-            self::ANNULE->value,
-            self::REMBOURSEE->value,
-        ],
-    ];
+            self::CONFIRMEE => [
+                self::LIVREE,
+                self::ANNULE,
+                self::EN_LITIGE,
+            ],
+
+            self::LIVREE => [
+                self::TERMINE,
+                self::EN_LITIGE,
+            ],
+
+            self::EN_LITIGE => [
+                self::REMBOURSEE,
+                self::TERMINE,
+                self::SUSPENDUE,
+            ],
+
+            self::SUSPENDUE => [
+                self::EN_LITIGE,
+                self::ANNULE,
+            ],
+
+            self::ANNULE,
+            self::REMBOURSEE,
+            self::EXPIREE,
+            self::TERMINE => [],
+        };
+    }
+
+    public function isFinal(): bool
+    {
+        return in_array($this, [
+            self::ANNULE,
+            self::REMBOURSEE,
+            self::EXPIREE,
+            self::TERMINE,
+        ], true);
+    }
+
+    public function isPaymentPending(): bool
+    {
+        return $this === self::EN_PAIEMENT;
+    }
+
+    public function isConfirmed(): bool
+    {
+        return $this === self::CONFIRMEE;
+    }
+
+    public function isDelivered(): bool
+    {
+        return $this === self::LIVREE;
+    }
+
+    public function canBeConfirmed(): bool
+    {
+        return $this === self::EN_PAIEMENT;
+    }
+
+    public function canBeDelivered(): bool
+    {
+        return $this === self::CONFIRMEE;
+    }
+
+    public function canBeCancelled(): bool
+    {
+        return in_array($this, [
+            self::EN_ATTENTE,
+            self::EN_PAIEMENT,
+            self::CONFIRMEE,
+        ], true);
+    }
+
+    public function canBeExpired(): bool
+    {
+        return $this === self::EN_PAIEMENT;
+    }
+
+    public function canEnterDispute(): bool
+    {
+        return in_array($this, [
+            self::CONFIRMEE,
+            self::LIVREE,
+        ], true);
+    }
+
+    public function canBeRefunded(): bool
+    {
+        return $this === self::EN_LITIGE;
+    }
 
     public function label(): string
     {
         return match ($this) {
-            self::EN_ATTENTE      => 'En attente',
-            self::EN_PAIEMENT     => 'En paiement',
+            self::EN_ATTENTE => 'En attente',
+            self::EN_PAIEMENT => 'En paiement',
             self::PAIEMENT_ECHOUE => 'Paiement échoué',
-            self::ACCEPTE         => 'Acceptée',
-            self::REFUSE          => 'Refusée',
-            self::CONFIRMEE       => 'Confirmée',
-            self::LIVREE          => 'Livrée',
-            self::TERMINE         => 'Terminée',
-            self::ANNULE          => 'Annulée',
-            self::REMBOURSEE      => 'Remboursée',
-            self::EXPIREE         => 'Expirée',
-            self::EN_LITIGE       => 'En litige',
-            self::SUSPENDUE       => 'Suspendue',
+            self::CONFIRMEE => 'Confirmée',
+            self::LIVREE => 'Livrée',
+            self::TERMINE => 'Terminée',
+            self::ANNULE => 'Annulée',
+            self::REMBOURSEE => 'Remboursée',
+            self::EXPIREE => 'Expirée',
+            self::EN_LITIGE => 'En litige',
+            self::SUSPENDUE => 'Suspendue',
         };
     }
 
     public function color(): string
     {
         return match ($this) {
-            self::EN_ATTENTE      => 'gray',
-            self::EN_PAIEMENT     => 'blue',
+            self::EN_ATTENTE => 'gray',
+            self::EN_PAIEMENT => 'yellow',
             self::PAIEMENT_ECHOUE => 'red',
-            self::ACCEPTE         => 'cyan',
-            self::REFUSE,
-            self::ANNULE          => 'red',
-            self::CONFIRMEE       => 'indigo',
-            self::LIVREE,
-            self::TERMINE         => 'green',
-            self::REMBOURSEE      => 'orange',
-            self::EXPIREE         => 'gray',
-            self::EN_LITIGE       => 'yellow',
-            self::SUSPENDUE       => 'black',
+            self::CONFIRMEE => 'blue',
+            self::LIVREE => 'green',
+            self::TERMINE => 'green',
+            self::ANNULE => 'red',
+            self::REMBOURSEE => 'purple',
+            self::EXPIREE => 'orange',
+            self::EN_LITIGE => 'red',
+            self::SUSPENDUE => 'gray',
         };
-    }
-
-    public function badge(): array
-    {
-        return [
-            'label' => $this->label(),
-            'color' => $this->color(),
-        ];
-    }
-
-    public function isFinal(): bool
-    {
-        return in_array($this, [
-            self::TERMINE,
-            self::REFUSE,
-            self::ANNULE,
-            self::REMBOURSEE,
-            self::EXPIREE,
-        ], true);
-    }
-
-    public function isReservable(): bool
-    {
-        return in_array($this, [
-            self::EN_ATTENTE,
-            self::EN_PAIEMENT,
-            self::ACCEPTE,
-        ], true);
-    }
-
-    public function canBeCancelled(): bool
-    {
-        return ! in_array($this, [
-            self::TERMINE,
-            self::ANNULE,
-            self::REMBOURSEE,
-            self::EXPIREE,
-        ], true);
-    }
-
-    public function canBeConfirmed(): bool
-    {
-        return in_array($this, [
-            self::EN_PAIEMENT,
-            self::ACCEPTE,
-        ], true);
-    }
-
-    public function canBeDelivered(): bool
-    {
-        return in_array($this, [
-            self::CONFIRMEE,
-        ], true);
-    }
-
-    public function canBeDisputed(): bool
-    {
-        return in_array($this, [
-            self::LIVREE,
-            self::TERMINE,
-        ], true);
-    }
-
-    public function canBeRefunded(): bool
-    {
-        return in_array($this, [
-            self::ANNULE,
-            self::PAIEMENT_ECHOUE,
-            self::EXPIREE,
-        ], true);
-    }
-
-    public function canTransitionTo(self $to): bool
-    {
-        return in_array($to->value, self::TRANSITIONS[$this->value] ?? [], true);
-    }
-
-    public function isTransitionValidFrom(self $from): bool
-    {
-        return $from->canTransitionTo($this);
-    }
-
-    public function nextAllowedStatuses(): array
-    {
-        return self::TRANSITIONS[$this->value] ?? [];
     }
 
     public static function values(): array
     {
         return array_column(self::cases(), 'value');
-    }
-
-    public static function confirmed(): int
-    {
-        return self::CONFIRMEE->value;
-    }
-
-    public static function reservableStatuses(): array
-    {
-        return [
-            self::EN_ATTENTE->value,
-            self::EN_PAIEMENT->value,
-            self::ACCEPTE->value,
-        ];
     }
 }

@@ -4,29 +4,24 @@ namespace App\Validators;
 
 use App\Models\Luggage;
 use App\Models\Trip;
+use App\Models\User;
 use Illuminate\Validation\ValidationException;
 
 class BookingValidator
 {
-    public function validateReservation(Trip $trip, array $data): void
+    public function validateReservation(User $user, Trip $trip, array $data): void
     {
-        $this->validateUserOwnership($trip, $data);
+        $this->validateUserOwnership($user, $trip);
         $this->validateItemsPresence($data);
-        $this->validateLuggages($data, $trip);
+        $this->validateLuggages($user, $data);
         $this->validateCapacity($trip, $data);
     }
 
-    protected function validateUserOwnership(Trip $trip, array $data): void
+    protected function validateUserOwnership(User $user, Trip $trip): void
     {
-        if (! isset($data['user_id'])) {
+        if ((int) $user->id === (int) $trip->user_id) {
             throw ValidationException::withMessages([
-                'user_id' => 'Utilisateur requis pour la réservation.',
-            ]);
-        }
-
-        if ((int) $data['user_id'] === (int) $trip->user_id) {
-            throw ValidationException::withMessages([
-                'user_id' => 'Le propriétaire du trajet ne peut pas réserver son propre trajet.',
+                'user' => 'Le propriétaire du trajet ne peut pas réserver son propre trajet.',
             ]);
         }
     }
@@ -40,14 +35,17 @@ class BookingValidator
         }
     }
 
-    protected function validateLuggages(array $data, Trip $trip): void
+    protected function validateLuggages(User $user, array $data): void
     {
         $luggageIds = collect($data['items'])
             ->pluck('luggage_id')
             ->filter()
-            ->unique();
+            ->unique()
+            ->values();
 
-        $luggages = Luggage::whereIn('id', $luggageIds)->get();
+        $luggages = Luggage::query()
+            ->whereIn('id', $luggageIds)
+            ->get();
 
         if ($luggages->count() !== $luggageIds->count()) {
             throw ValidationException::withMessages([
@@ -56,7 +54,7 @@ class BookingValidator
         }
 
         foreach ($luggages as $luggage) {
-            if ((int) $luggage->user_id !== (int) $data['user_id']) {
+            if ((int) $luggage->user_id !== (int) $user->id) {
                 throw ValidationException::withMessages([
                     'items' => 'Une valise ne vous appartient pas.',
                 ]);
@@ -85,33 +83,6 @@ class BookingValidator
         if ($requestedKg > $remaining) {
             throw ValidationException::withMessages([
                 'kg_reserved' => "Capacité insuffisante. Restant : {$remaining} kg.",
-            ]);
-        }
-    }
-
-    public function validateCancel($booking): void
-    {
-        if (! $booking->status->canBeCancelled()) {
-            throw ValidationException::withMessages([
-                'booking' => 'Cette réservation ne peut pas être annulée.',
-            ]);
-        }
-    }
-
-    public function validateConfirm($booking): void
-    {
-        if (! $booking->status->canBeConfirmed()) {
-            throw ValidationException::withMessages([
-                'booking' => 'Cette réservation ne peut pas être confirmée.',
-            ]);
-        }
-    }
-
-    public function validateComplete($booking): void
-    {
-        if (! $booking->status->canBeDelivered()) {
-            throw ValidationException::withMessages([
-                'booking' => 'Cette réservation ne peut pas être marquée comme livrée.',
             ]);
         }
     }

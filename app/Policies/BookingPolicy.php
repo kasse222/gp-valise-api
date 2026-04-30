@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Enums\BookingStatusEnum;
 use App\Enums\UserRoleEnum;
 use App\Models\Booking;
 use App\Models\User;
@@ -11,14 +10,14 @@ class BookingPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user !== null;
+        return true;
     }
 
     public function view(User $user, Booking $booking): bool
     {
-        return $user->id === $booking->user_id
-            || $user->id === $booking->trip->user_id
-            || $user->role === UserRoleEnum::ADMIN;
+        return $this->isSender($user, $booking)
+            || $this->isTraveler($user, $booking)
+            || $this->isAdmin($user);
     }
 
     public function create(User $user): bool
@@ -31,48 +30,49 @@ class BookingPolicy
 
     public function update(User $user, Booking $booking): bool
     {
-        return $booking->canBeUpdatedTo(
-            BookingStatusEnum::from(request()->input('status')),
-            $user
-        );
+        return $this->isSender($user, $booking)
+            || $this->isTraveler($user, $booking)
+            || $this->isAdmin($user);
     }
 
     public function delete(User $user, Booking $booking): bool
     {
-        return $user->id === $booking->user_id
-            && ! $booking->isFinal();
+        return $this->isSender($user, $booking)
+            || $this->isAdmin($user);
     }
 
     public function confirm(User $user, Booking $booking): bool
     {
-        return $user->id === $booking->trip->user_id
-            && $booking->status === BookingStatusEnum::EN_PAIEMENT
-            && $booking->canBeConfirmed();
+        return $this->isTraveler($user, $booking)
+            || $this->isAdmin($user);
     }
 
     public function cancel(User $user, Booking $booking): bool
     {
-        $isSender = $user->id === $booking->user_id;
-        $isTraveler = $user->id === $booking->trip->user_id;
-
-        if (! $booking->canBeCancelled()) {
-            return false;
-        }
-
-        return match ($booking->status) {
-            BookingStatusEnum::EN_PAIEMENT,
-            BookingStatusEnum::PAIEMENT_ECHOUE => $isSender,
-
-            BookingStatusEnum::ACCEPTE => $isSender || $isTraveler,
-
-            default => false,
-        };
+        return $this->isSender($user, $booking)
+            || $this->isTraveler($user, $booking)
+            || $this->isAdmin($user);
     }
 
     public function complete(User $user, Booking $booking): bool
     {
-        return $user->id === $booking->trip->user_id
-            && $booking->status === BookingStatusEnum::CONFIRMEE
-            && $booking->canBeDelivered();
+        return $this->isTraveler($user, $booking)
+            || $this->isAdmin($user);
+    }
+
+    private function isSender(User $user, Booking $booking): bool
+    {
+        return $user->id === $booking->user_id;
+    }
+
+    private function isTraveler(User $user, Booking $booking): bool
+    {
+        return $booking->trip !== null
+            && $user->id === $booking->trip->user_id;
+    }
+
+    private function isAdmin(User $user): bool
+    {
+        return $user->role === UserRoleEnum::ADMIN;
     }
 }
