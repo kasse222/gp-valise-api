@@ -16,8 +16,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->sender = User::factory()->create();
-
+    $this->sender = User::factory()->sender()->verified()->create();
     $this->sender->forceFill([
         'verified_user' => true,
         'kyc_passed_at' => now(),
