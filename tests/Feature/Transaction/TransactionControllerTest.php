@@ -171,8 +171,11 @@ it('rembourse une charge via endpoint refund', function () {
     ]);
 });
 
-it('refuse un refund si la transaction ne correspond pas au booking de l’utilisateur', function () {
-    $otherUser = User::factory()->create();
+it('refuse un refund si la transaction ne correspond pas à l’utilisateur', function () {
+    $otherUser = User::factory()->create([
+        'verified_user' => true,
+        'kyc_passed_at' => now(),
+    ]);
 
     $booking = Booking::factory()->create([
         'user_id' => $otherUser->id,
@@ -187,6 +190,8 @@ it('refuse un refund si la transaction ne correspond pas au booking de l’utili
         'status' => TransactionStatusEnum::COMPLETED,
         'amount' => 100,
     ]);
+
+    expect($this->sender->can('refund', $charge))->toBeFalse();
 
     $this->actingAs($this->sender)
         ->postJson("/api/v1/transactions/{$charge->id}/refund", [

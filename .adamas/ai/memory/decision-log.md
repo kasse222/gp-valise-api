@@ -49,7 +49,7 @@ Impacts techniques / métier
 
 ### Contexte
 
-Le système nécessite une cohérence financière forte avec paiements async, webhooks, retry et idempotence.
+Besoin d'une cohérence financière forte avec paiements async, webhooks, retry et idempotence.
 
 ### Décision
 
@@ -60,7 +60,7 @@ La **Transaction** est la seule source de vérité financière.
 
 ### Alternatives considérées
 
-- Stocker l'état financier directement dans Booking ❌ (couplage fort, pas de traçabilité)
+- Stocker l'état financier dans Booking ❌ (couplage fort, pas de traçabilité)
 - Dépendre du provider comme source de vérité ❌ (fragile, async non maîtrisé)
 
 ### Conséquences
@@ -79,18 +79,16 @@ La **Transaction** est la seule source de vérité financière.
 
 ### Contexte
 
-Besoin de distinguer le revenu plateforme du coût PSP / bancaire pour un calcul de rentabilité réel.
+Besoin de distinguer le revenu plateforme du coût PSP pour un calcul de rentabilité réel.
 
 ### Décision
-
-Deux types de transactions distincts :
 
 - `FEE` = revenu GP-Valise (commission)
 - `PAYMENT_FEE` = coût externe (PSP, banque)
 
 ### Alternatives considérées
 
-- Fusionner les deux en un seul type ❌ (perte de visibilité financière)
+- Fusionner les deux ❌ (perte de visibilité financière)
 - Ignorer les frais PSP en MVP ❌ (données de rentabilité faussées)
 
 ### Conséquences
@@ -109,7 +107,7 @@ Deux types de transactions distincts :
 
 ### Contexte
 
-La commission dépend du pays, du type utilisateur (B2C / B2B) et de règles métier futures (volume, plan, partenaire).
+La commission dépend du pays, du type utilisateur (B2C / B2B) et de règles métier futures.
 
 ### Décision
 
@@ -122,10 +120,12 @@ interface FeeCalculator
 }
 ```
 
+Le `FeeCalculator` résout le taux. Le `TransactionAmountCalculator` applique le calcul. Ces deux responsabilités sont strictement séparées.
+
 ### Alternatives considérées
 
 - Hardcoder le taux dans l'Action ❌ (duplication, incohérence multi-pays)
-- Config simple globale ❌ (non extensible, pas multi-pays)
+- Config simple globale ❌ (non extensible)
 
 ### Conséquences
 
@@ -139,6 +139,33 @@ interface FeeCalculator
 
 ---
 
+## [2026-04] — Montants financiers persistés à la création
+
+### Contexte
+
+Recalculer les montants à la volée est dangereux : si le taux change en config, les transactions passées donnent des résultats différents selon le moment du calcul.
+
+### Décision
+
+Les montants calculés (`fee_amount`, `payout_amount`, `payment_fee_amount`, `refund_amount`) sont **persistés en base au moment de la création de la transaction**. Ils ne sont jamais recalculés après coup.
+
+### Alternatives considérées
+
+- Recalcul à la volée ❌ (incohérence historique, non auditables)
+- Calcul uniquement à l'affichage ❌ (même problème)
+
+### Conséquences
+
+- vérité historique garantie
+- audit et contestation possibles à tout moment
+- le `TransactionAmountCalculator` sert à créer, pas à interroger
+
+### Statut
+
+✅ actif
+
+---
+
 ## [2026-04] — PAYMENT_FEE persistée dès le MVP
 
 ### Contexte
@@ -147,21 +174,20 @@ Les frais PSP impactent la rentabilité réelle. Les ignorer en MVP crée une de
 
 ### Décision
 
-`PAYMENT_FEE` est persistée en base dès maintenant, même en estimation.
+`PAYMENT_FEE` persistée en base dès maintenant, même en estimation.
 
 - Source idéale : webhook PSP (`charge.completed`)
 - Fallback MVP : configuration locale (`payment_fee_rate = 2%`)
 
 ### Alternatives considérées
 
-- Ignorer complètement en MVP ❌ (données manquantes, pas récupérables)
+- Ignorer en MVP ❌ (données manquantes, pas récupérables)
 - Calcul externe uniquement ❌ (pas de traçabilité)
 
 ### Conséquences
 
 - meilleure visibilité financière dès le début
 - prêt pour PSP réel sans migration de données
-- légère complexité ajoutée au MVP
 
 ### Statut
 
@@ -182,13 +208,58 @@ La `FEE` est créée lors du `PAYOUT`, pas à la confirmation.
 ### Alternatives considérées
 
 - Créer à la CHARGE ❌ (commission prélevée avant livraison)
-- Créer à la confirmation booking ❌ (même problème)
+- Créer à la confirmation ❌ (même problème)
 
 ### Conséquences
 
 - cohérence escrow
 - simplification du refund v1
-- alignement avec la réalité métier (la plateforme gagne quand la livraison est faite)
+- alignement avec la réalité métier
+
+### Statut
+
+✅ actif
+
+---
+
+## [2026-04] — Refund post-livraison : Option C (admin override avec audit)
+
+### Contexte
+
+Un refund après livraison n'est pas un cas normal mais peut être nécessaire en cas de litige avéré (bagage perdu, détruit, fraude confirmée). Le système doit gérer ce cas sans compromettre l'invariant financier.
+
+### Décision
+
+**Option C — override admin avec audit obligatoire, interdit si payout existe.**
+
+Deux chemins de refund distincts :
+
+**Refund standard** (avant livraison) :
+
+- statut booking : `CONFIRMEE` ou `EN_LITIGE`
+- charge completed, pas de refund, pas de payout
+
+**Refund admin override** (après livraison) :
+
+- admin uniquement (rôle vérifié)
+- statut booking : `LIVREE` ou `EN_LITIGE`
+- charge completed, pas de refund existant
+- **pas de payout existant** (invariant absolu)
+- raison explicite obligatoire
+- audit log créé atomiquement avec le refund
+
+Action dédiée : `AdminRefundTransaction`
+
+### Alternatives considérées
+
+- **Option A — Blocage total** ❌ : un litige avéré peut nécessiter un remboursement post-livraison. Bloquer serait une faiblesse produit.
+- **Option B — Endpoint admin sans contrainte** ❌ : ouvre la porte à des erreurs humaines catastrophiques (rembourser un voyageur déjà payé, casser l'invariant financier).
+
+### Conséquences
+
+- l'invariant `PAYOUT ⊕ REFUND` est maintenu sans exception
+- chaque opération admin est tracée avec : admin_id, booking_id, reason, montant, timestamp
+- le système peut répondre à toute contestation avec un audit trail complet
 
 ### Statut
 
@@ -208,13 +279,8 @@ MVP simplifié :
 
 - refund total uniquement
 - un seul refund par booking
-- refund bloqué si payout existe
-- refund après livraison → via litige uniquement
 - `PAYMENT_FEE` non remboursable
-
-```
-refund_possible = CHARGE - FEE
-```
+- `refund_possible = CHARGE - FEE`
 
 ### Alternatives considérées
 
@@ -224,7 +290,6 @@ refund_possible = CHARGE - FEE
 ### Conséquences
 
 - système stable et prévisible
-- limitations fonctionnelles acceptées et documentées
 - base propre pour les cas complexes en v5
 
 ### Statut
@@ -237,7 +302,7 @@ refund_possible = CHARGE - FEE
 
 ### Contexte
 
-Les providers peuvent envoyer plusieurs fois le même event (retry, bug réseau, double envoi).
+Les providers peuvent envoyer plusieurs fois le même event.
 
 ### Décision
 
@@ -250,13 +315,12 @@ Idempotence basée sur `event_id` :
 ### Alternatives considérées
 
 - Pas d'idempotence ❌ (double paiement / double refund possible)
-- Idempotence faible (sur transaction ID seul) ❌ (insuffisant)
+- Idempotence faible ❌ (insuffisant)
 
 ### Conséquences
 
 - robustesse élevée sur les flows async
 - sécurité financière garantie
-- complexité maîtrisée
 
 ### Statut
 
@@ -268,7 +332,7 @@ Idempotence basée sur `event_id` :
 
 ### Contexte
 
-Les providers peuvent changer (Stripe → CMI → Mobile Money). Le Booking ne doit pas en dépendre.
+Les providers peuvent changer. Le Booking ne doit pas en dépendre.
 
 ### Décision
 
@@ -282,7 +346,7 @@ Le Booking ne référence jamais directement un provider. Le lien se fait unique
 
 - découplage total
 - multi-PSP ready sans refacto Booking
-- meilleure testabilité (mock facile)
+- meilleure testabilité
 
 ### Statut
 
@@ -294,30 +358,28 @@ Le Booking ne référence jamais directement un provider. Le lien se fait unique
 
 ### Contexte
 
-Un fichier unique de contexte IA devient ingérable au-delà de quelques semaines.
+Un fichier unique de contexte IA devient ingérable rapidement.
 
 ### Décision
 
-Séparation en 4 dossiers :
-
 ```
 .adamas/ai/
-├── core/        → règles IA (system prompt, contraintes)
-├── capabilities/→ compétences (audit, coding, review)
-├── context/     → projet (architecture, business, payment)
-└── memory/      → décisions (decision-log)
+├── core/         → règles IA (system prompt, contraintes)
+├── capabilities/ → compétences (audit, coding, review)
+├── context/      → projet (architecture, business, payment)
+└── memory/       → décisions (decision-log)
 ```
 
 ### Alternatives considérées
 
-- Fichier unique ❌ (non maintenable, contexte trop lourd)
+- Fichier unique ❌ (non maintenable)
 - Mélange logique / règles IA ❌ (confusion, hallucinations)
 
 ### Conséquences
 
 - IA plus fiable et prévisible
 - maintenance facilitée
-- évolutivité forte (nouveaux modules sans tout réécrire)
+- évolutivité forte
 
 ### Statut
 
@@ -330,7 +392,6 @@ Séparation en 4 dossiers :
 ### Contexte
 
 Multi-comptes bancaires : Maroc (MAD/EUR), Sénégal (XOF), Stripe ailleurs.
-La contrainte `transactions.user_id` ne peut pas être cassée immédiatement.
 
 ### Décision
 
@@ -338,18 +399,17 @@ Migration en 3 étapes :
 
 1. MVP : user technique "Plateforme" par devise via `getPlatformAccountId(string $currency)`
 2. Maintenant : table `platform_accounts` créée avec `user_id` nullable
-3. Futur : `transactions.user_id` → `platform_account_id` sans douleur
+3. Futur : `transactions.user_id` → `platform_account_id` sans refacto lourde
 
 ### Alternatives considérées
 
-- Migration directe immédiate ❌ (trop risqué, casse le système actuel)
+- Migration directe immédiate ❌ (trop risqué)
 - Ignorer le multi-comptes ❌ (incompatible avec la réalité bancaire)
 
 ### Conséquences
 
 - zéro risque de régression immédiate
 - base multi-pays posée dès maintenant
-- migration future sans refacto majeure
 
 ### Statut
 
@@ -381,8 +441,7 @@ Migration en 3 étapes :
 
 ## Ledger interne (v5+)
 
-- journal financier complet
-- `parent_transaction_id`
+- journal financier complet avec `parent_transaction_id`
 - audit avancé et reporting
 
 ---

@@ -13,7 +13,7 @@ class UserFactory extends Factory
 
     public function definition(): array
     {
-        $faker = \Faker\Factory::create('en_US');
+        $faker = fake();
 
         return [
             'first_name'      => $faker->firstName,
@@ -22,7 +22,10 @@ class UserFactory extends Factory
             'phone'           => $faker->unique()->e164PhoneNumber,
             'country'         => $faker->countryCode,
             'password'        => Hash::make('password'),
-            'role'            => $faker->randomElement(UserRoleEnum::cases())->value,
+
+            // ⚠️ ENUM direct (pas ->value)
+            'role'            => $faker->randomElement(UserRoleEnum::cases()),
+
             'verified_user'   => $faker->boolean(80),
             'kyc_passed_at'   => $faker->optional(0.6)->dateTimeBetween('-6 months'),
             'plan_id'         => null,
@@ -33,21 +36,21 @@ class UserFactory extends Factory
     public function admin(): static
     {
         return $this->state(fn() => [
-            'role' => UserRoleEnum::ADMIN->value,
+            'role' => UserRoleEnum::ADMIN,
         ]);
     }
 
     public function expeditor(): static
     {
         return $this->state(fn() => [
-            'role' => UserRoleEnum::SENDER->value,
+            'role' => UserRoleEnum::SENDER,
         ]);
     }
 
     public function traveler(): static
     {
         return $this->state(fn() => [
-            'role' => UserRoleEnum::TRAVELER->value,
+            'role' => UserRoleEnum::TRAVELER,
         ]);
     }
 

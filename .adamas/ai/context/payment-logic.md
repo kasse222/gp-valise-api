@@ -114,8 +114,6 @@ Centraliser tous les calculs financiers. Les Actions exécutent les flux. Le Cal
 
 Le calculator travaille sur une `Transaction $charge` (pas sur un `Booking`).
 
-Pourquoi : plus simple, plus testable, aligné avec "Transaction = source de vérité", évite une agrégation prématurée.
-
 Pré-requis : `$charge->type === CHARGE` et `$charge->status === COMPLETED`.
 
 ### Formules MVP
@@ -134,6 +132,7 @@ profit_net  = FEE - PAYMENT_FEE
 - `PAYMENT_FEE` ne réduit pas le refund MVP
 - `PAYMENT_FEE` réduit uniquement le profit net plateforme
 - La FEE est calculée sur le montant brut `CHARGE`, jamais sur le payout ou le net
+- Les montants calculés sont **persistés** au moment de la création de la transaction (jamais recalculés après coup)
 
 ### Configuration MVP
 
@@ -155,9 +154,11 @@ return [
 | Composant                       | Responsabilité                           |
 | ------------------------------- | ---------------------------------------- |
 | `TransactionAmountCalculator`   | calcule fee, payout, refund, payment_fee |
+| `FeeCalculator`                 | résout le taux applicable (pays, B2B…)   |
 | `TransactionEligibilityService` | décide si payout / refund est autorisé   |
 | `CreatePayoutTransaction`       | exécute création FEE + PAYOUT            |
-| `RefundTransaction`             | exécute création REFUND                  |
+| `RefundTransaction`             | exécute création REFUND standard         |
+| `AdminRefundTransaction`        | exécute refund admin override avec audit |
 | `PaymentProvider`               | exécute charge / refund / payout PSP     |
 
 ---
@@ -183,7 +184,7 @@ interface FeeCalculator
 }
 ```
 
-La logique de calcul est isolée dans ce service dédié — jamais dans une Action — pour garantir cohérence et évolutivité multi-pays.
+Le `FeeCalculator` résout le taux. Le `TransactionAmountCalculator` applique le calcul. Ces deux responsabilités sont strictement séparées.
 
 ### Structure `FeeRule` (extensible)
 
@@ -216,31 +217,97 @@ Fallback : CreateTransaction MVP (montant estimé via config)
 
 ## 🔁 Refund
 
-### Conditions minimales
+### Principe
 
+Un `REFUND` est toujours une transaction explicite. Il ne doit jamais être implicite ni seulement déduit d'un statut Booking.
+
+Il existe deux chemins de refund, avec des contraintes distinctes.
+
+---
+
+### Chemin 1 — Refund standard (avant livraison)
+
+**Conditions** :
+
+- statut booking : `CONFIRMEE` ou `EN_LITIGE`
 - `CHARGE` en statut `COMPLETED`
-- absence de payout existant
-- absence de refund déjà existant
-- statut booking compatible
+- aucun `REFUND` existant
+- aucun `PAYOUT` existant
 
-### Règles MVP
-
-- refund **total uniquement**
-- **un seul** refund par booking
-- refund bloqué si payout existe
-- refund après livraison → via litige uniquement
-
-```
-refund après livraison → EN_LITIGE → traitement manuel
-```
-
-### Calcul
+**Calcul** :
 
 ```
 refund_possible = CHARGE - FEE
 ```
 
-> ⚠️ Jamais calculé depuis le payout. `PAYMENT_FEE` non remboursable en MVP.
+**Règles** :
+
+- `PAYMENT_FEE` non remboursable en MVP
+- jamais calculé depuis le payout
+
+---
+
+### Chemin 2 — Refund admin override (après livraison)
+
+**Décision** : Option C — override admin avec audit obligatoire, interdit si payout existe.
+
+**Pourquoi pas le blocage total (Option A)** : un litige avéré peut nécessiter un remboursement même après livraison (bagage perdu, détruit, fraude confirmée). Bloquer tout refund post-livraison serait une faiblesse produit.
+
+**Pourquoi pas un simple endpoint admin (Option B)** : sans contraintes, un endpoint admin expose à des erreurs catastrophiques — rembourser un voyageur déjà payé, casser l'invariant financier.
+
+**Conditions strictes** :
+
+- **admin uniquement** (rôle vérifié obligatoirement)
+- statut booking : `LIVREE` ou `EN_LITIGE`
+- `CHARGE` en statut `COMPLETED`
+- aucun `REFUND` existant
+- **aucun `PAYOUT` existant** (invariant absolu — jamais remboursable si payout effectué)
+- raison explicite obligatoire (`reason` non vide)
+- audit log obligatoire créé atomiquement avec le refund
+
+**Garanties** :
+
+- l'invariant `PAYOUT ⊕ REFUND` est maintenu sans exception
+- toute opération est tracée avec : admin_id, booking_id, reason, montant, timestamp
+- le refund admin est créé dans la même transaction DB que l'audit log
+
+**Action dédiée** : `AdminRefundTransaction`
+
+```
+AdminRefundTransaction::execute(
+    booking: Booking,
+    charge: Transaction,
+    admin: User,
+    reason: string
+): Transaction
+```
+
+---
+
+### Calcul commun
+
+```
+refund_possible = CHARGE - FEE
+```
+
+> ⚠️ `PAYMENT_FEE` non remboursable dans les deux chemins.
+> Le refund ne doit jamais être calculé depuis le payout.
+
+---
+
+## 🔍 Traçabilité financière
+
+> Est-ce que ton système peut expliquer exactement ce qui s'est passé sur une transaction contestée ?
+
+**Oui**, grâce à :
+
+- chaque `Transaction` liée à un `booking_id` et un `provider_transaction_id`
+- chaque refund admin lié à un audit log avec raison et auteur
+- chaque webhook loggé dans `webhook_logs` avec statut et `event_id`
+- les montants persistés au moment de la création (jamais recalculés)
+- le statut final bloquant toute modification ultérieure
+
+En cas de contestation, la reconstruction complète du flux financier est possible depuis la DB sans aucune ambiguïté.
 
 ---
 
@@ -317,10 +384,11 @@ Clé : `event_id` unique dans `webhook_logs` + `lockForUpdate()` + vérification
 
 - `CHARGE` obligatoire avant confirmation booking
 - pas de double charge / payout / fee / refund
-- `PAYOUT` et `REFUND` mutuellement exclusifs
+- `PAYOUT` et `REFUND` mutuellement exclusifs **sans exception**
 - idempotence webhook via `event_id`
-- audit complet via `webhook_logs`
+- audit complet via `webhook_logs` et audit log refund admin
 - transaction DB sur toutes les opérations critiques
+- montants persistés à la création, jamais recalculés
 
 ---
 
@@ -371,16 +439,19 @@ Clé : `event_id` unique dans `webhook_logs` + `lockForUpdate()` + vérification
 ## 🧠 Résumé exécutif
 
 ```
-CHARGE      = montant brut payé (source de vérité)
-FEE         = revenu plateforme (variable, FeeCalculator)
+CHARGE      = montant brut payé (source de vérité, persisté)
+FEE         = revenu plateforme (variable, FeeCalculator, persisté)
 PAYMENT_FEE = coût PSP (persisté, config MVP)
-PAYOUT      = CHARGE - FEE (versé au voyageur)
-REFUND      = CHARGE - FEE (remboursé à l'expéditeur)
+PAYOUT      = CHARGE - FEE (versé au voyageur, persisté)
+REFUND      = CHARGE - FEE (remboursé à l'expéditeur, persisté)
 
 PAYOUT + FEE + REFUND <= CHARGE
 profit_net = FEE - PAYMENT_FEE
-PAYOUT ⊕ REFUND  (mutuellement exclusifs)
+PAYOUT ⊕ REFUND  (mutuellement exclusifs, sans exception)
+
+Refund post-livraison : admin override uniquement
+  → raison obligatoire + audit log + pas de payout existant
 ```
 
 > GP-Valise reste simple en MVP mais pose dès maintenant
-> une base financière propre, traçable, multi-pays et extensible.
+> une base financière propre, traçable, auditée et extensible.
