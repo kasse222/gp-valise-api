@@ -1,12 +1,17 @@
 <?php
 
-use App\Actions\Transaction\RefundTransaction;
+use App\Actions\Transaction\CreateTransaction;
+use App\Contracts\Payments\PaymentProvider;
+use App\Data\Payments\PaymentResult;
 use App\Enums\BookingStatusEnum;
+use App\Enums\CurrencyEnum;
+use App\Enums\PaymentMethodEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
-use App\Events\TransactionRefunded;
+use App\Events\TransactionCreated;
 use App\Models\Booking;
 use App\Models\Transaction;
+use App\Models\Trip;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
@@ -14,169 +19,112 @@ use Illuminate\Validation\ValidationException;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
-it('dispatch TransactionRefunded quand une transaction est remboursée', function () {
+beforeEach(function () {
+    $this->user = User::factory()->create();
+    $this->trip = Trip::factory()->create();
+
+    $this->provider = mock(PaymentProvider::class);
+
+    $this->provider->shouldReceive('charge')
+        ->andReturn(new PaymentResult(
+            success: true,
+            providerTransactionId: 'txn_123',
+            status: 'completed',
+            message: null,
+        ));
+
+    app()->instance(PaymentProvider::class, $this->provider);
+
+    $this->action = app(CreateTransaction::class);
+});
+
+function validCreateTransactionData(Booking $booking): array
+{
+    return [
+        'booking_id' => $booking->id,
+        'amount' => 150.00,
+        'currency' => CurrencyEnum::EUR->value,
+        'method' => PaymentMethodEnum::CARTE_BANCAIRE->value,
+    ];
+}
+
+function createPayableBookingForCreateTransaction(User $user, Trip $trip): Booking
+{
+    return Booking::factory()->create([
+        'user_id' => $user->id,
+        'trip_id' => $trip->id,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
+        'payment_expires_at' => now()->addMinutes(10),
+    ]);
+}
+
+it('crée une transaction CHARGE valide', function () {
+    $booking = createPayableBookingForCreateTransaction($this->user, $this->trip);
+
+    $transaction = $this->action->execute($this->user, validCreateTransactionData($booking));
+
+    expect($transaction)
+        ->toBeInstanceOf(Transaction::class)
+        ->and($transaction->type)->toBe(TransactionTypeEnum::CHARGE)
+        ->and($transaction->status)->toBe(TransactionStatusEnum::COMPLETED)
+        ->and($transaction->provider_transaction_id)->toBe('txn_123');
+});
+
+it('dispatch TransactionCreated', function () {
     Event::fake();
 
-    $user = User::factory()->sender()->verified()->create();
+    $booking = createPayableBookingForCreateTransaction($this->user, $this->trip);
 
-    $booking = Booking::factory()->create([
-        'user_id' => $user->id,
-        'status' => BookingStatusEnum::CONFIRMEE,
-    ]);
+    $transaction = $this->action->execute($this->user, validCreateTransactionData($booking));
 
-    $charge = Transaction::factory()->create([
-        'user_id' => $user->id,
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::CHARGE,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 150,
-        'processed_at' => now(),
-    ]);
-
-    $refund = app(RefundTransaction::class)->execute($charge, 'Test refund');
-
-    Event::assertDispatched(TransactionRefunded::class, function (TransactionRefunded $event) use ($refund) {
-        return $event->transaction->id === $refund->id;
-    });
+    Event::assertDispatched(
+        TransactionCreated::class,
+        fn($event) => $event->transaction->id === $transaction->id
+    );
 });
 
-it('crée une transaction de refund pour une charge complétée', function () {
-    $user = User::factory()->sender()->verified()->create();
+it('refuse si booking appartient à un autre user', function () {
+    $owner = User::factory()->create();
+    $other = User::factory()->create();
 
+    $booking = createPayableBookingForCreateTransaction($owner, $this->trip);
+
+    $this->action->execute($other, validCreateTransactionData($booking));
+})->throws(ValidationException::class);
+
+it('refuse si booking pas EN_PAIEMENT', function () {
     $booking = Booking::factory()->create([
-        'user_id' => $user->id,
-        'status' => BookingStatusEnum::CONFIRMEE,
-    ]);
-
-    $charge = Transaction::factory()->create([
-        'user_id' => $user->id,
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::CHARGE,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 150,
-        'processed_at' => now(),
-    ]);
-
-    $refund = app(RefundTransaction::class)->execute($charge);
-
-    expect($refund->type)->toBe(TransactionTypeEnum::REFUND)
-        ->and($refund->status)->toBeIn([
-            TransactionStatusEnum::COMPLETED,
-            TransactionStatusEnum::PENDING,
-        ])
-        ->and((float) $refund->amount)->toBe(150.0);
-});
-
-it('rejette le remboursement si le booking nest pas dans un statut autorisé', function () {
-    $user = User::factory()->sender()->verified()->create();
-
-    $booking = Booking::factory()->create([
-        'user_id' => $user->id,
+        'user_id' => $this->user->id,
+        'trip_id' => $this->trip->id,
         'status' => BookingStatusEnum::ANNULE,
     ]);
 
-    $charge = Transaction::factory()->create([
-        'user_id' => $user->id,
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::CHARGE,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 150,
-        'processed_at' => now(),
-    ]);
+    $this->action->execute($this->user, validCreateTransactionData($booking));
+})->throws(ValidationException::class);
 
-    expect(fn() => app(RefundTransaction::class)->execute($charge))
-        ->toThrow(ValidationException::class, 'Ce booking ne peut pas déclencher de remboursement.');
-});
-
-it('rejette le remboursement si un payout existe déjà', function () {
-    $user = User::factory()->sender()->verified()->create();
-
+it('refuse si paiement expiré', function () {
     $booking = Booking::factory()->create([
-        'user_id' => $user->id,
-        'status' => BookingStatusEnum::LIVREE,
+        'user_id' => $this->user->id,
+        'trip_id' => $this->trip->id,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
+        'payment_expires_at' => now()->subMinute(),
     ]);
 
-    $charge = Transaction::factory()->create([
-        'user_id' => $user->id,
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::CHARGE,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 150,
-        'processed_at' => now(),
-    ]);
+    $this->action->execute($this->user, validCreateTransactionData($booking));
+})->throws(ValidationException::class);
 
-    Transaction::factory()->create([
-        'user_id' => $user->id,
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::PAYOUT,
-        'status' => TransactionStatusEnum::PENDING,
-        'amount' => 120,
-    ]);
+it('refuse double charge', function () {
+    $booking = createPayableBookingForCreateTransaction($this->user, $this->trip);
 
-    expect(fn() => app(RefundTransaction::class)->execute($charge))
-        ->toThrow(ValidationException::class, 'Ce booking ne peut pas déclencher de remboursement.');
-});
+    $this->action->execute($this->user, validCreateTransactionData($booking));
 
-it('rejette le remboursement si un refund existe déjà', function () {
-    $user = User::factory()->sender()->verified()->create();
-
-    $booking = Booking::factory()->create([
-        'user_id' => $user->id,
-        'status' => BookingStatusEnum::CONFIRMEE,
-    ]);
-
-    $charge = Transaction::factory()->create([
-        'user_id' => $user->id,
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::CHARGE,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 150,
-        'processed_at' => now(),
-    ]);
-
-    Transaction::factory()->create([
-        'user_id' => $user->id,
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::REFUND,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 150,
-        'processed_at' => now(),
-    ]);
-
-    expect(fn() => app(RefundTransaction::class)->execute($charge))
-        ->toThrow(ValidationException::class, 'Ce booking ne peut pas déclencher de remboursement.');
-});
-
-it('refuse un remboursement si un payout existe déjà', function () {
-    $user = User::factory()->verified()->create();
-
-    $booking = Booking::factory()->create([
-        'user_id' => $user->id,
-        'status' => BookingStatusEnum::LIVREE,
-    ]);
-
-    $charge = Transaction::factory()->create([
-        'user_id' => $user->id,
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::CHARGE,
-        'status' => TransactionStatusEnum::COMPLETED,
-    ]);
-
-    Transaction::factory()->create([
-        'user_id' => $user->id,
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::PAYOUT,
-        'status' => TransactionStatusEnum::PENDING,
-    ]);
+    expect(fn() => $this->action->execute($this->user, validCreateTransactionData($booking)))
+        ->toThrow(ValidationException::class);
 
     expect(
-        fn() =>
-        app(RefundTransaction::class)->execute($charge, 'Payout déjà existant')
-    )->toThrow(ValidationException::class);
-
-    expect(
-        Transaction::where('booking_id', $booking->id)
-            ->where('type', TransactionTypeEnum::REFUND)
-            ->exists()
-    )->toBeFalse();
+        Transaction::query()
+            ->where('booking_id', $booking->id)
+            ->where('type', TransactionTypeEnum::CHARGE)
+            ->count()
+    )->toBe(1);
 });

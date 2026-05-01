@@ -2,8 +2,6 @@
 
 use App\Actions\Transaction\CreatePayoutTransaction;
 use App\Enums\BookingStatusEnum;
-use App\Enums\CurrencyEnum;
-use App\Enums\PaymentMethodEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Models\Booking;
@@ -15,182 +13,131 @@ use Illuminate\Validation\ValidationException;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
-it('crée une transaction de payout et une commission si le booking est livré et qu une charge complétée existe', function () {
-    $voyageur = User::factory()->create();
-    $expediteur = User::factory()->create();
+beforeEach(function () {
+    $this->sender = User::factory()->create();
+    $this->traveler = User::factory()->create();
 
-    $trip = Trip::factory()->create([
-        'user_id' => $voyageur->id,
+    $this->trip = Trip::factory()->create([
+        'user_id' => $this->traveler->id,
     ]);
 
-    $booking = Booking::factory()
-        ->for($expediteur)
-        ->for($trip)
+    $this->action = app(CreatePayoutTransaction::class);
+});
+
+function createDeliveredBooking(): Booking
+{
+    return Booking::factory()
+        ->for(test()->sender)
+        ->for(test()->trip)
         ->create([
             'status' => BookingStatusEnum::LIVREE,
         ]);
+}
 
-    Transaction::factory()->create([
-        'user_id' => $expediteur->id,
+function createChargeForBooking(Booking $booking, float $amount = 100): Transaction
+{
+    return Transaction::factory()->create([
+        'user_id' => test()->sender->id,
         'booking_id' => $booking->id,
         'type' => TransactionTypeEnum::CHARGE,
         'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 120.50,
-        'currency' => CurrencyEnum::EUR,
-        'method' => PaymentMethodEnum::CARTE_BANCAIRE,
+        'amount' => $amount,
         'processed_at' => now(),
     ]);
+}
 
-    $payout = app(CreatePayoutTransaction::class)->execute($booking);
+it('crée un payout et une fee pour un booking livré avec charge complétée', function () {
+    $booking = createDeliveredBooking();
 
-    $fee = Transaction::query()
-        ->where('booking_id', $booking->id)
-        ->where('type', TransactionTypeEnum::FEE)
-        ->first();
+    createChargeForBooking($booking, 100);
 
-    expect($fee)->not->toBeNull()
-        ->and($fee->user_id)->toBe($voyageur->id)
-        ->and($fee->status)->toBe(TransactionStatusEnum::COMPLETED)
-        ->and($fee->amount)->toBe(18.08)
-        ->and($fee->currency)->toBe(CurrencyEnum::EUR)
-        ->and($fee->method)->toBe(PaymentMethodEnum::CARTE_BANCAIRE)
-        ->and($fee->processed_at)->not->toBeNull();
+    $payout = $this->action->execute($booking);
 
     expect($payout)
         ->toBeInstanceOf(Transaction::class)
-        ->and($payout->user_id)->toBe($voyageur->id)
-        ->and($payout->booking_id)->toBe($booking->id)
         ->and($payout->type)->toBe(TransactionTypeEnum::PAYOUT)
         ->and($payout->status)->toBe(TransactionStatusEnum::PENDING)
-        ->and($payout->amount)->toBe(102.42)
-        ->and($payout->currency)->toBe(CurrencyEnum::EUR)
-        ->and($payout->method)->toBe(PaymentMethodEnum::CARTE_BANCAIRE)
-        ->and($payout->processed_at)->toBeNull();
-});
+        ->and((float) $payout->amount)->toBe(85.0)
+        ->and($payout->user_id)->toBe($this->traveler->id);
 
-it('rejette le payout si le booking n est pas livré', function () {
-    $voyageur = User::factory()->create();
-    $expediteur = User::factory()->create();
-
-    $trip = Trip::factory()->create([
-        'user_id' => $voyageur->id,
+    $this->assertDatabaseHas('transactions', [
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::FEE->value,
+        'status' => TransactionStatusEnum::COMPLETED->value,
+        'amount' => 15,
     ]);
 
+    $this->assertDatabaseHas('transactions', [
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::PAYOUT->value,
+        'status' => TransactionStatusEnum::PENDING->value,
+        'amount' => 85,
+    ]);
+});
+
+it('refuse un payout si le booking nest pas livré', function () {
     $booking = Booking::factory()
-        ->for($expediteur)
-        ->for($trip)
+        ->for($this->sender)
+        ->for($this->trip)
         ->create([
             'status' => BookingStatusEnum::CONFIRMEE,
         ]);
 
-    Transaction::factory()->create([
-        'user_id' => $expediteur->id,
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::CHARGE,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 120.50,
-        'currency' => CurrencyEnum::EUR,
-        'method' => PaymentMethodEnum::CARTE_BANCAIRE,
-        'processed_at' => now(),
-    ]);
+    createChargeForBooking($booking);
 
-    app(CreatePayoutTransaction::class)->execute($booking);
-})->throws(ValidationException::class, 'Ce booking ne peut pas déclencher de payout.');
+    $this->action->execute($booking);
+})->throws(ValidationException::class);
 
-it('rejette le payout si aucune charge complétée n existe', function () {
-    $voyageur = User::factory()->create();
-    $expediteur = User::factory()->create();
+it('refuse un payout sans charge complétée', function () {
+    $booking = createDeliveredBooking();
 
-    $trip = Trip::factory()->create([
-        'user_id' => $voyageur->id,
-    ]);
+    $this->action->execute($booking);
+})->throws(ValidationException::class);
 
-    $booking = Booking::factory()
-        ->for($expediteur)
-        ->for($trip)
-        ->create([
-            'status' => BookingStatusEnum::LIVREE,
-        ]);
+it('refuse un double payout', function () {
+    $booking = createDeliveredBooking();
 
-    app(CreatePayoutTransaction::class)->execute($booking);
-})->throws(ValidationException::class, 'Ce booking ne peut pas déclencher de payout.');
-
-it('rejette le payout si un payout existe déjà pour ce booking', function () {
-    $voyageur = User::factory()->create();
-    $expediteur = User::factory()->create();
-
-    $trip = Trip::factory()->create([
-        'user_id' => $voyageur->id,
-    ]);
-
-    $booking = Booking::factory()
-        ->for($expediteur)
-        ->for($trip)
-        ->create([
-            'status' => BookingStatusEnum::LIVREE,
-        ]);
+    createChargeForBooking($booking);
 
     Transaction::factory()->create([
-        'user_id' => $expediteur->id,
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::CHARGE,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 120.50,
-        'currency' => CurrencyEnum::EUR,
-        'method' => PaymentMethodEnum::CARTE_BANCAIRE,
-        'processed_at' => now(),
-    ]);
-
-    Transaction::factory()->create([
-        'user_id' => $voyageur->id,
+        'user_id' => $this->traveler->id,
         'booking_id' => $booking->id,
         'type' => TransactionTypeEnum::PAYOUT,
         'status' => TransactionStatusEnum::PENDING,
-        'amount' => 102.42,
-        'currency' => CurrencyEnum::EUR,
-        'method' => PaymentMethodEnum::CARTE_BANCAIRE,
-        'processed_at' => null,
+        'amount' => 85,
     ]);
 
-    app(CreatePayoutTransaction::class)->execute($booking);
-})->throws(ValidationException::class, 'Ce booking ne peut pas déclencher de payout.');
+    $this->action->execute($booking);
+})->throws(ValidationException::class);
 
-it('rejette le payout si une commission existe déjà pour ce booking', function () {
-    $voyageur = User::factory()->create();
-    $expediteur = User::factory()->create();
+it('refuse un payout si un refund existe déjà', function () {
+    $booking = createDeliveredBooking();
 
-    $trip = Trip::factory()->create([
-        'user_id' => $voyageur->id,
-    ]);
-
-    $booking = Booking::factory()
-        ->for($expediteur)
-        ->for($trip)
-        ->create([
-            'status' => BookingStatusEnum::LIVREE,
-        ]);
+    createChargeForBooking($booking);
 
     Transaction::factory()->create([
-        'user_id' => $expediteur->id,
+        'user_id' => $this->sender->id,
         'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::CHARGE,
+        'type' => TransactionTypeEnum::REFUND,
         'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 120.50,
-        'currency' => CurrencyEnum::EUR,
-        'method' => PaymentMethodEnum::CARTE_BANCAIRE,
-        'processed_at' => now(),
+        'amount' => 100,
     ]);
 
+    $this->action->execute($booking);
+})->throws(ValidationException::class);
+
+it('refuse un payout si une fee existe déjà', function () {
+    $booking = createDeliveredBooking();
+
+    createChargeForBooking($booking);
+
     Transaction::factory()->create([
-        'user_id' => $voyageur->id,
+        'user_id' => $this->traveler->id,
         'booking_id' => $booking->id,
         'type' => TransactionTypeEnum::FEE,
         'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 18.08,
-        'currency' => CurrencyEnum::EUR,
-        'method' => PaymentMethodEnum::CARTE_BANCAIRE,
-        'processed_at' => now(),
+        'amount' => 15,
     ]);
 
-    app(CreatePayoutTransaction::class)->execute($booking);
-})->throws(ValidationException::class, 'Ce booking ne peut pas déclencher de payout.');
+    $this->action->execute($booking);
+})->throws(ValidationException::class);

@@ -33,6 +33,7 @@ class TransactionPolicy
 
     public function refund(User $user, Transaction $transaction): bool
     {
-        return false;
+        return $transaction->booking !== null
+            && $transaction->booking->user_id === $user->id;
     }
 }

@@ -3,12 +3,12 @@
 namespace App\Actions\Transaction;
 
 use App\Contracts\Payments\PaymentProvider;
-use App\Enums\BookingStatusEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Events\TransactionRefunded;
 use App\Models\Booking;
 use App\Models\Transaction;
+use App\Services\TransactionEligibilityService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
@@ -17,6 +17,7 @@ class RefundTransaction
 {
     public function __construct(
         private readonly PaymentProvider $paymentProvider,
+        private readonly TransactionEligibilityService $eligibility,
     ) {}
 
     public function execute(Transaction $charge, ?string $reason = null): Transaction
@@ -47,50 +48,13 @@ class RefundTransaction
                 ->lockForUpdate()
                 ->get();
 
-            if (! in_array($booking->status, [
-                BookingStatusEnum::CONFIRMEE,
-                BookingStatusEnum::LIVREE,
-                BookingStatusEnum::EN_LITIGE,
-            ], true)) {
+            if (! $this->eligibility->canCreateRefund($booking)) {
                 throw ValidationException::withMessages([
                     'booking' => 'Ce booking ne peut pas déclencher de remboursement.',
                 ]);
             }
 
-            $hasPayout = Transaction::query()
-                ->where('booking_id', $booking->id)
-                ->where('type', TransactionTypeEnum::PAYOUT)
-                ->exists();
-
-            if ($hasPayout) {
-                throw ValidationException::withMessages([
-                    'booking' => 'Ce booking ne peut pas déclencher de remboursement.',
-                ]);
-            }
-
-            $hasRefund = Transaction::query()
-                ->where('booking_id', $booking->id)
-                ->where('type', TransactionTypeEnum::REFUND)
-                ->exists();
-
-            if ($hasRefund) {
-                throw ValidationException::withMessages([
-                    'booking' => 'Ce booking ne peut pas déclencher de remboursement.',
-                ]);
-            }
-
-            $completedChargeAmount = (float) Transaction::query()
-                ->where('booking_id', $booking->id)
-                ->where('type', TransactionTypeEnum::CHARGE)
-                ->where('status', TransactionStatusEnum::COMPLETED)
-                ->sum('amount');
-
-            $completedRefundAmount = (float) Transaction::query()
-                ->where('booking_id', $booking->id)
-                ->where('type', TransactionTypeEnum::REFUND)
-                ->sum('amount');
-
-            $refundAmount = round($completedChargeAmount - $completedRefundAmount, 2);
+            $refundAmount = $this->eligibility->refundableAmount($booking);
 
             if ($refundAmount <= 0) {
                 throw ValidationException::withMessages([

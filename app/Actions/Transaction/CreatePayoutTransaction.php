@@ -2,17 +2,21 @@
 
 namespace App\Actions\Transaction;
 
-use App\Enums\BookingStatusEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Models\Booking;
 use App\Models\Transaction;
+use App\Services\TransactionEligibilityService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CreatePayoutTransaction
 {
     private const COMMISSION_RATE = 0.15;
+
+    public function __construct(
+        private readonly TransactionEligibilityService $eligibility,
+    ) {}
 
     public function execute(Booking $booking): Transaction
     {
@@ -27,44 +31,17 @@ class CreatePayoutTransaction
                 ->lockForUpdate()
                 ->get();
 
-            if ($booking->status !== BookingStatusEnum::LIVREE) {
+            if (! $this->eligibility->canCreatePayout($booking)) {
                 throw ValidationException::withMessages([
                     'booking' => 'Ce booking ne peut pas déclencher de payout.',
                 ]);
             }
 
-            $charge = Transaction::query()
-                ->where('booking_id', $booking->id)
-                ->where('type', TransactionTypeEnum::CHARGE)
-                ->where('status', TransactionStatusEnum::COMPLETED)
-                ->latest()
-                ->first();
+            $charge = $this->eligibility->completedCharge($booking);
 
             if (! $charge) {
                 throw ValidationException::withMessages([
-                    'booking' => 'Ce booking ne peut pas déclencher de payout.',
-                ]);
-            }
-
-            $hasPayout = Transaction::query()
-                ->where('booking_id', $booking->id)
-                ->where('type', TransactionTypeEnum::PAYOUT)
-                ->exists();
-
-            if ($hasPayout) {
-                throw ValidationException::withMessages([
-                    'booking' => 'Ce booking ne peut pas déclencher de payout.',
-                ]);
-            }
-
-            $hasFee = Transaction::query()
-                ->where('booking_id', $booking->id)
-                ->where('type', TransactionTypeEnum::FEE)
-                ->exists();
-
-            if ($hasFee) {
-                throw ValidationException::withMessages([
-                    'booking' => 'Ce booking ne peut pas déclencher de payout.',
+                    'booking' => 'Aucune charge complétée disponible pour ce payout.',
                 ]);
             }
 
