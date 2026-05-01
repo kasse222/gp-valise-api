@@ -5,19 +5,18 @@ use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Models\Booking;
 use App\Models\Transaction;
-use App\Models\User;
 use App\Services\TransactionEligibilityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->service = new TransactionEligibilityService();
+    $this->service = app(TransactionEligibilityService::class);
 });
 
 /*
 |--------------------------------------------------------------------------
-| 🔹 PAYOUT
+| Payout eligibility
 |--------------------------------------------------------------------------
 */
 
@@ -74,13 +73,32 @@ it('refuse payout si déjà payout', function () {
     expect($this->service->canCreatePayout($booking))->toBeFalse();
 });
 
+it('refuse payout si une fee existe déjà', function () {
+    $booking = Booking::factory()->create([
+        'status' => BookingStatusEnum::LIVREE,
+    ]);
+
+    Transaction::factory()->create([
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::CHARGE,
+        'status' => TransactionStatusEnum::COMPLETED,
+    ]);
+
+    Transaction::factory()->create([
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::FEE,
+    ]);
+
+    expect($this->service->canCreatePayout($booking))->toBeFalse();
+});
+
 /*
 |--------------------------------------------------------------------------
-| 🔹 REFUND
+| Refund eligibility
 |--------------------------------------------------------------------------
 */
 
-it('autorise refund si conditions OK', function () {
+it('autorise refund si booking confirmé avec charge complétée', function () {
     $booking = Booking::factory()->create([
         'status' => BookingStatusEnum::CONFIRMEE,
     ]);
@@ -92,6 +110,53 @@ it('autorise refund si conditions OK', function () {
     ]);
 
     expect($this->service->canCreateRefund($booking))->toBeTrue();
+});
+
+it('autorise refund si booking en litige avec charge complétée', function () {
+    $booking = Booking::factory()->create([
+        'status' => BookingStatusEnum::EN_LITIGE,
+    ]);
+
+    Transaction::factory()->create([
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::CHARGE,
+        'status' => TransactionStatusEnum::COMPLETED,
+    ]);
+
+    expect($this->service->canCreateRefund($booking))->toBeTrue();
+});
+
+it('refuse refund si booking livré', function () {
+    $booking = Booking::factory()->create([
+        'status' => BookingStatusEnum::LIVREE,
+    ]);
+
+    Transaction::factory()->create([
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::CHARGE,
+        'status' => TransactionStatusEnum::COMPLETED,
+    ]);
+
+    expect($this->service->canCreateRefund($booking))->toBeFalse();
+});
+
+it('refuse refund si refund existe déjà', function () {
+    $booking = Booking::factory()->create([
+        'status' => BookingStatusEnum::CONFIRMEE,
+    ]);
+
+    Transaction::factory()->create([
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::CHARGE,
+        'status' => TransactionStatusEnum::COMPLETED,
+    ]);
+
+    Transaction::factory()->create([
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::REFUND,
+    ]);
+
+    expect($this->service->canCreateRefund($booking))->toBeFalse();
 });
 
 it('refuse refund si payout existe', function () {
@@ -111,32 +176,4 @@ it('refuse refund si payout existe', function () {
     ]);
 
     expect($this->service->canCreateRefund($booking))->toBeFalse();
-});
-
-/*
-|--------------------------------------------------------------------------
-| 🔹 REFUNDABLE AMOUNT
-|--------------------------------------------------------------------------
-*/
-
-it('calcule correctement le montant remboursable (charge - fee)', function () {
-    $booking = Booking::factory()->create();
-
-    Transaction::factory()->create([
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::CHARGE,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 100,
-    ]);
-
-    Transaction::factory()->create([
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::FEE,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 10,
-    ]);
-
-    $amount = $this->service->refundableAmount($booking);
-
-    expect($amount)->toBe(90.0);
 });

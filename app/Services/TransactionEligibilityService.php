@@ -21,10 +21,7 @@ class TransactionEligibilityService
 
     public function canCreateRefund(Booking $booking): bool
     {
-        return in_array($booking->status, [
-            BookingStatusEnum::CONFIRMEE,
-            BookingStatusEnum::EN_LITIGE,
-        ], true)
+        return $this->hasRefundableStatus($booking)
             && $this->hasCompletedCharge($booking)
             && ! $this->hasRefund($booking)
             && ! $this->hasPayout($booking);
@@ -68,18 +65,11 @@ class TransactionEligibilityService
             ->first();
     }
 
-    public function refundableAmount(Booking $booking): float
+    private function hasRefundableStatus(Booking $booking): bool
     {
-        $completedChargeAmount = (float) $booking->transactions()
-            ->where('type', TransactionTypeEnum::CHARGE)
-            ->where('status', TransactionStatusEnum::COMPLETED)
-            ->sum('amount');
-
-        $completedFeeAmount = (float) $booking->transactions()
-            ->where('type', TransactionTypeEnum::FEE)
-            ->where('status', TransactionStatusEnum::COMPLETED)
-            ->sum('amount');
-
-        return round($completedChargeAmount - $completedFeeAmount, 2);
+        return in_array($booking->status, [
+            BookingStatusEnum::CONFIRMEE,
+            BookingStatusEnum::EN_LITIGE,
+        ], true);
     }
 }
