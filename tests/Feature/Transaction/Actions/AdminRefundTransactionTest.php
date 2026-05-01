@@ -1,0 +1,222 @@
+<?php
+
+use App\Actions\Transaction\AdminRefundTransaction;
+use App\Contracts\Payments\PaymentProvider;
+use App\Data\Payments\PaymentResult;
+use App\Enums\BookingStatusEnum;
+use App\Enums\CurrencyEnum;
+use App\Enums\PaymentMethodEnum;
+use App\Enums\TransactionStatusEnum;
+use App\Enums\TransactionTypeEnum;
+use App\Models\AuditLog;
+use App\Models\Booking;
+use App\Models\Transaction;
+use App\Models\Trip;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
+
+uses(Tests\TestCase::class, RefreshDatabase::class);
+
+beforeEach(function () {
+    config()->set('gpvalise.fee_percentage', 10);
+    config()->set('gpvalise.payment_fee_percentage', 2);
+
+    $this->admin = User::factory()->admin()->verified()->create();
+
+    $this->sender = User::factory()->sender()->verified()->create();
+
+    $this->traveler = User::factory()->traveler()->verified()->create();
+
+    $this->trip = Trip::factory()->create([
+        'user_id' => $this->traveler->id,
+    ]);
+
+    $this->provider = mock(PaymentProvider::class);
+
+    $this->provider->shouldReceive('refund')
+        ->andReturn(new PaymentResult(
+            success: true,
+            providerTransactionId: 'admin_refund_123',
+            status: 'completed',
+            message: null,
+        ));
+
+    app()->forgetInstance(PaymentProvider::class);
+    app()->instance(PaymentProvider::class, $this->provider);
+
+    $this->action = app(AdminRefundTransaction::class);
+});
+
+function createDisputedBookingForAdminRefund(User $sender, Trip $trip): Booking
+{
+    return Booking::factory()->create([
+        'user_id' => $sender->id,
+        'trip_id' => $trip->id,
+        'status' => BookingStatusEnum::EN_LITIGE,
+    ]);
+}
+
+function createCompletedChargeForAdminRefund(Booking $booking, User $sender, float $amount = 100): Transaction
+{
+    return Transaction::factory()->create([
+        'user_id' => $sender->id,
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::CHARGE,
+        'status' => TransactionStatusEnum::COMPLETED,
+        'amount' => $amount,
+        'currency' => CurrencyEnum::EUR,
+        'method' => PaymentMethodEnum::CARTE_BANCAIRE,
+        'processed_at' => now(),
+    ]);
+}
+
+it('permet à un admin de forcer un refund sur un booking en litige sans payout', function () {
+    $booking = createDisputedBookingForAdminRefund($this->sender, $this->trip);
+    $charge = createCompletedChargeForAdminRefund($booking, $this->sender, 100);
+
+    $refund = $this->action->execute(
+        $this->admin,
+        $charge,
+        'Litige validé par le support'
+    );
+
+    expect($refund)
+        ->toBeInstanceOf(Transaction::class)
+        ->and($refund->type)->toBe(TransactionTypeEnum::REFUND)
+        ->and($refund->status)->toBe(TransactionStatusEnum::COMPLETED)
+        ->and((float) $refund->amount)->toBe(90.0)
+        ->and($refund->provider_transaction_id)->toBe('admin_refund_123');
+
+    $this->assertDatabaseHas('audit_logs', [
+        'actor_id' => $this->admin->id,
+        'action' => 'admin_refund_override',
+        'auditable_type' => Transaction::class,
+        'auditable_id' => $refund->id,
+    ]);
+});
+
+it('crée un audit log avec snapshot financier complet', function () {
+    $booking = createDisputedBookingForAdminRefund($this->sender, $this->trip);
+    $charge = createCompletedChargeForAdminRefund($booking, $this->sender, 100);
+
+    Transaction::factory()->create([
+        'user_id' => $this->traveler->id,
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::FEE,
+        'status' => TransactionStatusEnum::COMPLETED,
+        'amount' => 10,
+    ]);
+
+    $refund = $this->action->execute(
+        $this->admin,
+        $charge,
+        'Bagage déclaré perdu après litige'
+    );
+
+    $audit = AuditLog::query()
+        ->where('action', 'admin_refund_override')
+        ->where('auditable_id', $refund->id)
+        ->firstOrFail();
+
+    expect($audit->metadata)
+        ->toHaveKey('reason')
+        ->toHaveKey('admin')
+        ->toHaveKey('booking')
+        ->toHaveKey('charge')
+        ->toHaveKey('transactions')
+        ->toHaveKey('refund')
+        ->toHaveKey('hash')
+        ->and($audit->metadata['reason'])->toBe('Bagage déclaré perdu après litige')
+        ->and($audit->metadata['booking']['id'])->toBe($booking->id)
+        ->and($audit->metadata['booking']['status'])->toBe(BookingStatusEnum::EN_LITIGE->value)
+        ->and($audit->metadata['charge']['id'])->toBe($charge->id)
+        ->and($audit->metadata['refund']['id'])->toBe($refund->id);
+});
+
+it('refuse un refund admin si utilisateur non admin', function () {
+    $booking = createDisputedBookingForAdminRefund($this->sender, $this->trip);
+    $charge = createCompletedChargeForAdminRefund($booking, $this->sender);
+
+    $this->action->execute(
+        $this->sender,
+        $charge,
+        'Tentative non autorisée'
+    );
+})->throws(ValidationException::class);
+
+it('refuse un refund admin si raison vide', function () {
+    $booking = createDisputedBookingForAdminRefund($this->sender, $this->trip);
+    $charge = createCompletedChargeForAdminRefund($booking, $this->sender);
+
+    $this->action->execute(
+        $this->admin,
+        $charge,
+        '   '
+    );
+})->throws(ValidationException::class);
+
+it('refuse un refund admin si le booking nest pas en litige', function () {
+    $booking = Booking::factory()->create([
+        'user_id' => $this->sender->id,
+        'trip_id' => $this->trip->id,
+        'status' => BookingStatusEnum::LIVREE,
+    ]);
+
+    $charge = createCompletedChargeForAdminRefund($booking, $this->sender);
+
+    $this->action->execute(
+        $this->admin,
+        $charge,
+        'Refund demandé sans litige'
+    );
+})->throws(ValidationException::class);
+
+it('refuse un refund admin si un payout existe déjà', function () {
+    $booking = createDisputedBookingForAdminRefund($this->sender, $this->trip);
+    $charge = createCompletedChargeForAdminRefund($booking, $this->sender);
+
+    Transaction::factory()->create([
+        'user_id' => $this->traveler->id,
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::PAYOUT,
+        'status' => TransactionStatusEnum::COMPLETED,
+        'amount' => 90,
+    ]);
+
+    $this->action->execute(
+        $this->admin,
+        $charge,
+        'Refund impossible après payout'
+    );
+})->throws(ValidationException::class);
+
+
+it('est idempotent si un refund admin existe déjà', function () {
+    $booking = createDisputedBookingForAdminRefund($this->sender, $this->trip);
+    $charge = createCompletedChargeForAdminRefund($booking, $this->sender);
+
+    $existingRefund = Transaction::factory()->create([
+        'user_id' => $this->sender->id,
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::REFUND,
+        'status' => TransactionStatusEnum::COMPLETED,
+        'amount' => 90,
+        'provider_transaction_id' => 'existing_refund_123',
+    ]);
+
+    $refund = $this->action->execute(
+        $this->admin,
+        $charge,
+        'Retry admin refund'
+    );
+
+    expect($refund->id)->toBe($existingRefund->id);
+
+    expect(
+        Transaction::query()
+            ->where('booking_id', $booking->id)
+            ->where('type', TransactionTypeEnum::REFUND)
+            ->count()
+    )->toBe(1);
+});

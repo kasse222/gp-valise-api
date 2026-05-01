@@ -36,4 +36,9 @@ class TransactionPolicy
         return $transaction->booking !== null
             && $transaction->booking->user_id === $user->id;
     }
+
+    public function adminRefund(User $user, Transaction $transaction): bool
+    {
+        return $user->isAdmin();
+    }
 }

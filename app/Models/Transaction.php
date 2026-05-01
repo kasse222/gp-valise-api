@@ -94,6 +94,11 @@ class Transaction extends Model
         return $this->type === TransactionTypeEnum::REFUND;
     }
 
+    public function adminRefund(User $user, Transaction $transaction): bool
+    {
+        return $user->isAdmin();
+    }
+
     public function isPayout(): bool
     {
         return $this->type === TransactionTypeEnum::PAYOUT;

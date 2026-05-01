@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Transaction\AdminRefundTransaction;
 use App\Actions\Transaction\CreateTransaction;
 use App\Actions\Transaction\RefundTransaction;
 use App\Http\Requests\Transaction\RefundTransactionRequest;
@@ -65,6 +66,24 @@ class TransactionController extends Controller
         $this->authorize('refund', $transaction);
 
         $refund = $action->execute(
+            $transaction,
+            $request->validated('reason')
+        );
+
+        return (new TransactionResource($refund))
+            ->response()
+            ->setStatusCode(Response::HTTP_OK);
+    }
+
+    public function adminRefund(
+        RefundTransactionRequest $request,
+        Transaction $transaction,
+        AdminRefundTransaction $action
+    ): JsonResponse {
+        $this->authorize('adminRefund', $transaction);
+
+        $refund = $action->execute(
+            $request->user(),
             $transaction,
             $request->validated('reason')
         );

@@ -141,8 +141,13 @@ Route::prefix('v1')
         Route::middleware(['verified_user', 'kyc', 'throttle.sensitive:finance,5,1'])->group(function () {
             Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
             Route::get('payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
+
             Route::post('transactions/{transaction}/refund', [TransactionController::class, 'refund'])
                 ->name('transactions.refund');
+
+            Route::post('transactions/{transaction}/admin-refund', [TransactionController::class, 'adminRefund'])
+                ->middleware(EnsureRole::class . ':' . UserRoleEnum::ADMIN->value)
+                ->name('transactions.admin_refund');
         });
     });
 
