@@ -6,16 +6,16 @@ use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Models\Booking;
 use App\Models\Transaction;
+use App\Services\TransactionAmountCalculator;
 use App\Services\TransactionEligibilityService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CreatePayoutTransaction
 {
-    private const COMMISSION_RATE = 0.15;
-
     public function __construct(
         private readonly TransactionEligibilityService $eligibility,
+        private readonly TransactionAmountCalculator $calculator,
     ) {}
 
     public function execute(Booking $booking): Transaction
@@ -45,9 +45,8 @@ class CreatePayoutTransaction
                 ]);
             }
 
-            $chargeAmount = (float) $charge->amount;
-            $feeAmount = round($chargeAmount * self::COMMISSION_RATE, 2);
-            $payoutAmount = round($chargeAmount - $feeAmount, 2);
+            $feeAmount = $this->calculator->calculateFeeAmount($charge);
+            $payoutAmount = $this->calculator->calculatePayoutAmount($charge);
 
             Transaction::query()->create([
                 'user_id' => $booking->trip->user_id,

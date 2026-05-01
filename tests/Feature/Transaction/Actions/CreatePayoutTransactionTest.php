@@ -14,6 +14,9 @@ use Illuminate\Validation\ValidationException;
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
 beforeEach(function () {
+    config()->set('gpvalise.fee_percentage', 10);
+    config()->set('gpvalise.payment_fee_percentage', 2);
+
     $this->sender = User::factory()->create();
     $this->traveler = User::factory()->create();
 
@@ -24,7 +27,7 @@ beforeEach(function () {
     $this->action = app(CreatePayoutTransaction::class);
 });
 
-function createDeliveredBooking(): Booking
+function createDeliveredBookingForPayoutAction(): Booking
 {
     return Booking::factory()
         ->for(test()->sender)
@@ -34,7 +37,7 @@ function createDeliveredBooking(): Booking
         ]);
 }
 
-function createChargeForBooking(Booking $booking, float $amount = 100): Transaction
+function createChargeForPayoutAction(Booking $booking, float $amount = 100): Transaction
 {
     return Transaction::factory()->create([
         'user_id' => test()->sender->id,
@@ -47,9 +50,9 @@ function createChargeForBooking(Booking $booking, float $amount = 100): Transact
 }
 
 it('crée un payout et une fee pour un booking livré avec charge complétée', function () {
-    $booking = createDeliveredBooking();
+    $booking = createDeliveredBookingForPayoutAction();
 
-    createChargeForBooking($booking, 100);
+    createChargeForPayoutAction($booking, 100);
 
     $payout = $this->action->execute($booking);
 
@@ -57,21 +60,21 @@ it('crée un payout et une fee pour un booking livré avec charge complétée', 
         ->toBeInstanceOf(Transaction::class)
         ->and($payout->type)->toBe(TransactionTypeEnum::PAYOUT)
         ->and($payout->status)->toBe(TransactionStatusEnum::PENDING)
-        ->and((float) $payout->amount)->toBe(85.0)
+        ->and((float) $payout->amount)->toBe(90.0)
         ->and($payout->user_id)->toBe($this->traveler->id);
 
     $this->assertDatabaseHas('transactions', [
         'booking_id' => $booking->id,
         'type' => TransactionTypeEnum::FEE->value,
         'status' => TransactionStatusEnum::COMPLETED->value,
-        'amount' => 15,
+        'amount' => 10,
     ]);
 
     $this->assertDatabaseHas('transactions', [
         'booking_id' => $booking->id,
         'type' => TransactionTypeEnum::PAYOUT->value,
         'status' => TransactionStatusEnum::PENDING->value,
-        'amount' => 85,
+        'amount' => 90,
     ]);
 });
 
@@ -83,37 +86,37 @@ it('refuse un payout si le booking nest pas livré', function () {
             'status' => BookingStatusEnum::CONFIRMEE,
         ]);
 
-    createChargeForBooking($booking);
+    createChargeForPayoutAction($booking);
 
     $this->action->execute($booking);
 })->throws(ValidationException::class);
 
 it('refuse un payout sans charge complétée', function () {
-    $booking = createDeliveredBooking();
+    $booking = createDeliveredBookingForPayoutAction();
 
     $this->action->execute($booking);
 })->throws(ValidationException::class);
 
 it('refuse un double payout', function () {
-    $booking = createDeliveredBooking();
+    $booking = createDeliveredBookingForPayoutAction();
 
-    createChargeForBooking($booking);
+    createChargeForPayoutAction($booking);
 
     Transaction::factory()->create([
         'user_id' => $this->traveler->id,
         'booking_id' => $booking->id,
         'type' => TransactionTypeEnum::PAYOUT,
         'status' => TransactionStatusEnum::PENDING,
-        'amount' => 85,
+        'amount' => 90,
     ]);
 
     $this->action->execute($booking);
 })->throws(ValidationException::class);
 
 it('refuse un payout si un refund existe déjà', function () {
-    $booking = createDeliveredBooking();
+    $booking = createDeliveredBookingForPayoutAction();
 
-    createChargeForBooking($booking);
+    createChargeForPayoutAction($booking);
 
     Transaction::factory()->create([
         'user_id' => $this->sender->id,
@@ -127,16 +130,16 @@ it('refuse un payout si un refund existe déjà', function () {
 })->throws(ValidationException::class);
 
 it('refuse un payout si une fee existe déjà', function () {
-    $booking = createDeliveredBooking();
+    $booking = createDeliveredBookingForPayoutAction();
 
-    createChargeForBooking($booking);
+    createChargeForPayoutAction($booking);
 
     Transaction::factory()->create([
         'user_id' => $this->traveler->id,
         'booking_id' => $booking->id,
         'type' => TransactionTypeEnum::FEE,
         'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 15,
+        'amount' => 10,
     ]);
 
     $this->action->execute($booking);

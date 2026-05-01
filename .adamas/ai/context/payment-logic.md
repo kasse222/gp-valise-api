@@ -10,13 +10,7 @@ Définir le comportement financier de GP-Valise :
 - **FEE** : commission plateforme (variable)
 - **PAYMENT_FEE** : frais PSP / bancaires (persistée)
 
-Le système doit être :
-
-- traçable
-- idempotent
-- compatible escrow
-- compatible multi-pays / multi-PSP
-- extensible vers un ledger complet
+Le système doit être traçable, idempotent, compatible escrow, compatible multi-pays / multi-PSP, extensible vers un ledger complet.
 
 ---
 
@@ -43,20 +37,12 @@ Le système doit être :
 
 ## 🔁 Flow financier complet
 
-Exemple : l'expéditeur paie 100, commission plateforme 10 %, frais PSP 2.
-
 ```
 CHARGE       = 100   expéditeur → plateforme
-FEE          = 10    revenu GP-Valise
-PAYMENT_FEE  = 2     coût PSP / banque
+FEE          = 10    revenu GP-Valise (10%)
+PAYMENT_FEE  = 2     coût PSP / banque (2%)
 PAYOUT       = 90    plateforme → voyageur
-```
-
-Profit réel plateforme :
-
-```
-profit_net = FEE - PAYMENT_FEE
-           = 10 - 2 = 8
+profit_net   = 8     FEE - PAYMENT_FEE
 ```
 
 ---
@@ -68,13 +54,12 @@ PAYOUT + FEE + REFUND <= CHARGE
 profit_net = FEE - PAYMENT_FEE
 ```
 
-Règles :
+Règles absolues :
 
-- `CHARGE` représente toujours le montant brut payé
-- `FEE` représente le revenu commercial GP-Valise
-- `PAYMENT_FEE` représente un coût externe
-- `PAYMENT_FEE` ne réduit **pas** le payout voyageur
-- `PAYMENT_FEE` réduit uniquement la marge nette plateforme
+- `CHARGE` = montant brut payé, jamais modifié
+- `FEE` = revenu commercial GP-Valise, calculé sur `CHARGE` brut
+- `PAYMENT_FEE` = coût externe, ne réduit **pas** le payout voyageur
+- `PAYOUT` et `REFUND` sont **mutuellement exclusifs** sur un même booking
 
 ---
 
@@ -107,41 +92,89 @@ Un booking devient `CONFIRMEE` uniquement si :
 
 Quand le booking devient `LIVREE` :
 
-- un `PAYOUT` peut être créé
-- une `FEE` peut être créée
-- aucun double payout ne doit être possible
-- aucune double fee ne doit être possible
+- un `PAYOUT` est créé
+- une `FEE` est créée au même moment
+- aucun double payout / double fee possible (idempotence obligatoire)
 
-**Décision MVP** :
+**Décision MVP** : FEE créée au moment du PAYOUT.
+
+Pourquoi : évite de prélever une commission sur un booking annulé, reste cohérent avec l'escrow, simplifie le refund v1.
+
+---
+
+## 🧮 TransactionAmountCalculator
+
+### Objectif
+
+Centraliser tous les calculs financiers. Les Actions exécutent les flux. Le Calculator calcule les montants.
+
+> ⚠️ Aucun calcul financier ne doit être écrit directement dans une Action.
+
+### Source de calcul
+
+Le calculator travaille sur une `Transaction $charge` (pas sur un `Booking`).
+
+Pourquoi : plus simple, plus testable, aligné avec "Transaction = source de vérité", évite une agrégation prématurée.
+
+Pré-requis : `$charge->type === CHARGE` et `$charge->status === COMPLETED`.
+
+### Formules MVP
 
 ```
-FEE créée au moment du PAYOUT
+FEE         = CHARGE * fee_percentage
+PAYOUT      = CHARGE - FEE
+REFUND      = CHARGE - FEE
+PAYMENT_FEE = CHARGE * payment_fee_percentage
+profit_net  = FEE - PAYMENT_FEE
 ```
 
-Pourquoi :
+### Règles importantes
 
-- évite de prélever une commission sur un booking annulé
-- reste cohérent avec l'escrow
-- simplifie le refund v1
+- `PAYMENT_FEE` ne réduit pas le payout voyageur
+- `PAYMENT_FEE` ne réduit pas le refund MVP
+- `PAYMENT_FEE` réduit uniquement le profit net plateforme
+- La FEE est calculée sur le montant brut `CHARGE`, jamais sur le payout ou le net
+
+### Configuration MVP
+
+```env
+GPVALISE_FEE_PERCENTAGE=10
+GPVALISE_PAYMENT_FEE_PERCENTAGE=2
+```
+
+```php
+// config/gpvalise.php
+return [
+    'fee_percentage'         => env('GPVALISE_FEE_PERCENTAGE', 10),
+    'payment_fee_percentage' => env('GPVALISE_PAYMENT_FEE_PERCENTAGE', 2),
+];
+```
+
+### Responsabilités par composant
+
+| Composant                       | Responsabilité                           |
+| ------------------------------- | ---------------------------------------- |
+| `TransactionAmountCalculator`   | calcule fee, payout, refund, payment_fee |
+| `TransactionEligibilityService` | décide si payout / refund est autorisé   |
+| `CreatePayoutTransaction`       | exécute création FEE + PAYOUT            |
+| `RefundTransaction`             | exécute création REFUND                  |
+| `PaymentProvider`               | exécute charge / refund / payout PSP     |
 
 ---
 
 ## 💸 FEE — Commission plateforme
 
-### Principe
+### Règles
 
-La `FEE` représente le revenu GP-Valise. Elle est modélisée comme une transaction indépendante.
+- calculée à partir de la `CHARGE` brute (jamais du payout)
+- créée **une seule fois** par booking (idempotence obligatoire)
+- ne doit jamais dépasser la `CHARGE`
+- indépendante du provider
+- créée au moment du PAYOUT dans le MVP
 
-### ⚙️ Calcul dynamique — décision architecture
+### FeeCalculator — architecture
 
-La FEE est **variable** selon :
-
-- **pays** (devise / marché : MAD, EUR, XOF…)
-- **type utilisateur** (B2C / B2B)
-- **règles métier futures** (volume, plan, partenaire)
-
-> ⚠️ La FEE ne doit jamais être hardcodée dans une Action.
-> Elle doit être calculée par un `FeeCalculator` dédié.
+La FEE est **variable** selon pays, type utilisateur (B2C / B2B), règles futures (volume, plan).
 
 ```php
 interface FeeCalculator
@@ -150,45 +183,7 @@ interface FeeCalculator
 }
 ```
 
-Pourquoi isoler dans un service dédié : la règle de calcul est transverse,
-réutilisable et variable — la centraliser évite toute dispersion et incohérence multi-pays.
-
-### Règles
-
-- calculée à partir de la `CHARGE`
-- créée **une seule fois** par booking (idempotence obligatoire)
-- ne doit jamais dépasser la `CHARGE`
-- indépendante du provider
-- liée au même booking
-- créée au moment du payout dans le MVP
-
-### Base de calcul FEE
-
-La FEE est calculée sur :
-
-- le montant brut de la CHARGE (avant PAYMENT_FEE)
-
-👉 Elle ne doit jamais être calculée sur :
-
-- le payout
-- le montant net
-
-### Exemple
-
-```
-CHARGE = 100
-FEE    = 10   (10% B2C France)
-PAYOUT = 90  ❌ incohérent
-```
-
-### Règle critique
-
-Un booking ne peut pas avoir simultanément :
-
-- un PAYOUT
-- et un REFUND
-
-👉 Ces deux états sont mutuellement exclusifs.
+La logique de calcul est isolée dans ce service dédié — jamais dans une Action — pour garantir cohérence et évolutivité multi-pays.
 
 ### Structure `FeeRule` (extensible)
 
@@ -202,22 +197,12 @@ Un booking ne peut pas avoir simultanément :
 
 ## 🏦 PAYMENT_FEE — Frais PSP / bancaires
 
-### Principe
-
-La `PAYMENT_FEE` représente le coût réel facturé par banque, Stripe, PSP local ou mobile money.
-Elle est modélisée comme une transaction indépendante et **persistée obligatoirement** en base.
-
-### Source
-
-- **Idéalement** : fournie par le PSP via webhook (`charge.completed`)
-- **Fallback MVP** : calculée via configuration locale (ex : `payment_fee_rate = 2%`)
-
 ### Règles
 
 - créée seulement si une `CHARGE` existe
-- **persistée en base** (non optionnelle)
-- correspond à un **coût plateforme**, pas un coût utilisateur
-- ne réduit **pas** le payout voyageur
+- **persistée en base** (non optionnelle dès le MVP)
+- coût plateforme uniquement, pas un coût utilisateur
+- ne réduit pas le payout voyageur
 - réduit uniquement le profit net GP-Valise
 
 ### Moment de création
@@ -231,11 +216,6 @@ Fallback : CreateTransaction MVP (montant estimé via config)
 
 ## 🔁 Refund
 
-### Principe
-
-Un `REFUND` est toujours une transaction explicite.
-Il ne doit jamais être implicite ni seulement déduit d'un statut Booking.
-
 ### Conditions minimales
 
 - `CHARGE` en statut `COMPLETED`
@@ -247,55 +227,33 @@ Il ne doit jamais être implicite ni seulement déduit d'un statut Booking.
 
 - refund **total uniquement**
 - **un seul** refund par booking
-- pas de refund partiel
 - refund bloqué si payout existe
 - refund après livraison → via litige uniquement
-
-### Refund après livraison
 
 ```
 refund après livraison → EN_LITIGE → traitement manuel
 ```
 
-### Calcul du montant remboursable
+### Calcul
 
 ```
 refund_possible = CHARGE - FEE
 ```
 
-> ⚠️ Le refund ne doit jamais être calculé depuis le payout.
-> La `PAYMENT_FEE` n'est **pas** remboursable dans le MVP.
-
----
-
-### Évolution future (ledger)
-
-Chaque transaction pourra être liée à une autre via :
-
-- parent_transaction_id
-
-Exemples :
-
-- PAYMENT_FEE → liée à CHARGE
-- FEE → liée à CHARGE
-- REFUND → liée à CHARGE
-
-👉 Permet audit financier complet et reconstruction des flux.
+> ⚠️ Jamais calculé depuis le payout. `PAYMENT_FEE` non remboursable en MVP.
 
 ---
 
 ## 🔗 Relation entre transactions
 
-Toutes les transactions d'un même flux financier sont liées par :
+Toutes les transactions d'un même flux sont liées par :
 
 - `booking_id` (obligatoire)
 - `provider_transaction_id` (si disponible)
 
-Option future :
+Option future (ledger) :
 
-- `parent_transaction_id` (ledger avancé)
-
-Objectif : audit complet, debug, reconstruction du flux financier.
+- `parent_transaction_id` : PAYMENT_FEE → CHARGE, FEE → CHARGE, REFUND → CHARGE
 
 ---
 
@@ -312,22 +270,17 @@ Objectif : audit complet, debug, reconstruction du flux financier.
 ### Flow
 
 ```
-Provider
-→ WebhookController
-→ vérification signature HMAC
-→ dispatch Job
-→ HandlePaymentWebhook
-→ Transaction + Booking update
-→ WebhookLog
+Provider → WebhookController → vérification HMAC → dispatch Job
+→ HandlePaymentWebhook → Transaction + Booking update → WebhookLog
 ```
 
 ### Sécurité
 
-- signature HMAC obligatoire
-- comparaison via `hash_equals`
-- rejet immédiat si signature invalide → `HTTP 403`
+- signature HMAC obligatoire, comparaison via `hash_equals`
+- rejet immédiat si invalide → `HTTP 403`
+- payload incomplet → ignoré sans créer de log
 
-### Payload minimal attendu
+### Payload minimal
 
 ```json
 {
@@ -337,16 +290,9 @@ Provider
 }
 ```
 
-Payload incomplet → ignoré sans créer de log.
+### Idempotence
 
-### Idempotence webhook
-
-Clé d'idempotence : `event_id`
-
-- `event_id` unique dans `webhook_logs`
-- vérification avant traitement
-- `lockForUpdate()` sur la transaction
-- transaction déjà finalisée → `ignored`
+Clé : `event_id` unique dans `webhook_logs` + `lockForUpdate()` + vérification statut final.
 
 ### Statuts WebhookLog
 
@@ -357,7 +303,7 @@ Clé d'idempotence : `event_id`
 | `ignored`   | ignoré (idempotence) |
 | `failed`    | erreur de traitement |
 
-### Events webhook MVP
+### Events MVP
 
 | Event              | Effets                                                               |
 | ------------------ | -------------------------------------------------------------------- |
@@ -370,10 +316,8 @@ Clé d'idempotence : `event_id`
 ## 🧱 Garanties système
 
 - `CHARGE` obligatoire avant confirmation booking
-- pas de double charge
-- pas de double payout
-- pas de double fee
-- pas de refund après payout
+- pas de double charge / payout / fee / refund
+- `PAYOUT` et `REFUND` mutuellement exclusifs
 - idempotence webhook via `event_id`
 - audit complet via `webhook_logs`
 - transaction DB sur toutes les opérations critiques
@@ -382,7 +326,7 @@ Clé d'idempotence : `event_id`
 
 ## 🏗️ Roadmap multi-comptes (Maroc / Sénégal / Stripe)
 
-### Modèle cible : `platform_accounts`
+### Table `platform_accounts`
 
 | Colonne        | Description                         |
 | -------------- | ----------------------------------- |
@@ -395,74 +339,48 @@ Clé d'idempotence : `event_id`
 
 ### Stratégie de migration
 
-1. **MVP** : user technique "Plateforme" par devise via `getPlatformAccountId(string $currency)`
-2. **Maintenant** : table `platform_accounts` créée avec `user_id` nullable (lien temporaire)
-3. **Futur** : `transactions.user_id` → `platform_account_id` sans refacto lourde
-
-### Routing automatique via FeeCalculator
-
-Le `FeeCalculator` détermine :
-
-- le montant de la commission (règle variable)
-- le `platform_account_id` de destination selon la devise du booking
+1. MVP : user technique "Plateforme" par devise via `getPlatformAccountId(string $currency)`
+2. Maintenant : table `platform_accounts` créée avec `user_id` nullable
+3. Futur : `transactions.user_id` → `platform_account_id` sans refacto lourde
 
 ---
 
 ## 🚫 À ne pas faire maintenant
 
-- ledger complet
-- multi-refunds
-- refund partiel
+- ledger complet / `parent_transaction_id` actif
+- multi-refunds / refund partiel
 - compensation après payout
-- logique multi-comptes complète
 - `platform_account_id` obligatoire immédiatement
+- `PAYMENT_FEE` réelle fournie par provider (MVP = estimation config)
 - refonte globale de Payment / Transaction
-- `PAYMENT_FEE` réelle fournie par provider (MVP = estimation)
 
 ---
 
 ## 🧭 Cible long terme
 
-- `platform_account_id` obligatoire sur transactions FEE
-- ledger interne complet
-- comptes plateforme par pays / devise
 - `FeeRule` dynamique par pays / B2B / volume
-- refund partiel
-- compensation après payout
+- `platform_account_id` obligatoire sur transactions FEE
+- ledger interne complet avec `parent_transaction_id`
+- refund partiel + compensation post-payout
 - arbitrage litige avancé
 - intégration PSP réel (Stripe, CMI, Wave)
-- `PAYMENT_FEE` réelle fournie par webhook provider
+- `PAYMENT_FEE` réelle via webhook provider
 
 ---
 
 ## 🧠 Résumé exécutif
 
 ```
-CHARGE      = montant brut payé par l'expéditeur
-FEE         = revenu plateforme (variable, calculé par FeeCalculator)
-PAYMENT_FEE = coût PSP (persisté, supporté par la plateforme)
-PAYOUT      = montant net versé au voyageur
-REFUND      = remboursement expéditeur (si annulation)
-```
+CHARGE      = montant brut payé (source de vérité)
+FEE         = revenu plateforme (variable, FeeCalculator)
+PAYMENT_FEE = coût PSP (persisté, config MVP)
+PAYOUT      = CHARGE - FEE (versé au voyageur)
+REFUND      = CHARGE - FEE (remboursé à l'expéditeur)
 
-## 🧠 Contrainte produit
-
-Le système privilégie :
-
-- la cohérence financière
-- la traçabilité
-- la simplicité MVP
-
-👉 plutôt que la complexité prématurée (ledger complet, multi-refund, etc.)
-
-...
-
-Invariant économique :
-
-```
 PAYOUT + FEE + REFUND <= CHARGE
 profit_net = FEE - PAYMENT_FEE
+PAYOUT ⊕ REFUND  (mutuellement exclusifs)
 ```
 
-> GP-Valise doit rester simple dans le MVP, mais poser dès maintenant
+> GP-Valise reste simple en MVP mais pose dès maintenant
 > une base financière propre, traçable, multi-pays et extensible.
