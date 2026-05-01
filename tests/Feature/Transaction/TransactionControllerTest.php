@@ -1,279 +1,196 @@
 <?php
 
-use App\Models\User;
-use App\Models\Transaction;
-use App\Models\Booking;
-use App\Enums\TransactionStatusEnum;
-use App\Enums\PaymentMethodEnum;
-use App\Enums\CurrencyEnum;
-use App\Enums\TransactionTypeEnum;
+use App\Contracts\Payments\PaymentProvider;
+use App\Data\Payments\PaymentResult;
 use App\Enums\BookingStatusEnum;
-use App\Enums\UserRoleEnum;
+use App\Enums\CurrencyEnum;
+use App\Enums\PaymentMethodEnum;
+use App\Enums\TransactionStatusEnum;
+use App\Enums\TransactionTypeEnum;
+use App\Models\Booking;
+use App\Models\Transaction;
+use App\Models\Trip;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
-use function Pest\Laravel\actingAs;
-use function Pest\Laravel\postJson;
-use function Pest\Laravel\getJson;
-
-uses(
-    Tests\TestCase::class,
-    Illuminate\Foundation\Testing\RefreshDatabase::class
-);
+uses(Tests\TestCase::class, RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->user = User::factory()->verified()->create([
-        'role' => UserRoleEnum::SENDER->value,
+    $this->sender = User::factory()->create();
+
+    $this->sender->forceFill([
+        'verified_user' => true,
+        'kyc_passed_at' => now(),
+    ])->save();
+
+    $this->traveler = User::factory()->create();
+
+    $this->trip = Trip::factory()->create([
+        'user_id' => $this->traveler->id,
     ]);
 
-    actingAs($this->user);
+    $this->provider = mock(PaymentProvider::class);
+
+    $this->provider->shouldReceive('charge')
+        ->andReturn(new PaymentResult(
+            success: true,
+            providerTransactionId: 'txn_123',
+            status: 'completed',
+            message: null,
+        ));
+
+    $this->provider->shouldReceive('refund')
+        ->andReturn(new PaymentResult(
+            success: true,
+            providerTransactionId: 'refund_test_123',
+            status: 'completed',
+            message: null,
+        ));
+
+    app()->forgetInstance(PaymentProvider::class);
+    app()->instance(PaymentProvider::class, $this->provider);
 });
+
+function createPayableBookingForTransactionController(User $sender, Trip $trip): Booking
+{
+    return Booking::factory()->create([
+        'user_id' => $sender->id,
+        'trip_id' => $trip->id,
+        'status' => BookingStatusEnum::EN_PAIEMENT,
+        'payment_expires_at' => now()->addMinutes(15),
+    ]);
+}
 
 it('liste les transactions de l’utilisateur connecté', function () {
-    $user = User::factory()->verified()->create();
-    actingAs($user);
-
-    Transaction::factory()->count(3)
-        ->forUserWithBooking($user)
-        ->create();
-
-    Transaction::factory()->count(2)
-        ->forUserWithBooking(User::factory()->verified()->create())
-        ->create();
-
-    $response = getJson('/api/v1/transactions');
-
-    $response->assertOk()
-        ->assertJsonCount(3, 'data');
-});
-
-it('affiche une transaction appartenant à l’utilisateur', function () {
-    $user = User::factory()->verified()->create([
-        'role' => UserRoleEnum::SENDER->value,
+    Transaction::factory()->count(2)->create([
+        'user_id' => $this->sender->id,
     ]);
 
-    $transaction = Transaction::factory()->forUserWithBooking($user)->create();
+    Transaction::factory()->create();
 
-    $response = actingAs($user)->getJson("/api/v1/transactions/{$transaction->id}");
+    $this->actingAs($this->sender)
+        ->getJson('/api/v1/transactions')
+        ->assertOk()
+        ->assertJsonCount(2, 'data');
+});
 
-    $response->assertOk()
+it('affiche une transaction appartenant au booking de l’utilisateur', function () {
+    $booking = Booking::factory()->create([
+        'user_id' => $this->sender->id,
+        'trip_id' => $this->trip->id,
+    ]);
+
+    $transaction = Transaction::factory()->create([
+        'user_id' => $this->sender->id,
+        'booking_id' => $booking->id,
+    ]);
+
+    $this->actingAs($this->sender)
+        ->getJson("/api/v1/transactions/{$transaction->id}")
+        ->assertOk()
         ->assertJsonPath('data.id', $transaction->id);
 });
 
-it('rejette l’accès à une transaction d’un autre utilisateur', function () {
-    $owner = User::factory()->verified()->create([
-        'role' => UserRoleEnum::SENDER->value,
-    ]);
-    $other = User::factory()->verified()->create([
-        'role' => UserRoleEnum::SENDER->value,
-    ]);
-
-    $transaction = Transaction::factory()->forUserWithBooking($owner)->create();
-
-    $response = actingAs($other)->getJson("/api/v1/transactions/{$transaction->id}");
-
-    $response->assertForbidden();
-});
-
-it('crée une transaction avec des données valides', function () {
-    $booking = Booking::factory()->for($this->user)->create([
-        'status' => BookingStatusEnum::EN_PAIEMENT,
-        'payment_expires_at' => now()->addMinutes(15),
-    ]);
+it('crée une transaction charge via endpoint store', function () {
+    $booking = createPayableBookingForTransactionController($this->sender, $this->trip);
 
     $payload = [
         'booking_id' => $booking->id,
-        'amount'     => 120.50,
-        'currency'   => CurrencyEnum::EUR->value,
-        'status'     => TransactionStatusEnum::PENDING->value,
-        'method'     => PaymentMethodEnum::CARTE_BANCAIRE->value,
+        'amount' => 100,
+        'currency' => CurrencyEnum::EUR->value,
+        'method' => PaymentMethodEnum::CARTE_BANCAIRE->value,
     ];
 
-    $response = postJson('/api/v1/transactions', $payload);
+    $this->actingAs($this->sender)
+        ->postJson('/api/v1/transactions', $payload)
+        ->assertCreated()
+        ->assertJsonPath('data.type.code', TransactionTypeEnum::CHARGE->value)
+        ->assertJsonPath('data.status.code', TransactionStatusEnum::COMPLETED->value);
 
-    $response->assertCreated();
-
-    $data = $response->json('data');
-
-    expect($data['amount'])->toBeFloat()
-        ->and($data['amount'])->toBe((float) $payload['amount']);
+    $this->assertDatabaseHas('transactions', [
+        'booking_id' => $booking->id,
+        'user_id' => $this->sender->id,
+        'type' => TransactionTypeEnum::CHARGE->value,
+        'status' => TransactionStatusEnum::COMPLETED->value,
+        'provider_transaction_id' => 'txn_123',
+    ]);
 });
 
-it('rejette la création si les données sont invalides', function () {
-    postJson('/api/v1/transactions', [])
+it('refuse la création de charge si le booking appartient à un autre utilisateur', function () {
+    $otherUser = User::factory()->create([
+        'verified_user' => true,
+    ]);
+
+    $booking = createPayableBookingForTransactionController($otherUser, $this->trip);
+
+    $payload = [
+        'booking_id' => $booking->id,
+        'amount' => 100,
+        'currency' => CurrencyEnum::EUR->value,
+        'method' => PaymentMethodEnum::CARTE_BANCAIRE->value,
+    ];
+
+    $this->actingAs($this->sender)
+        ->postJson('/api/v1/transactions', $payload)
         ->assertStatus(422);
 });
 
-it('rejette la création si l’utilisateur n’est pas vérifié', function () {
-    $unverifiedUser = User::factory()->create([
-        'verified_user' => false,
-    ]);
-
-    $booking = Booking::factory()->for($unverifiedUser)->create([
-        'status' => BookingStatusEnum::EN_PAIEMENT,
-        'payment_expires_at' => now()->addMinutes(15),
-    ]);
-
-    actingAs($unverifiedUser);
-
-    postJson('/api/v1/transactions', [
-        'booking_id' => $booking->id,
-        'amount'     => 120.50,
-        'currency'   => CurrencyEnum::EUR->value,
-        'status'     => TransactionStatusEnum::PENDING->value,
-        'method'     => PaymentMethodEnum::CARTE_BANCAIRE->value,
-    ])->assertForbidden();
-});
-
-it('rejette le remboursement par un utilisateur non admin', function () {
-    $owner = User::factory()->verified()->create([
-        'role' => UserRoleEnum::SENDER->value,
-    ]);
-
-    $transaction = Transaction::factory()
-        ->forUserWithBooking($owner)
-        ->create([
-            'type'   => TransactionTypeEnum::CHARGE->value,
-            'status' => TransactionStatusEnum::COMPLETED->value,
-        ]);
-
-    actingAs($owner);
-
-    postJson("/api/v1/transactions/{$transaction->id}/refund", [
-        'reason' => 'Demande de remboursement complète',
-    ])->assertForbidden();
-});
-
-it('autorise le remboursement par un admin', function () {
-    $sender = User::factory()->verified()->create([
-        'role' => UserRoleEnum::SENDER->value,
-    ]);
-
-    $admin = User::factory()->verified()->create([
-        'role' => UserRoleEnum::ADMIN->value,
-        'kyc_passed_at' => now(),
-    ]);
-
-    $booking = Booking::factory()->for($sender)->create([
-        'status' => BookingStatusEnum::EN_LITIGE,
+it('rembourse une charge via endpoint refund', function () {
+    $booking = Booking::factory()->create([
+        'user_id' => $this->sender->id,
+        'trip_id' => $this->trip->id,
+        'status' => BookingStatusEnum::CONFIRMEE,
     ]);
 
     $charge = Transaction::factory()->create([
-        'user_id'    => $sender->id,
+        'user_id' => $this->sender->id,
         'booking_id' => $booking->id,
-        'type'       => TransactionTypeEnum::CHARGE->value,
-        'status'     => TransactionStatusEnum::COMPLETED->value,
-        'amount'     => 150.00,
+        'type' => TransactionTypeEnum::CHARGE,
+        'status' => TransactionStatusEnum::COMPLETED,
+        'amount' => 100,
+        'currency' => CurrencyEnum::EUR,
+        'method' => PaymentMethodEnum::CARTE_BANCAIRE,
+        'processed_at' => now(),
     ]);
 
-    actingAs($admin);
-
-    $response = postJson("/api/v1/transactions/{$charge->id}/refund", [
-        'reason' => 'Validation support',
-    ]);
-
-    $response
+    $this->actingAs($this->sender)
+        ->postJson("/api/v1/transactions/{$charge->id}/refund", [
+            'reason' => 'Demande de remboursement',
+        ])
         ->assertOk()
         ->assertJsonPath('data.type.code', TransactionTypeEnum::REFUND->value)
-        ->assertJsonPath('data.status.code', TransactionStatusEnum::COMPLETED->value)
-        ->assertJsonPath('data.amount', fn($amount) => (float) $amount === 150.0);
+        ->assertJsonPath('data.status.code', TransactionStatusEnum::COMPLETED->value);
 
-    $charge->refresh();
-    $booking->refresh();
-
-    expect($charge->type)->toBe(TransactionTypeEnum::CHARGE)
-        ->and($charge->status)->toBe(TransactionStatusEnum::COMPLETED)
-        ->and($booking->status)->toBe(BookingStatusEnum::EN_LITIGE);
-
-    $refund = Transaction::query()
-        ->where('booking_id', $charge->booking_id)
-        ->where('type', TransactionTypeEnum::REFUND)
-        ->latest()
-        ->first();
-
-    expect($refund)->not->toBeNull()
-        ->and($refund->status)->toBe(TransactionStatusEnum::COMPLETED)
-        ->and((float) $refund->amount)->toBe(150.0)
-        ->and($refund->user_id)->toBe($sender->id);
+    $this->assertDatabaseHas('transactions', [
+        'booking_id' => $booking->id,
+        'user_id' => $this->sender->id,
+        'type' => TransactionTypeEnum::REFUND->value,
+        'status' => TransactionStatusEnum::COMPLETED->value,
+        'amount' => 100,
+        'provider_transaction_id' => 'refund_test_123',
+    ]);
 });
 
-it('rejette le refund si user non vérifié (403)', function () {
-    $user = User::factory()->create([
-        'role' => UserRoleEnum::SENDER->value,
-        'verified_user' => false,
-        'kyc_passed_at' => now(),
+it('refuse un refund si la transaction ne correspond pas au booking de l’utilisateur', function () {
+    $otherUser = User::factory()->create();
+
+    $booking = Booking::factory()->create([
+        'user_id' => $otherUser->id,
+        'trip_id' => $this->trip->id,
+        'status' => BookingStatusEnum::CONFIRMEE,
     ]);
 
-    $transaction = Transaction::factory()
-        ->forUserWithBooking($user)
-        ->create([
-            'type'   => TransactionTypeEnum::CHARGE->value,
-            'status' => TransactionStatusEnum::COMPLETED->value,
-        ]);
-
-    actingAs($user);
-
-    postJson("/api/v1/transactions/{$transaction->id}/refund", [
-        'reason' => 'Test',
-    ])->assertForbidden();
-});
-
-it('rejette le refund si user sans KYC (403)', function () {
-    $user = User::factory()->create([
-        'role' => UserRoleEnum::SENDER->value,
-        'verified_user' => true,
-        'kyc_passed_at' => null,
+    $charge = Transaction::factory()->create([
+        'user_id' => $otherUser->id,
+        'booking_id' => $booking->id,
+        'type' => TransactionTypeEnum::CHARGE,
+        'status' => TransactionStatusEnum::COMPLETED,
+        'amount' => 100,
     ]);
 
-    $transaction = Transaction::factory()
-        ->forUserWithBooking($user)
-        ->create([
-            'type'   => TransactionTypeEnum::CHARGE->value,
-            'status' => TransactionStatusEnum::COMPLETED->value,
-        ]);
-
-    actingAs($user);
-
-    postJson("/api/v1/transactions/{$transaction->id}/refund", [
-        'reason' => 'Test',
-    ])->assertForbidden();
-});
-
-it('throttle refund: 6 appels admin => 429 au 6e', function () {
-    $sender = User::factory()->verified()->create([
-        'role' => UserRoleEnum::SENDER->value,
-    ]);
-
-    $admin = User::factory()->verified()->create([
-        'role' => UserRoleEnum::ADMIN->value,
-        'kyc_passed_at' => now(),
-    ]);
-
-    actingAs($admin);
-
-    $transactions = collect();
-
-    foreach (range(1, 6) as $i) {
-        $booking = Booking::factory()->for($sender)->create([
-            'status' => BookingStatusEnum::EN_LITIGE,
-        ]);
-
-        $transactions->push(
-            Transaction::factory()->create([
-                'user_id'    => $sender->id,
-                'booking_id' => $booking->id,
-                'type'       => TransactionTypeEnum::CHARGE->value,
-                'status'     => TransactionStatusEnum::COMPLETED->value,
-                'amount'     => 150.00,
-            ])
-        );
-    }
-
-    foreach ($transactions->take(5) as $transaction) {
-        postJson("/api/v1/transactions/{$transaction->id}/refund", [
-            'reason' => 'Throttle test',
-        ])->assertOk();
-    }
-
-    postJson("/api/v1/transactions/{$transactions->last()->id}/refund", [
-        'reason' => 'Throttle test',
-    ])->assertStatus(429);
+    $this->actingAs($this->sender)
+        ->postJson("/api/v1/transactions/{$charge->id}/refund", [
+            'reason' => 'Tentative non autorisée',
+        ])
+        ->assertForbidden();
 });

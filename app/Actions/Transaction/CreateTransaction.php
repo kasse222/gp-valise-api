@@ -49,6 +49,11 @@ class CreateTransaction
                 ]);
             }
 
+            Transaction::query()
+                ->where('booking_id', $booking->id)
+                ->lockForUpdate()
+                ->get();
+
             $existingCharge = Transaction::query()
                 ->where('booking_id', $booking->id)
                 ->where('type', TransactionTypeEnum::CHARGE)
