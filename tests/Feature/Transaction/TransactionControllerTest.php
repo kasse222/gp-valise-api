@@ -166,7 +166,7 @@ it('rembourse une charge via endpoint refund', function () {
         'user_id' => $this->sender->id,
         'type' => TransactionTypeEnum::REFUND->value,
         'status' => TransactionStatusEnum::COMPLETED->value,
-        'amount' => 100,
+        'amount' => 90,
         'provider_transaction_id' => 'refund_test_123',
     ]);
 });

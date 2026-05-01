@@ -8,6 +8,7 @@ use App\Enums\TransactionTypeEnum;
 use App\Events\TransactionRefunded;
 use App\Models\Booking;
 use App\Models\Transaction;
+use App\Services\TransactionAmountCalculator;
 use App\Services\TransactionEligibilityService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -18,6 +19,7 @@ class RefundTransaction
     public function __construct(
         private readonly PaymentProvider $paymentProvider,
         private readonly TransactionEligibilityService $eligibility,
+        private readonly TransactionAmountCalculator $calculator,
     ) {}
 
     public function execute(Transaction $charge, ?string $reason = null): Transaction
@@ -54,7 +56,7 @@ class RefundTransaction
                 ]);
             }
 
-            $refundAmount = $this->eligibility->refundableAmount($booking);
+            $refundAmount = $this->calculator->calculateRefundAmount($charge);
 
             if ($refundAmount <= 0) {
                 throw ValidationException::withMessages([

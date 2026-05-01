@@ -4,8 +4,8 @@
 
 GP-Valise est une plateforme logistique de confiance permettant :
 
-- à un expéditeur d’envoyer un objet
-- via un voyageur tiers
+- à un **expéditeur** d'envoyer un objet
+- via un **voyageur** tiers
 - avec un système sécurisé (paiement, suivi, litige)
 
 Le produit repose sur 3 piliers :
@@ -26,16 +26,12 @@ Le produit repose sur 3 piliers :
 - suit la livraison
 - peut ouvrir un litige
 
----
-
 ### Voyageur
 
 - publie un trajet (Trip)
 - transporte des bagages
 - confirme la livraison
 - reçoit un payout
-
----
 
 ### Admin
 
@@ -49,89 +45,42 @@ Le produit repose sur 3 piliers :
 
 ### Trip
 
-Trajet proposé par un voyageur :
-
-- capacité (kg)
-- dates
-- étapes
-
----
+Trajet proposé par un voyageur : capacité (kg), dates, étapes.
 
 ### Luggage
 
-Objet transporté :
-
-- poids
-- statut
-- tracking
-
----
+Objet transporté : poids, statut, tracking.
 
 ### Booking (entité centrale)
 
-Lien entre :
+Lien entre expéditeur, trajet, paiement et livraison.
 
-- expéditeur
-- trajet
-- paiement
-- livraison
-
-👉 Le Booking pilote :
-
-- le cycle métier
-- la cohérence logistique
-- le lien avec les transactions
-
----
+Le Booking pilote le cycle métier, la cohérence logistique et le lien avec les transactions.
 
 ### BookingItem
 
-Relation :
-
-```
-
-Luggage ↔ Trip ↔ Booking
-
-```
-
-Permet :
-
-- allocation de capacité
-- gestion multi-bagages
-
----
+Relation `Luggage ↔ Trip ↔ Booking`. Permet l'allocation de capacité et la gestion multi-bagages.
 
 ### Payment
 
-Vue métier du paiement :
-
-- état utilisateur (en attente, payé, échoué)
-- abstraction du provider
-
----
+Vue métier du paiement : état utilisateur (en attente, payé, échoué), abstraction du provider.
 
 ### Transaction
 
-Vérité financière atomique :
+Vérité financière atomique : `CHARGE`, `PAYOUT`, `REFUND`, `FEE`, `PAYMENT_FEE`.
 
-- CHARGE
-- PAYOUT
-- REFUND
-- FEE
-- PAYMENT_FEE
-
-👉 Toute décision financière repose sur les transactions.
+> Toute décision financière repose sur les transactions, jamais sur le statut Booking seul.
 
 ---
 
 ## 💰 Principe fondamental
 
-> Transaction = source de vérité financière
+> Transaction = source de vérité financière.
 
-- Payment = workflow utilisateur
-- Transaction = réalité comptable
+- **Payment** = workflow utilisateur
+- **Transaction** = réalité comptable
 
-👉 Le Booking ne dépend jamais directement du provider.
+Le Booking ne dépend jamais directement du provider PSP.
 
 ---
 
@@ -140,73 +89,61 @@ Vérité financière atomique :
 ### Flow principal
 
 ```
-
 EN_ATTENTE
 → EN_PAIEMENT
 → CONFIRMEE
 → LIVREE
 → TERMINE
-
 ```
-
----
 
 ### Cas alternatifs
 
-- EXPIREE (paiement non effectué à temps)
-- ANNULE (avant confirmation)
-- REMBOURSEE (après refund)
-- EN_LITIGE (problème après livraison)
+| Statut       | Condition déclenchante                      |
+| ------------ | ------------------------------------------- |
+| `EXPIREE`    | paiement non effectué dans le délai imparti |
+| `ANNULE`     | annulation avant confirmation               |
+| `REMBOURSEE` | refund COMPLETED après annulation           |
+| `EN_LITIGE`  | problème déclaré après livraison            |
+
+### Règles critiques
+
+- un booking en statut final est **immuable**
+- toute transition doit être **validée** par l'Enum
+- toute transition doit être **historisée**
+- aucune transition directe sans règle métier explicite
+- aucune confirmation sans paiement `CHARGE COMPLETED`
 
 ---
 
-## 🔒 Règles critiques
+## 💳 Règles de confirmation
 
-- un booking final est immuable
-- toute transition doit être validée
-- toute transition doit être historisée
-- aucune transition directe sans règle métier
-- aucune confirmation sans paiement valide
-
----
-
-## 💳 Règle de confirmation
-
-Un booking est `CONFIRMEE` uniquement si :
+Un booking devient `CONFIRMEE` uniquement si :
 
 - une transaction `CHARGE` existe
 - cette transaction est `COMPLETED`
 
-👉 Le statut Booking dépend uniquement des transactions.
+> Le statut Booking dépend des Transactions, pas du provider.
 
 ---
 
-## 🔁 Règle critique (finance)
+## 🔒 Règle d'exclusivité financière
 
-Un booking ne peut jamais avoir :
-
-```
-
-PAYOUT + REFUND
+Un booking ne peut jamais avoir simultanément un `PAYOUT` et un `REFUND`.
 
 ```
-
-👉 Ces états sont mutuellement exclusifs.
+PAYOUT ⊕ REFUND  (mutuellement exclusifs)
+```
 
 ---
 
 ## 🎒 Règles Luggage
 
 - un bagage ne peut pas être réservé plusieurs fois simultanément
-- cycle strict :
+- cycle strict aligné sur le Booking :
 
 ```
-
 EN_ATTENTE → RESERVEE → EN_TRANSIT → LIVREE
-
 ```
-
-- un bagage suit le cycle du booking
 
 ---
 
@@ -215,19 +152,14 @@ EN_ATTENTE → RESERVEE → EN_TRANSIT → LIVREE
 - `ACTIVE` → réservable
 - `CANCELLED` / `COMPLETED` → non réservable
 
----
+### Calcul de capacité disponible
 
-### Capacité
+La capacité restante d'un trip est calculée en fonction des bookings :
 
-La capacité d’un trip dépend de :
+- `CONFIRMEE` : capacité définitivement allouée
+- `EN_PAIEMENT` non expirés : capacité temporairement réservée
 
-- bookings `CONFIRMEE`
-- bookings `EN_PAIEMENT` non expirés
-
-👉 Objectif :
-
-- éviter l’overbooking
-- gérer la concurrence
+> Objectif : éviter l'overbooking et gérer la concurrence.
 
 ---
 
@@ -235,28 +167,21 @@ La capacité d’un trip dépend de :
 
 ### Overbooking
 
-→ strictement interdit
-
----
+Strictement interdit. La capacité du trip doit être vérifiée avec `lockForUpdate()` avant toute réservation.
 
 ### Expiration
 
-- un booking `EN_PAIEMENT` expire automatiquement
-- libère la capacité du trip
+Un booking `EN_PAIEMENT` expire automatiquement si le paiement n'est pas complété dans le délai imparti. L'expiration libère la capacité du trip.
 
----
+### Cohérence des entités
 
-### Cohérence système
-
-Les entités doivent rester alignées :
+Les trois entités doivent rester alignées à tout moment :
 
 ```
-
 Booking ↔ Luggage ↔ Trip
-
 ```
 
-👉 Toute incohérence = bug critique
+Toute incohérence entre ces entités est un bug critique.
 
 ---
 
@@ -264,46 +189,33 @@ Booking ↔ Luggage ↔ Trip
 
 - opérations critiques protégées par `lockForUpdate()`
 - transitions métier idempotentes
-- état final bloque toute modification
+- statut final bloque toute modification ultérieure
 
 ---
 
-## ⚖️ Lien avec la logique financière
+## ⚖️ Lien Booking ↔ Finance
 
-Le Booking ne pilote pas directement la finance.
+Le Booking ne pilote pas directement la finance. Il dépend des Transactions pour :
 
-👉 Il dépend des Transactions pour :
+- **confirmation** → CHARGE COMPLETED
+- **remboursement** → REFUND COMPLETED
+- **finalisation** → PAYOUT COMPLETED
 
-- confirmation (CHARGE)
-- remboursement (REFUND)
-- finalisation (PAYOUT)
-
-👉 Cela garantit :
-
-- découplage avec le provider
-- cohérence métier
-- traçabilité
+Cela garantit : découplage avec le provider, cohérence métier, traçabilité complète.
 
 ---
 
-## 🔮 Préparation v5 (escrow / dispute)
-
-Le modèle actuel prépare :
+## 🔮 Préparation v5
 
 ### Escrow
 
 - CHARGE retenue par la plateforme
-- PAYOUT différé après validation
-
----
+- PAYOUT différé après validation de livraison
 
 ### Litige
 
-- statut `EN_LITIGE`
-- bloque payout
-- permet refund ou compensation
-
----
+- statut `EN_LITIGE` bloque le payout
+- permet refund ou compensation manuelle via admin
 
 ### Compensation future
 
@@ -313,30 +225,8 @@ Le modèle actuel prépare :
 
 ---
 
-## 📊 Position actuelle
-
-Le système est :
-
-- transactionnel
-- event-driven
-- concurrent-safe
-- idempotent
-- compatible async (webhooks)
-- prêt pour extension fintech
-
----
-
 ## 🧠 Design intention
 
-Le système privilégie :
+Le système privilégie cohérence métier, traçabilité, simplicité MVP et évolutivité — plutôt que la complexité prématurée (ledger complet, multi-refund, compensation automatique).
 
-- cohérence métier
-- traçabilité
-- simplicité MVP
-- évolutivité
-
-👉 plutôt que complexité prématurée (ledger complet, multi-refund, etc.)
-
-```
-
-```
+Le système est : transactionnel, event-driven, concurrent-safe, idempotent, compatible async (webhooks), prêt pour extension fintech.

@@ -16,6 +16,11 @@ use function Pest\Laravel\actingAs;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
+beforeEach(function () {
+    config()->set('gpvalise.fee_percentage', 10);
+    config()->set('gpvalise.payment_fee_percentage', 2);
+});
+
 it('livre une réservation avec succès', function () {
     $voyageur = User::factory()->traveler()->verified()->create();
 
@@ -109,12 +114,12 @@ it('crée automatiquement un payout pending et une commission lorsqu une réserv
     expect($payout)->not->toBeNull()
         ->and($payout->user_id)->toBe($voyageur->id)
         ->and($payout->status)->toBe(TransactionStatusEnum::PENDING)
-        ->and((float) $payout->amount)->toBe(102.42);
+        ->and((float) $payout->amount)->toBe(108.45);
 
     expect($fee)->not->toBeNull()
         ->and($fee->user_id)->toBe($voyageur->id)
         ->and($fee->status)->toBe(TransactionStatusEnum::COMPLETED)
-        ->and((float) $fee->amount)->toBe(18.08);
+        ->and((float) $fee->amount)->toBe(12.05);
 });
 
 it('ne crée pas de deuxième payout si un payout existe déjà', function () {
@@ -146,7 +151,7 @@ it('ne crée pas de deuxième payout si un payout existe déjà', function () {
         'booking_id' => $booking->id,
         'type' => TransactionTypeEnum::PAYOUT,
         'status' => TransactionStatusEnum::PENDING,
-        'amount' => 102.42,
+        'amount' => 108.45,
         'processed_at' => null,
     ]);
 
