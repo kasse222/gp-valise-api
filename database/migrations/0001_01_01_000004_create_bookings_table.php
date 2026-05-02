@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Enums\BookingStatusEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -9,7 +11,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('bookings', function (Blueprint $table) {
+        Schema::create('bookings', function (Blueprint $table): void {
             $table->id();
 
             $table->foreignId('user_id')
@@ -20,7 +22,7 @@ return new class extends Migration
                 ->constrained()
                 ->cascadeOnDelete();
 
-            $table->unsignedTinyInteger('status')
+            $table->string('status')
                 ->default(BookingStatusEnum::EN_ATTENTE->value)
                 ->comment('Statut de réservation stocké en int et casté via BookingStatusEnum');
 

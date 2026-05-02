@@ -446,6 +446,25 @@ Migration en 3 étapes :
 
 ---
 
+## [2026-05] — AuditLog append-only
+
+### Contexte
+
+Les actions sensibles admin, notamment refund override, doivent être consultables et défendables en cas de litige.
+
+### Décision
+
+AuditLog est une table append-only :
+
+- pas d'updated_at
+- update/delete interdits
+- suppression d'un actor/user ne supprime pas les logs
+- les logs sont consultables uniquement par ADMIN
+
+### Conséquences
+
+Traçabilité forte, meilleure conformité, historique durable.
+
 # 🧠 Principe clé
 
 > Une décision non documentée est une dette future.
