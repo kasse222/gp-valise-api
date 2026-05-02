@@ -112,7 +112,8 @@ it('filters audit logs by actor id action and auditable id', function (): void {
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.actor.id', $admin->id)
         ->assertJsonPath('data.0.action', 'admin_refund_override')
-        ->assertJsonPath('data.0.auditable_id', $booking->id);
+        ->assertJsonPath('data.0.auditable.type', Booking::class)
+        ->assertJsonPath('data.0.auditable.id', $booking->id);
 });
 
 it('paginates audit logs', function (): void {

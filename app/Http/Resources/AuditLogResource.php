@@ -16,12 +16,23 @@ class AuditLogResource extends JsonResource
             'action'         => $this->action,
             'reason'         => $this->reason,
             'metadata'       => $this->metadata,
-            'auditable_type' => $this->auditable_type,
-            'auditable_id'   => $this->auditable_id,
-            'actor'          => $this->whenLoaded('actor', fn(): array => [
+
+            'auditable' => [
+                'type' => $this->auditable_type,
+                'id'   => $this->auditable_id,
+            ],
+
+            'actor' => $this->whenLoaded('actor', fn(): array => [
                 'id'   => $this->actor->id,
                 'name' => $this->actor->name,
             ]),
+
+            // 🔥 AJOUT CRITIQUE
+            'integrity' => [
+                'hash'          => $this->integrity_hash,
+                'previous_hash' => $this->previous_hash,
+            ],
+
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }
