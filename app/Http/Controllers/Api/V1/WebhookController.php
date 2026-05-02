@@ -11,7 +11,12 @@ class WebhookController extends Controller
 {
     public function __invoke(Request $request)
     {
-        ProcessPaymentWebhook::dispatch($request->all());
+        $payload = $request->all();
+
+        ProcessPaymentWebhook::dispatch(
+            payload: $payload,
+            correlationId: $request->header('X-Correlation-ID')
+        );
 
         return response()->json([
             'status' => 'accepted',

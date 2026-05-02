@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Actions\Payment\HandlePaymentWebhook;
 use App\Enums\BookingStatusEnum;
 use App\Enums\TransactionStatusEnum;
@@ -10,10 +12,11 @@ use App\Models\Trip;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
-it('reçoit un webhook, dispatch le job puis le traitement met à jour refund et booking', function () {
+it('reçoit un webhook, dispatch le job puis le traitement met à jour refund et booking', function (): void {
     Queue::fake();
 
     $user = User::factory()->create();
@@ -40,6 +43,8 @@ it('reçoit un webhook, dispatch le job puis le traitement met à jour refund et
         'provider_transaction_id' => 'fake_refund_e2e_456',
     ];
 
+    $correlationId = (string) Str::uuid();
+
     $signature = hash_hmac(
         'sha256',
         json_encode($payload),
@@ -48,13 +53,16 @@ it('reçoit un webhook, dispatch le job puis le traitement met à jour refund et
 
     $response = $this->postJson('/api/v1/webhooks/payment', $payload, [
         'X-Signature' => $signature,
+        'X-Correlation-ID' => $correlationId,
     ]);
-    //appeler le controller
-    $response->assertAccepted();
-    //appeler le controller
-    Queue::assertPushed(ProcessPaymentWebhook::class, function (ProcessPaymentWebhook $job) use ($payload, $refund, $booking) {
 
-        //  exécuter ensuite le job manuellement
+    $response->assertAccepted()
+        ->assertHeader('X-Correlation-ID', $correlationId);
+
+    Queue::assertPushed(ProcessPaymentWebhook::class, function (ProcessPaymentWebhook $job) use ($payload, $refund, $booking, $correlationId): bool {
+        expect($job->correlationId)->toBe($correlationId)
+            ->and($job->payload)->toMatchArray($payload);
+
         app(HandlePaymentWebhook::class)->execute($job->payload);
 
         $refund->refresh();
