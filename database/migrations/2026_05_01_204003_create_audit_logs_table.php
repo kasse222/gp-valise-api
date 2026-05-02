@@ -18,19 +18,30 @@ return new class extends Migration
                 ->constrained('users')
                 ->nullOnDelete();
 
-            $table->string('action');
+            $table->string('action', 100);
 
-            $table->morphs('auditable');
+            //contrôle total (mieux que morphs() pour prod)
+            $table->string('auditable_type', 150);
+            $table->unsignedBigInteger('auditable_id');
 
             $table->json('metadata')->nullable();
+            $table->string('reason', 255)->nullable();
 
-            $table->string('reason')->nullable();
+            //  INTEGRITY
+            $table->string('integrity_hash', 64)->nullable();
+            $table->string('previous_hash', 64)->nullable();
 
             $table->timestamp('created_at')->useCurrent();
 
+            //  INDEX STRATÉGIQUES
             $table->index('actor_id');
             $table->index('action');
+            $table->index(['auditable_type', 'auditable_id']);
             $table->index('created_at');
+
+            // 🔥 perf filtres API
+            $table->index(['action', 'created_at']);
+            $table->index(['actor_id', 'created_at']);
         });
     }
 

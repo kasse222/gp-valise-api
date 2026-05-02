@@ -11,7 +11,7 @@ use LogicException;
 
 class AuditLog extends Model
 {
-    public const UPDATED_AT = null; // audit log jamais modifié
+    public const UPDATED_AT = null;
 
     protected $fillable = [
         'actor_id',
@@ -19,7 +19,9 @@ class AuditLog extends Model
         'auditable_type',
         'auditable_id',
         'metadata',
-        'reason',       // obligatoire pour admin override refund
+        'reason',
+        'previous_hash',
+        'integrity_hash',
     ];
 
     protected $casts = [
@@ -27,23 +29,24 @@ class AuditLog extends Model
         'created_at' => 'datetime',
     ];
 
-    // -------------------------------------------------------
-    // Immuabilité — un audit log ne peut jamais être modifié
-    // -------------------------------------------------------
+    public function save(array $options = []): bool
+    {
+        if ($this->exists) {
+            throw new LogicException('AuditLog is immutable and cannot be saved after creation.');
+        }
+
+        return parent::save($options);
+    }
 
     public function update(array $attributes = [], array $options = []): bool
     {
         throw new LogicException('AuditLog is immutable and cannot be updated.');
     }
 
-    public function delete(): bool|null
+    public function delete(): ?bool
     {
         throw new LogicException('AuditLog is immutable and cannot be deleted.');
     }
-
-    // -------------------------------------------------------
-    // Relations
-    // -------------------------------------------------------
 
     public function actor(): BelongsTo
     {
@@ -53,14 +56,5 @@ class AuditLog extends Model
     public function auditable(): MorphTo
     {
         return $this->morphTo();
-    }
-
-    public function save(array $options = []): bool
-    {
-        if ($this->exists) {
-            throw new LogicException('AuditLog is immutable and cannot be saved after creation.');
-        }
-
-        return parent::save($options);
     }
 }
