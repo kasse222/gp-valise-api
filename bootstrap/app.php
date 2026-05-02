@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CorrelationIdMiddleware;
 use App\Http\Middleware\EnsureKYCValidated;
 use App\Http\Middleware\EnsureUserIsVerified;
 use App\Http\Middleware\ForceJsonResponse;
@@ -19,6 +20,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        /*
+        |--------------------------------------------------------------------------
+        | Aliases
+        |--------------------------------------------------------------------------
+        */
         $middleware->alias([
             'verified_user'      => EnsureUserIsVerified::class,
             'kyc'                => EnsureKYCValidated::class,
@@ -27,14 +33,21 @@ return Application::configure(basePath: dirname(__DIR__))
             'webhook.signature'  => VerifyWebhookSignature::class,
         ]);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Global API Middleware (ordre IMPORTANT)
+        |--------------------------------------------------------------------------
+        */
+        $middleware->prependToGroup('api', CorrelationIdMiddleware::class);
         $middleware->appendToGroup('api', ForceJsonResponse::class);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Guest redirection (désactivé pour API)
+        |--------------------------------------------------------------------------
+        */
         $middleware->redirectGuestsTo(function (Request $request) {
-            if ($request->is('horizon') || $request->is('horizon/*') || $request->expectsJson()) {
-                return null;
-            }
-
-            return null;
+            return null; // API only → pas de redirect
         });
     })
     ->withExceptions(function (Exceptions $exceptions) {
