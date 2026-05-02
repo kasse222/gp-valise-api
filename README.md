@@ -1,27 +1,57 @@
-# GP-Valise API — Backend Marketplace Logistique (Laravel)
+Oui. Ton README actuel est bon, mais il est **en retard** sur ton vrai niveau actuel.
 
-Backend API Laravel pour une plateforme logistique entre voyageurs et expéditeurs.
+Il faut le mettre à jour avec :
 
-GP-Valise modélise un cas réel de marketplace transactionnelle avec gestion complète des réservations, des flux financiers, des paiements asynchrones et de la supervision des queues.
+- `.adamas`
+- audit log integrity
+- correlation_id
+- 226 tests / 594 assertions
+- observabilité HTTP → Job → logs
+- backend SaaS transactionnel plus assumé
+
+Voici une version refactorée propre de `README.md` :
+
+````md
+# GP-Valise API — Backend SaaS Logistique & Transactionnel
+
+Backend API Laravel 12 pour une marketplace logistique entre voyageurs et expéditeurs.
+
+GP-Valise modélise un système SaaS réel avec réservation de capacité, paiements asynchrones, refunds, payouts, audit trail, observabilité et supervision des queues.
 
 ---
 
 [![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)](https://github.com/kasse222/gp-valise-api/actions)
-[![Tests](https://img.shields.io/badge/tests-189%20passing-brightgreen)](#tests)
+[![Tests](https://img.shields.io/badge/tests-226%20passing-brightgreen)](#tests)
 [![Laravel](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com)
 [![PHP](https://img.shields.io/badge/PHP-8.2-blue.svg)](https://php.net)
 
 ---
 
-## Contexte produit
+## Objectif produit
 
-GP-Valise met en relation trois types d'acteurs :
+GP-Valise permet :
 
-- **Voyageur** — publie un trajet avec une capacité de transport disponible
-- **Expéditeur** — réserve des kilogrammes pour transporter un colis
-- **Admin** — supervise les flux, les litiges et la sécurité
+- à un voyageur de publier un trajet avec une capacité disponible ;
+- à un expéditeur de réserver de l’espace pour transporter un colis ou une valise ;
+- à la plateforme de sécuriser paiement, livraison, refund, payout et litige.
 
-Le système repose sur trois piliers : logistique (trajets, capacité, livraison), confiance (rôles, KYC, signalements) et finance (transactions, payout, refund).
+Le projet vise un backend SaaS crédible, traçable et testable, avec une architecture proche d’un système transactionnel fintech.
+
+---
+
+## Stack technique
+
+- Laravel 12
+- PHP 8.2+
+- MySQL en local
+- PostgreSQL en cible future
+- Redis / Horizon
+- Docker / Docker Compose
+- PestPHP
+- GitHub Actions
+- Sanctum
+- Queues async
+- Webhooks HMAC
 
 ---
 
@@ -29,71 +59,203 @@ Le système repose sur trois piliers : logistique (trajets, capacité, livraison
 
 Pattern principal :
 
+```txt
+Controller → FormRequest / Policy → Action → Model / Enum / Service → Resource
 ```
-Controller → Action → Model / Enum / Validator
-```
+````
 
 Traitements asynchrones :
 
-```
-WebhookController → Job → Action → Model
+```txt
+WebhookController → Job → Action → Transaction / Booking / WebhookLog
 ```
 
-Répartition des responsabilités :
+Responsabilités :
 
-- **Controller** — orchestration HTTP uniquement
-- **Action** — logique métier isolée et testable
-- **Policy** — contrôle d'accès par ressource
-- **FormRequest** — validation des entrées
-- **Enum** — règles métier et state machine
-- **Job** — traitement asynchrone
-- **Service** — logique transverse (utilisé avec parcimonie)
+- Controller : orchestration HTTP uniquement
+- Action : use case métier
+- Policy : autorisation
+- FormRequest : validation d’entrée
+- Enum : source de vérité des statuts/transitions
+- Service : logique transverse
+- Job : traitement async
+- Resource : réponse API
 
 ---
 
-## Flows métier
+## Modules principaux
 
-### Booking lifecycle
-
-```
-EN_ATTENTE → EN_PAIEMENT → CONFIRMEE
-                    |
-                 EXPIREE
-
-CONFIRMEE → LIVREE → TERMINE
-LIVREE → EN_LITIGE → REMBOURSEE
-```
-
-### Paiement et refund (asynchrone)
-
-```
-CHARGE → provider → COMPLETED / FAILED
-
-REFUND → PENDING → webhook → COMPLETED (booking REMBOURSEE)
-                           → FAILED    (booking EN_LITIGE)
-```
-
-Idempotence garantie via `event_id`. Traitement via queue `high`.
-
-### Supervision des queues
-
-```
-Scheduler → QueueHealthService → classification → alerte Slack async
-```
-
-Classifications possibles : `healthy`, `traffic_spike`, `slow_processing`, `retry_storm_pressure`, `capacity_pressure`.
+- Auth / Users / KYC
+- Trips
+- Luggages
+- Bookings
+- BookingItems
+- Transactions
+- Payments
+- Refund / Payout / Fee
+- Webhooks
+- Audit Logs
+- Queue monitoring
+- Observability / Correlation ID
 
 ---
 
-## Points techniques notables
+## Booking lifecycle
 
-- Concurrence maîtrisée via `lockForUpdate` sur les réservations et paiements
-- Idempotence complète sur les webhooks, batch et actions métier
-- `ShouldDispatchAfterCommit` sur tous les events pour éviter les dispatches avant commit DB
-- Trois tiers de queues (`high`, `default`, `low`) avec superviseurs configurés par environnement
-- Détection de retry storm via `QueueProtectionService`
-- Transactions comme source de vérité financière (charge / payout / refund / fee)
-- State machine métier dans les Enums avec matrice de transitions et audit trail
+```txt
+EN_ATTENTE
+→ EN_PAIEMENT
+→ CONFIRMEE
+→ LIVREE
+→ TERMINE
+```
+
+Cas alternatifs :
+
+```txt
+EN_PAIEMENT → EXPIREE
+CONFIRMEE / LIVREE → EN_LITIGE
+EN_LITIGE → REMBOURSEE
+```
+
+Règles importantes :
+
+- aucune confirmation sans `CHARGE COMPLETED`
+- capacité protégée contre l’overbooking
+- transitions centralisées dans les Enums
+- historique des statuts
+- opérations critiques protégées par transaction DB
+
+---
+
+## Système transactionnel
+
+`Transaction` est la source de vérité financière.
+
+Types supportés :
+
+- `CHARGE`
+- `PAYOUT`
+- `REFUND`
+- `FEE`
+- `PAYMENT_FEE`
+
+Invariants :
+
+```txt
+PAYOUT ⊕ REFUND
+PAYOUT + FEE + REFUND <= CHARGE
+profit_net = FEE - PAYMENT_FEE
+```
+
+Règles :
+
+- pas de double charge
+- pas de double payout
+- pas de double refund
+- pas de double fee
+- montants persistés à la création
+- aucun recalcul historique
+- refund admin uniquement avec audit strict
+
+---
+
+## Webhooks & async
+
+Flow webhook :
+
+```txt
+Provider
+→ WebhookController
+→ vérification HMAC
+→ ProcessPaymentWebhook Job
+→ HandlePaymentWebhook Action
+→ Transaction / Booking / WebhookLog
+```
+
+Garanties :
+
+- signature HMAC SHA-256
+- idempotence via `event_id`
+- retry contrôlé
+- queue `high`
+- logs d’échec
+- alerting possible
+- traitement async avec HTTP `202 Accepted`
+
+---
+
+## Audit trail
+
+Le projet intègre un système d’audit admin :
+
+- `AuditLog` append-only
+- update/delete interdits
+- lecture admin uniquement
+- `integrity_hash`
+- `previous_hash`
+- chaîne d’intégrité vérifiable
+- tests de détection de corruption
+
+Objectif :
+
+```txt
+prouver qui a fait quoi, quand, pourquoi, et sur quelle ressource
+```
+
+---
+
+## Observabilité
+
+Le système utilise un `correlation_id` pour tracer les flux :
+
+```txt
+HTTP request
+→ response header
+→ logs Laravel
+→ queued job
+→ webhook flow
+```
+
+Header :
+
+```txt
+X-Correlation-ID
+```
+
+Actuellement couvert :
+
+- génération si absent
+- conservation si fourni
+- présence même sur erreur 401
+- propagation HTTP → Job
+- contexte logs Laravel
+
+Prochaine étape :
+
+```txt
+propagation DB → transactions / audit_logs / webhook_logs
+```
+
+---
+
+## Monitoring
+
+Le projet contient des commandes de supervision :
+
+- queue health
+- webhook health
+- retry storm detection
+- load simulation
+- retry storm simulation
+
+Objectifs :
+
+- détecter backlog
+- détecter slow processing
+- détecter retry storm
+- protéger Horizon / Redis
+- alerter sur incidents critiques
 
 ---
 
@@ -103,25 +265,41 @@ Classifications possibles : `healthy`, `traffic_spike`, `slow_processing`, `retr
 make test
 ```
 
-- 189 tests, 537 assertions
-- Runtime : ~2s en local (SQLite in-memory via Docker), ~3.8s en CI
-- Base : SQLite in-memory — isolation complète par test
-- Redis réel utilisé pour les tests de monitoring des queues
+État actuel :
 
-La configuration est centralisée dans `phpunit.xml` avec `force="true"` pour garantir l'isolation même lorsque les variables Docker écrasent l'environnement.
+```txt
+226 tests passed
+594 assertions
+runtime ~2.5s
+```
+
+Couverture :
+
+- actions métier
+- controllers API
+- policies
+- transactions
+- refunds
+- payouts
+- webhooks
+- jobs
+- monitoring
+- audit integrity
+- correlation_id
 
 ---
 
-## CI (GitHub Actions)
+## CI/CD
 
-Pipeline déclenché sur chaque push et pull request :
+GitHub Actions exécute :
 
-1. Installation des dépendances (Composer avec cache)
-2. Bootstrap Laravel via `.env.ci`
-3. Migrations SQLite
-4. Exécution Pest
+- installation Composer
+- bootstrap Laravel
+- migrations
+- Pest tests
+- Redis service pour tests queue/monitoring
 
-Redis est disponible comme service dans la CI pour les tests de monitoring. Aucune dépendance MySQL en CI.
+Objectif : pipeline rapide, reproductible et fiable.
 
 ---
 
@@ -139,67 +317,97 @@ make seed
 
 Accès :
 
-- API : http://localhost:8000
-- Horizon : http://localhost:8000/horizon
-
-Stack Docker : PHP-FPM, Nginx, MySQL, Redis, Horizon, Scheduler.
+```txt
+API     : http://localhost:8000
+Horizon : http://localhost:8000/horizon
+```
 
 ---
 
-## Transactions
+## .adamas
 
-Types supportés : `CHARGE`, `PAYOUT`, `REFUND`, `FEE`.
+Le dossier `.adamas/` documente les règles d’ingénierie du projet :
 
-Règles métier :
+```txt
+.adamas/
+├── ai/core
+├── ai/domain
+├── ai/engineering
+├── ai/governance
+├── ai/observability
+└── ai/security
+```
 
-- Le payout est déclenché uniquement après livraison confirmée
-- Le refund est conditionné par le statut métier du booking
-- Blocage si un payout existe déjà pour le booking
-- Idempotence garantie sur toutes les opérations financières
+Il contient :
+
+- règles d’architecture
+- règles métier
+- contraintes financières
+- méthodologie d’audit
+- checklist de review
+- règles Git
+- observabilité
+- sécurité webhook
+- access control
+
+Objectif :
+
+```txt
+Code + règles + audit + observabilité = système fiable
+```
 
 ---
 
 ## Sécurité
 
-- Authentification via Laravel Sanctum
+- Auth Sanctum
 - Policies par ressource
-- Vérification KYC sur les opérations sensibles
-- Rate limiting sur les endpoints financiers
-- Validation de signature webhook (HMAC SHA-256)
-- Aucun secret hardcodé en fallback de configuration
+- KYC sur opérations sensibles
+- Rate limiting financier
+- HMAC webhook signature
+- audit admin obligatoire
+- logs sans données sensibles
+- contrôle strict des rôles
 
 ---
-
-## Compromis techniques assumés
-
-- SQLite en CI et en test local — écart minimal avec MySQL pour les cas couverts
-- `FakePaymentProvider` en place — interface définie, provider réel à brancher
-- `Payment` model maintenu en lecture seule — `Transaction` est la source de vérité financière
-- Commission hardcodée à 15% — `Plan::getCommissionPercent()` existe, migration à faire
-
----
-
-## Documentation
-
-- `docs/ARCHITECTURE.md` — architecture complète et décisions techniques
-- `docs/AUDIT.md` — évolution du projet et choix de design
-
-## Engineering Notes
-
-## See `.adamas/` for architecture rules, audit methodology and coding standards.
 
 ## Roadmap
 
-Court terme : observabilité (Pulse, logs corrélés), alerting Slack complet.
+Court terme :
 
-Moyen terme : intégration Stripe réelle, payout asynchrone complet, coverage CI.
+- propagation DB du `correlation_id`
+- amélioration README / docs publiques
+- scénarios de démo recruteur
+- durcissement audit signature
+
+Moyen terme :
+
+- Stripe / PSP réel
+- platform_accounts
+- escrow avancé
+- litiges structurés
+- ledger interne
+- multi-pays / multi-devise
 
 ---
 
-## Auteur
+---
 
-Backend Developer — Laravel / API / Systèmes transactionnels
+## 👨‍💻 Auteur
 
-Casablanca, Maroc — disponible immédiatement en CDI.
+**Lamine Kasse**  
+Backend Engineer — Laravel / API / systèmes transactionnels
 
-[laminekasse.dev@gmail.com](mailto:laminekasse.dev@gmail.com)
+Je conçois des backends SaaS robustes avec :
+
+- gestion de concurrence (lockForUpdate)
+- paiements asynchrones (webhooks, idempotence)
+- audit trail (AuditLog chain)
+- observabilité (correlation_id, logs, queues)
+- architecture Action-driven
+
+📍 Casablanca, Maroc  
+📧 kasse.lamine.dev@icloud.com  
+🔗 LinkedIn : https://www.linkedin.com/in/lamine-kasse-05742536a
+
+---

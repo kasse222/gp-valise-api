@@ -6,11 +6,11 @@ Ce fichier définit les limites strictes que l’IA doit respecter lorsqu’elle
 
 Ces contraintes existent pour éviter :
 
-- les hallucinations
-- les refactors dangereux
-- la dette technique
-- les incohérences métier
-- les corrections trop larges
+- hallucinations
+- refactors dangereux
+- dette technique
+- incohérences métier
+- corrections trop larges
 
 ---
 
@@ -21,16 +21,47 @@ Avant toute analyse, l’IA doit lire :
 1. `.adamas/README.md`
 2. `.adamas/ai/core/system-prompt.md`
 3. `.adamas/ai/core/constraints.md`
-4. `.adamas/ai/context/architecture.md`
-5. `.adamas/ai/context/method-rules.md`
-6. `.adamas/ai/context/business-logic.md`
-7. `.adamas/ai/context/payment-logic.md`
 
-Puis charger uniquement la capability nécessaire :
+Puis charger les modules nécessaires selon le contexte :
 
-- audit → `.adamas/ai/capabilities/audit/methodology.md`
-- coding → `.adamas/ai/capabilities/coding/standards.md`
-- review → `.adamas/ai/capabilities/review/checklist.md`
+### 🧠 Domain (logique métier)
+
+- `.adamas/ai/domain/business-logic.md`
+- `.adamas/ai/domain/booking.md`
+- `.adamas/ai/domain/transaction.md`
+
+---
+
+### ⚙️ Engineering (architecture + code)
+
+- `.adamas/ai/engineering/architecture.md`
+- `.adamas/ai/engineering/coding/method-rules.md`
+- `.adamas/ai/engineering/coding/standards.md`
+- `.adamas/ai/engineering/git/git-workflow.md`
+
+---
+
+### 🛡️ Security
+
+- `.adamas/ai/security/access-control.md`
+- `.adamas/ai/security/financial-rules.md`
+- `.adamas/ai/security/webhook-security.md`
+
+---
+
+### 🔍 Observability
+
+- `.adamas/ai/observability/correlation-id.md`
+- `.adamas/ai/observability/logging.md`
+- `.adamas/ai/observability/monitoring.md`
+
+---
+
+### 🧠 Governance
+
+- `.adamas/ai/governance/audit.md`
+- `.adamas/ai/governance/checklist.md`
+- `.adamas/ai/governance/decision-log.md`
 
 ---
 
@@ -41,12 +72,12 @@ L’IA ne doit jamais :
 - générer du code sans audit préalable
 - valider un code simplement parce qu’il fonctionne
 - ignorer les règles `.adamas`
-- justifier artificiellement le code existant
+- justifier artificiellement du code incorrect
 - proposer un refactor massif
 - modifier plusieurs couches sans justification forte
 - créer une abstraction inutile
 - ajouter une dépendance non demandée
-- inventer des fichiers, classes ou méthodes absents du contexte
+- inventer des classes, méthodes ou fichiers absents
 - contourner les Enums
 - logger des données sensibles
 - proposer une architecture incompatible avec la roadmap v5
@@ -60,91 +91,83 @@ L’IA doit respecter :
 - Controller = orchestration HTTP uniquement
 - Action = use case métier complet
 - Policy = autorisation uniquement
-- FormRequest = validation d’entrée simple
+- FormRequest = validation simple uniquement
 - Enum = source de vérité des statuts
 - Model = données + helpers locaux
 - Service = logique transverse uniquement
 
 Références :
 
-- `.adamas/ai/context/architecture.md`
-- `.adamas/ai/context/method-rules.md`
+- `.adamas/ai/engineering/architecture.md`
+- `.adamas/ai/engineering/coding/method-rules.md`
 
 ---
 
 ## 🔧 Scope des corrections
 
-Toute correction proposée doit être :
+Toute correction doit être :
 
 - ciblée
 - atomique
-- limitée à un seul problème principal
-- compatible avec l’état MVP actuel
-- accompagnée des tests à lancer
+- limitée à un problème principal
+- compatible avec le MVP actuel
+- accompagnée de tests
 
-Une correction ne doit pas modifier plusieurs modules ou plusieurs couches sans raison forte.
-
-Si une correction est large, elle doit être découpée en étapes.
+Si la correction est large → découper en étapes.
 
 ---
 
 ## 🚨 Priorisation obligatoire
 
-L’IA doit traiter les problèmes dans cet ordre :
-
-1. 🔴 Bugs métier, sécurité, incohérence financière
-2. 🟠 Mauvaise séparation des responsabilités
+1. 🔴 Bugs métier / sécurité / finance
+2. 🟠 Mauvaise architecture
 3. 🟠 Dette technique bloquante
-4. 🟡 Tests manquants importants
-5. 🟡 Lisibilité, naming, formatage
-
-Ne jamais corriger une amélioration esthétique si un problème critique existe.
+4. 🟡 Tests manquants
+5. 🟡 Lisibilité
 
 ---
 
 ## 🧪 Non-régression obligatoire
 
-Toute proposition doit préciser :
+Chaque correction doit préciser :
 
-- les tests existants à lancer
-- les tests à ajouter si nécessaire
-- les risques de régression
-- les fichiers impactés
+- tests à lancer
+- tests à ajouter
+- risques de régression
+- fichiers impactés
 
-Aucune correction critique ne doit être acceptée sans test.
+Aucune correction critique sans test.
 
 ---
 
 ## 🔐 Sécurité
 
-L’IA ne doit jamais proposer de :
+Interdits :
 
 - bypass Policy
-- validation métier dans Controller
-- accès direct non contrôlé aux données sensibles
-- log de données KYC, paiement, identité ou token
-- modification financière sans audit transactionnel
+- logique métier dans Controller
+- accès non contrôlé aux données
+- log de données sensibles
+- modification financière sans audit
 
 ---
 
 ## 💳 Contraintes financières
 
-Toute logique liée à Payment / Transaction doit respecter :
+Toujours respecter :
 
-- Transaction = source de vérité financière
-- Booking ne dépend jamais directement du provider
+- Transaction = source de vérité
+- Booking ≠ source financière
 - CHARGE obligatoire avant confirmation
 - pas de double charge
 - pas de double payout
 - pas de double refund
 - pas de double fee
-- PAYOUT et REFUND sont mutuellement exclusifs
-- FEE = revenu plateforme
-- PAYMENT_FEE = coût PSP / bancaire
+- PAYOUT ⊕ REFUND
 
 Référence :
 
-- `.adamas/ai/context/payment-logic.md`
+- `.adamas/ai/security/financial-rules.md`
 
 ---
 
@@ -152,18 +175,14 @@ Référence :
 
 L’IA doit :
 
-- définir le périmètre avant analyse
-- signaler les zones non vérifiables
-- poser une question si le contexte manque
-- distinguer problème réel et hypothèse
-- expliquer l’impact métier ou technique
+- définir le périmètre
+- poser des questions si besoin
+- distinguer hypothèse vs fait
+- expliquer l’impact métier
 - proposer un plan avant code
-- éviter toute correction “par style” sans impact réel
 
 ---
 
 ## 📌 Principe clé
 
 > L’IA doit réduire la complexité, pas la déplacer.
-
-Si une correction rend le système plus complexe sans gain métier, sécurité ou testabilité clair, elle ne doit pas être proposée.

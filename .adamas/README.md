@@ -1,62 +1,304 @@
-# ADAMAS — Context Engineering Layer (GP-Valise)
+# 🧠 .adamas — GP-Valise Architecture System
 
 ## 🎯 Objectif
 
-Ce dossier constitue la **source de vérité technique interne** du projet GP-Valise.
+`.adamas` est le système de gouvernance technique du projet **GP-Valise**.
 
-Il sert à :
+Il centralise :
 
-- Auditer le code existant
-- Garantir la cohérence architecturale
-- Réduire les hallucinations de l’IA
-- Standardiser les décisions techniques
-- Accélérer le développement de manière contrôlée
+- les règles métier
+- les règles d’architecture
+- les standards de code
+- les décisions techniques
+- les principes de sécurité
+- les pratiques d’observabilité
 
----
-
-## ⚠️ Règle fondamentale
-
-Avant toute modification de code :
-
-> L’IA ou le développeur doit produire un audit.
-
-Aucune implémentation ne doit être faite sans :
-
-1. Analyse du contexte
-2. Vérification des règles existantes
-3. Validation des impacts
+> Ce dossier transforme le projet en système structuré, auditable et scalable.
 
 ---
 
-## 🧠 Philosophie d’ingénierie
+## 🚀 Projet : GP-Valise
 
-Le projet suit une approche :
+Backend SaaS logistique permettant :
 
-- **Action-driven architecture**
-- **Domain-driven (light)**
-- **Enums comme source de vérité métier**
-- **Séparation stricte des responsabilités**
+- à un expéditeur d’envoyer un objet
+- via un voyageur tiers
+- avec un système sécurisé (paiement, tracking, litige)
 
-## 🎯 Usage
+Stack :
 
-Ce dossier est utilisé pour :
+- Laravel 12
+- MySQL / PostgreSQL (migration en cours)
+- Redis (queues + monitoring)
+- Pest (tests)
+- Docker
 
-- audit manuel
-- audit IA (ChatGPT / Codex / Claude)
-- préparation entretien technique
+Architecture :
 
-Flux standard :
-
-HTTP Request → Controller → FormRequest (validation)
-↓
-Action (use case)
-↓
-┌────────────┼────────────┐
-↓ ↓ ↓
-Model(s) Enum(s) Event(s)
-↓
-Transaction DB
-↓
-HTTP Response (ou Job)
+- Action-driven
+- Domain-driven (light)
+- Enums comme source de vérité métier
+- Async (webhooks + queues)
 
 ---
+
+## 🧠 Philosophie
+
+```txt
+Clarté > magie
+Règles explicites > implicites
+Traçabilité > simplicité naïve
+Sécurité > rapidité
+```
+
+---
+
+## 🧱 Structure
+
+```txt
+.adamas/
+├── ai/
+│   ├── core/            → règles IA
+│   ├── domain/          → logique métier
+│   ├── engineering/     → règles code / architecture
+│   ├── governance/      → audit / décisions
+│   ├── observability/   → logs / monitoring / tracing
+│   └── security/        → règles critiques (finance, accès, webhook)
+```
+
+---
+
+## 📚 Modules
+
+### 🧠 Domain
+
+- `business-logic.md`
+- `booking.md`
+- `transaction.md`
+
+👉 définit la logique métier pure
+
+---
+
+### ⚙️ Engineering
+
+- `architecture.md`
+- `method-rules.md`
+- `standards.md`
+- `git-workflow.md`
+
+👉 définit comment coder correctement
+
+---
+
+### 🛡️ Security
+
+- `access-control.md`
+- `financial-rules.md`
+- `webhook-security.md`
+
+👉 protège le système contre :
+
+- fraude
+- erreurs financières
+- accès non autorisé
+
+---
+
+### 🔍 Observability
+
+- `correlation-id.md`
+- `logging.md`
+- `monitoring.md`
+
+👉 permet :
+
+- debug production
+- traçabilité
+- investigation incidents
+
+---
+
+### 🧠 Governance
+
+- `audit.md`
+- `decision-log.md`
+- `checklist.md`
+
+👉 impose :
+
+- audit avant code
+- décisions documentées
+- qualité constante
+
+---
+
+## 🔒 Règles critiques
+
+### 1. Finance
+
+```txt
+Transaction = source de vérité
+```
+
+- pas de double payout
+- pas de refund après payout
+- montants persistés
+
+---
+
+### 2. Sécurité
+
+```txt
+DENY BY DEFAULT
+```
+
+- Policy obligatoire
+- Action valide les règles métier
+
+---
+
+### 3. Webhooks
+
+```txt
+NEVER TRUST EXTERNAL INPUT
+```
+
+- signature HMAC
+- idempotence
+- lock DB
+
+---
+
+### 4. Observabilité
+
+```txt
+correlation_id = traçabilité totale
+```
+
+- logs
+- jobs
+- DB (en cours)
+
+---
+
+## 🧪 Qualité
+
+Le projet impose :
+
+- tests Pest complets
+- idempotence
+- gestion concurrence (`lockForUpdate`)
+- audit des actions critiques
+- monitoring des queues et webhooks
+
+---
+
+## 📈 Niveau technique visé
+
+Ce projet vise un niveau :
+
+```txt
+Backend SaaS production-ready
+→ Fintech-ready
+```
+
+Car il inclut :
+
+- système transactionnel robuste
+- gestion async (webhooks)
+- audit log immuable
+- observabilité complète
+- sécurité stricte
+
+---
+
+## 🎯 Objectif long terme
+
+Évolution vers :
+
+- escrow avancé
+- ledger interne
+- multi-accounts (multi-pays)
+- dispute system
+- intégration PSP réelle (Stripe, Wave, CMI)
+
+---
+
+## 🧠 Utilisation avec IA
+
+Toute interaction IA doit respecter :
+
+1. Audit avant code
+2. Respect `.adamas`
+3. Justification des choix
+4. Pas de génération aveugle
+
+---
+
+## 🚫 Interdits
+
+- logique métier hors Action
+- accès DB dans Enum
+- bypass Policy
+- calcul financier non centralisé
+- code sans test
+- modification sans audit
+
+---
+
+## 🧠 Principe clé
+
+> `.adamas` n’est pas de la documentation.
+> C’est le **système de contrôle du projet**.
+
+---
+
+## 🔥 Pourquoi c’est important (recruteur)
+
+Ce dossier montre que le projet n’est pas :
+
+```txt
+un CRUD Laravel
+```
+
+mais :
+
+```txt
+un système pensé comme un produit SaaS réel
+```
+
+---
+
+## 📌 Résumé
+
+```txt
+Code + Règles + Audit + Observabilité = Système fiable
+```
+
+---
+
+## 🚀 Auteur
+
+Projet conçu et développé par :
+
+**Backend Engineer (Laravel / API / Transaction Systems)**
+
+Spécialisé :
+
+- systèmes transactionnels
+- async processing
+- observabilité
+- architecture scalable
+
+---
+
+## 🧠 Conclusion
+
+`.adamas` permet de transformer un projet individuel en :
+
+```txt
+système maintenable
+système explicable
+système crédible en production
+```
