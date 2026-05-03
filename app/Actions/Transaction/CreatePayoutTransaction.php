@@ -45,17 +45,29 @@ class CreatePayoutTransaction
                 ]);
             }
 
-            $feeAmount = $this->calculator->calculateFeeAmount($charge);
-            $payoutAmount = $this->calculator->calculatePayoutAmount($charge);
+            $feeAmount        = $this->calculator->calculateFeeAmount($charge);
+            $paymentFeeAmount = $this->calculator->calculatePaymentFeeAmount($charge);
+            $payoutAmount     = $this->calculator->calculatePayoutAmount($charge);
 
             Transaction::query()->create([
-                'user_id' => $booking->trip->user_id,
-                'booking_id' => $booking->id,
-                'type' => TransactionTypeEnum::FEE,
-                'amount' => $feeAmount,
-                'currency' => $charge->currency,
-                'method' => $charge->method,
-                'status' => TransactionStatusEnum::COMPLETED,
+                'user_id'      => $booking->trip->user_id,
+                'booking_id'   => $booking->id,
+                'type'         => TransactionTypeEnum::FEE,
+                'amount'       => $feeAmount,
+                'currency'     => $charge->currency,
+                'method'       => $charge->method,
+                'status'       => TransactionStatusEnum::COMPLETED,
+                'processed_at' => now(),
+            ]);
+
+            Transaction::query()->create([
+                'user_id'      => $booking->trip->user_id,
+                'booking_id'   => $booking->id,
+                'type'         => TransactionTypeEnum::PAYMENT_FEE,
+                'amount'       => $paymentFeeAmount,
+                'currency'     => $charge->currency,
+                'method'       => $charge->method,
+                'status'       => TransactionStatusEnum::COMPLETED,
                 'processed_at' => now(),
             ]);
 

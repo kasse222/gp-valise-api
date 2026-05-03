@@ -129,6 +129,47 @@ it('refuse un payout si un refund existe déjà', function () {
     $this->action->execute($booking);
 })->throws(ValidationException::class);
 
+it('crée une PAYMENT_FEE avec le bon montant et statut COMPLETED', function () {
+    $booking = createDeliveredBookingForPayoutAction();
+    $charge  = createChargeForPayoutAction($booking, 100);
+
+    $this->action->execute($booking);
+
+    $paymentFee = Transaction::query()
+        ->where('booking_id', $booking->id)
+        ->where('type', TransactionTypeEnum::PAYMENT_FEE->value)
+        ->firstOrFail();
+
+    $expectedAmount = app(\App\Services\TransactionAmountCalculator::class)
+        ->calculatePaymentFeeAmount($charge);
+
+    expect((float) $paymentFee->amount)->toBe($expectedAmount)
+        ->and($paymentFee->status)->toBe(TransactionStatusEnum::COMPLETED)
+        ->and($paymentFee->processed_at)->not->toBeNull();
+});
+
+it('profit_net calculable depuis la DB (FEE - PAYMENT_FEE)', function () {
+    $booking = createDeliveredBookingForPayoutAction();
+    createChargeForPayoutAction($booking, 100);
+
+    $this->action->execute($booking);
+
+    $fee = Transaction::query()
+        ->where('booking_id', $booking->id)
+        ->where('type', TransactionTypeEnum::FEE->value)
+        ->firstOrFail();
+
+    $paymentFee = Transaction::query()
+        ->where('booking_id', $booking->id)
+        ->where('type', TransactionTypeEnum::PAYMENT_FEE->value)
+        ->firstOrFail();
+
+    $profitNet = (float) $fee->amount - (float) $paymentFee->amount;
+
+    // fee_percentage=10%, payment_fee_percentage=2% on 100 → 10 - 2 = 8
+    expect($profitNet)->toBe(8.0);
+});
+
 it('refuse un payout si une fee existe déjà', function () {
     $booking = createDeliveredBookingForPayoutAction();
 
