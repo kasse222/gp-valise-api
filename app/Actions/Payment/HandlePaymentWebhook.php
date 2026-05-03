@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Actions\Payment;
 
 use App\Enums\BookingStatusEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
+use App\Enums\WebhookLogStatusEnum;
 use App\Exceptions\RetryableWebhookException;
 use App\Models\Booking;
 use App\Models\Transaction;
@@ -39,7 +42,7 @@ class HandlePaymentWebhook
                 'correlation_id'          => $correlationId,
                 'event'                   => $event,
                 'provider_transaction_id' => $providerId,
-                'status'                  => WebhookLog::STATUS_RECEIVED,
+                'status'                  => WebhookLogStatusEnum::RECEIVED,
                 'payload'                 => $payload,
             ]);
 
@@ -72,7 +75,7 @@ class HandlePaymentWebhook
                 };
             } catch (RetryableWebhookException $e) {
                 $log->update([
-                    'status' => WebhookLog::STATUS_FAILED,
+                    'status' => WebhookLogStatusEnum::FAILED,
                     'error_message' => $e->getMessage(),
                     'processed_at' => now(),
                 ]);
@@ -80,7 +83,7 @@ class HandlePaymentWebhook
                 throw $e;
             } catch (Throwable $e) {
                 $log->update([
-                    'status' => WebhookLog::STATUS_FAILED,
+                    'status' => WebhookLogStatusEnum::FAILED,
                     'error_message' => $e->getMessage(),
                     'processed_at' => now(),
                 ]);
@@ -106,7 +109,7 @@ class HandlePaymentWebhook
         }
 
         $log->update([
-            'status' => WebhookLog::STATUS_PROCESSED,
+            'status' => WebhookLogStatusEnum::PROCESSED,
             'processed_at' => now(),
         ]);
     }
@@ -119,7 +122,7 @@ class HandlePaymentWebhook
         ]);
 
         $log->update([
-            'status' => WebhookLog::STATUS_PROCESSED,
+            'status' => WebhookLogStatusEnum::PROCESSED,
             'processed_at' => now(),
         ]);
     }
@@ -127,7 +130,7 @@ class HandlePaymentWebhook
     private function markIgnored(WebhookLog $log, ?string $reason = null): void
     {
         $log->update([
-            'status' => WebhookLog::STATUS_IGNORED,
+            'status' => WebhookLogStatusEnum::IGNORED,
             'error_message' => $reason,
             'processed_at' => now(),
         ]);
