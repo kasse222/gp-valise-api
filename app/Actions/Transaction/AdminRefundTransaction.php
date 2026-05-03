@@ -11,6 +11,7 @@ use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\AuditLogIntegrityService;
 use App\Services\TransactionAmountCalculator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -21,6 +22,7 @@ class AdminRefundTransaction
     public function __construct(
         private readonly PaymentProvider $paymentProvider,
         private readonly TransactionAmountCalculator $calculator,
+        private readonly AuditLogIntegrityService $auditLogIntegrityService,
     ) {}
 
     public function execute(User $admin, Transaction $charge, string $reason): Transaction
@@ -157,13 +159,15 @@ class AdminRefundTransaction
 
             $snapshot['hash'] = hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR));
 
-            AuditLog::query()->create([
+            $auditLog = AuditLog::query()->create([
                 'actor_id' => $admin->id,
                 'action' => 'admin_refund_override',
                 'auditable_type' => Transaction::class,
                 'auditable_id' => $refund->id,
                 'metadata' => $snapshot,
             ]);
+
+            $this->auditLogIntegrityService->seal($auditLog);
 
             return $refund;
         });

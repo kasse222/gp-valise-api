@@ -13,6 +13,7 @@ use App\Models\Booking;
 use App\Models\Transaction;
 use App\Models\Trip;
 use App\Models\User;
+use App\Services\AuditLogIntegrityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 
@@ -191,6 +192,47 @@ it('refuse un refund admin si un payout existe déjà', function () {
     );
 })->throws(ValidationException::class);
 
+
+it('seal() est appelé : integrity_hash renseigné et verifyLog retourne true', function () {
+    $booking = createDisputedBookingForAdminRefund($this->sender, $this->trip);
+    $charge  = createCompletedChargeForAdminRefund($booking, $this->sender, 100);
+
+    $refund = $this->action->execute($this->admin, $charge, 'Litige validé');
+
+    $auditLog = AuditLog::query()
+        ->where('action', 'admin_refund_override')
+        ->where('auditable_id', $refund->id)
+        ->firstOrFail();
+
+    $integrity = app(AuditLogIntegrityService::class);
+
+    expect($auditLog->integrity_hash)->not->toBeNull()
+        ->and($auditLog->previous_hash)->toBeNull()
+        ->and($integrity->verifyLog($auditLog))->toBeTrue();
+});
+
+it('chaîne d\'intégrité valide sur deux refunds successifs', function () {
+    $booking1 = createDisputedBookingForAdminRefund($this->sender, $this->trip);
+    $charge1  = createCompletedChargeForAdminRefund($booking1, $this->sender, 100);
+
+    $trip2    = Trip::factory()->create(['user_id' => $this->traveler->id]);
+    $booking2 = createDisputedBookingForAdminRefund($this->sender, $trip2);
+    $charge2  = createCompletedChargeForAdminRefund($booking2, $this->sender, 200);
+
+    $refund1 = $this->action->execute($this->admin, $charge1, 'Premier litige');
+    $refund2 = $this->action->execute($this->admin, $charge2, 'Deuxième litige');
+
+    [$log1, $log2] = AuditLog::query()
+        ->where('action', 'admin_refund_override')
+        ->orderBy('id')
+        ->get()
+        ->all();
+
+    $integrity = app(AuditLogIntegrityService::class);
+
+    expect($log2->previous_hash)->toBe($log1->integrity_hash)
+        ->and($integrity->verifyChainFrom())->toBeTrue();
+});
 
 it('est idempotent si un refund admin existe déjà', function () {
     $booking = createDisputedBookingForAdminRefund($this->sender, $this->trip);
