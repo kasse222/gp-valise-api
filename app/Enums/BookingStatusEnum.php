@@ -47,6 +47,7 @@ enum BookingStatusEnum: string
                 self::LIVREE,
                 self::ANNULE,
                 self::EN_LITIGE,
+                self::REMBOURSEE,
             ],
 
             self::LIVREE => [
