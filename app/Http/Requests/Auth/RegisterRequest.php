@@ -21,7 +21,7 @@ class RegisterRequest extends FormRequest
             'last_name'       => ['required', 'string', 'max:100'],
             'email'           => ['required', 'email', 'unique:users,email'],
             'password'        => ['required', 'confirmed', Password::min(8)],
-            'role'       => ['required', Rule::in(UserRoleEnum::values())],
+            'role'            => ['required', Rule::in(UserRoleEnum::publicValues())],
             'phone'           => ['required', 'string', 'max:20'],
             'country'         => ['nullable', 'string', 'max:100'],
             'plan_id'         => ['nullable', 'exists:plans,id'],

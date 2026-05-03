@@ -16,6 +16,11 @@ enum UserRoleEnum: int
         return array_column(self::cases(), 'value');
     }
 
+    public static function publicValues(): array
+    {
+        return [self::TRAVELER->value, self::SENDER->value];
+    }
+
     public function label(): string
     {
         return match ($this) {
