@@ -31,6 +31,7 @@ class BookingController extends Controller
 
     public function store(StoreBookingRequest $request, ReserveBooking $action)
     {
+        $this->authorize('create', Booking::class);
 
         $booking = $action->execute(
             $request->user(),

@@ -121,3 +121,42 @@ it('supprime une réservation (destroy)', function () {
         'id' => $booking->id,
     ]);
 });
+
+it('refuse la création de réservation à un TRAVELER (403)', function () {
+    $traveler = User::factory()->traveler()->create();
+    Sanctum::actingAs($traveler);
+
+    $this->postJson('/api/v1/bookings', [])
+        ->assertForbidden();
+});
+
+it('autorise la création de réservation à un SENDER (201)', function () {
+    $sender   = User::factory()->sender()->create();
+    $traveler = User::factory()->traveler()->verified()->create();
+    $trip     = Trip::factory()->create(['user_id' => $traveler->id]);
+    $luggage  = Luggage::factory()->create([
+        'user_id' => $sender->id,
+        'status'  => LuggageStatusEnum::EN_ATTENTE,
+    ]);
+
+    Sanctum::actingAs($sender);
+
+    $this->postJson('/api/v1/bookings', [
+        'trip_id' => $trip->id,
+        'items'   => [
+            [
+                'luggage_id'  => $luggage->id,
+                'kg_reserved' => 2.0,
+                'price'       => 50.0,
+            ],
+        ],
+    ])->assertCreated();
+});
+
+it('refuse la création de réservation à un ADMIN (403)', function () {
+    $admin = User::factory()->admin()->create();
+    Sanctum::actingAs($admin);
+
+    $this->postJson('/api/v1/bookings', [])
+        ->assertForbidden();
+});

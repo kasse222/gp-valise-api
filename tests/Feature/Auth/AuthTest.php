@@ -115,3 +115,86 @@ it('rejette la route /me si non authentifié', function () {
 
     $response->assertUnauthorized();
 });
+
+it('bloque l\'inscription avec le rôle ADMIN (1)', function () {
+    $payload = [
+        'first_name'            => 'Test',
+        'last_name'             => 'Admin',
+        'email'                 => 'role-admin@test.com',
+        'password'              => 'password',
+        'password_confirmation' => 'password',
+        'phone'                 => '+212600000011',
+        'country'               => 'MA',
+        'role'                  => 1,
+    ];
+
+    $this->postJson('/api/v1/register', $payload)
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('role');
+});
+
+it('bloque l\'inscription avec le rôle SUPER_ADMIN (6)', function () {
+    $payload = [
+        'first_name'            => 'Test',
+        'last_name'             => 'SuperAdmin',
+        'email'                 => 'role-superadmin@test.com',
+        'password'              => 'password',
+        'password_confirmation' => 'password',
+        'phone'                 => '+212600000012',
+        'country'               => 'MA',
+        'role'                  => 6,
+    ];
+
+    $this->postJson('/api/v1/register', $payload)
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('role');
+});
+
+it('bloque l\'inscription avec le rôle MODERATOR (4)', function () {
+    $payload = [
+        'first_name'            => 'Test',
+        'last_name'             => 'Moderator',
+        'email'                 => 'role-moderator@test.com',
+        'password'              => 'password',
+        'password_confirmation' => 'password',
+        'phone'                 => '+212600000013',
+        'country'               => 'MA',
+        'role'                  => 4,
+    ];
+
+    $this->postJson('/api/v1/register', $payload)
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('role');
+});
+
+it('autorise l\'inscription avec le rôle TRAVELER (2)', function () {
+    $payload = [
+        'first_name'            => 'Test',
+        'last_name'             => 'Traveler',
+        'email'                 => 'role-traveler@test.com',
+        'password'              => 'password',
+        'password_confirmation' => 'password',
+        'phone'                 => '+212600000014',
+        'country'               => 'MA',
+        'role'                  => 2,
+    ];
+
+    $this->postJson('/api/v1/register', $payload)
+        ->assertCreated();
+});
+
+it('autorise l\'inscription avec le rôle SENDER (3)', function () {
+    $payload = [
+        'first_name'            => 'Test',
+        'last_name'             => 'Sender',
+        'email'                 => 'role-sender@test.com',
+        'password'              => 'password',
+        'password_confirmation' => 'password',
+        'phone'                 => '+212600000015',
+        'country'               => 'MA',
+        'role'                  => 3,
+    ];
+
+    $this->postJson('/api/v1/register', $payload)
+        ->assertCreated();
+});
