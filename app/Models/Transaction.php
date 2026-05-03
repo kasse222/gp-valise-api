@@ -24,6 +24,7 @@ class Transaction extends Model
         'method',
         'processed_at',
         'provider_transaction_id',
+        'correlation_id',
     ];
 
     protected $casts = [

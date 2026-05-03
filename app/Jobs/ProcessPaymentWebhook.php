@@ -42,7 +42,7 @@ class ProcessPaymentWebhook implements ShouldQueue
         $this->withCorrelationContext();
 
         try {
-            $action->execute($this->payload);
+            $action->execute($this->payload, $this->correlationId);
         } catch (RetryableWebhookException $exception) {
             if ($this->attempts() < 3) {
                 throw $exception;

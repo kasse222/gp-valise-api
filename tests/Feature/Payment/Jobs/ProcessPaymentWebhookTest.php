@@ -20,7 +20,7 @@ it('appelle HandlePaymentWebhook avec le payload fourni', function () {
     $actionMock = Mockery::mock(HandlePaymentWebhook::class);
     $actionMock->shouldReceive('execute')
         ->once()
-        ->with($payload);
+        ->with($payload, null);
 
     $job = new ProcessPaymentWebhook($payload);
 
@@ -37,7 +37,7 @@ it('relance une exception retryable si le nombre de tentatives est inférieur au
     $actionMock = Mockery::mock(HandlePaymentWebhook::class);
     $actionMock->shouldReceive('execute')
         ->once()
-        ->with($payload)
+        ->with($payload, null)
         ->andThrow(new RetryableWebhookException('Transaction introuvable'));
 
     $job = new class($payload, 1) extends ProcessPaymentWebhook {
@@ -66,7 +66,7 @@ it('n’échoue plus après plusieurs tentatives retryables et journalise un war
     $actionMock = Mockery::mock(HandlePaymentWebhook::class);
     $actionMock->shouldReceive('execute')
         ->once()
-        ->with($payload)
+        ->with($payload, null)
         ->andThrow(new RetryableWebhookException('Transaction introuvable'));
 
     Log::shouldReceive('warning')
@@ -94,6 +94,23 @@ it('n’échoue plus après plusieurs tentatives retryables et journalise un war
     $job->handle($actionMock);
 
     expect(true)->toBeTrue();
+});
+
+it('transmet le correlationId à HandlePaymentWebhook::execute()', function () {
+    $payload = [
+        'event_id'                => 'evt_cid_propagation',
+        'event'                   => 'refund.completed',
+        'provider_transaction_id' => 'fake_refund_cid_propagation',
+    ];
+    $correlationId = 'cid-propagated-test-001';
+
+    $actionMock = Mockery::mock(HandlePaymentWebhook::class);
+    $actionMock->shouldReceive('execute')
+        ->once()
+        ->with($payload, $correlationId);
+
+    $job = new ProcessPaymentWebhook($payload, $correlationId);
+    $job->handle($actionMock);
 });
 
 it('journalise une erreur critique et dispatch une alerte Slack quand le job échoue définitivement', function () {

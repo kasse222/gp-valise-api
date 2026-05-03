@@ -492,7 +492,7 @@ Introduire un `correlation_id` propagé dans :
 
 ### Statut
 
-🟡 en cours — DB propagation à finaliser
+✅ actif
 
 ---
 

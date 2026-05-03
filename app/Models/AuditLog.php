@@ -20,6 +20,7 @@ class AuditLog extends Model
         'auditable_id',
         'metadata',
         'reason',
+        'correlation_id',
         'previous_hash',
         'integrity_hash',
     ];

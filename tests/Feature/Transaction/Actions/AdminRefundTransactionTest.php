@@ -234,6 +234,21 @@ it('chaîne d\'intégrité valide sur deux refunds successifs', function () {
         ->and($integrity->verifyChainFrom())->toBeTrue();
 });
 
+it('persiste le correlationId dans l\'AuditLog', function () {
+    $booking       = createDisputedBookingForAdminRefund($this->sender, $this->trip);
+    $charge        = createCompletedChargeForAdminRefund($booking, $this->sender, 100);
+    $correlationId = 'test-cid-audit-001';
+
+    $refund = $this->action->execute($this->admin, $charge, 'Litige validé', $correlationId);
+
+    $auditLog = AuditLog::query()
+        ->where('action', 'admin_refund_override')
+        ->where('auditable_id', $refund->id)
+        ->firstOrFail();
+
+    expect($auditLog->correlation_id)->toBe($correlationId);
+});
+
 it('est idempotent si un refund admin existe déjà', function () {
     $booking = createDisputedBookingForAdminRefund($this->sender, $this->trip);
     $charge = createCompletedChargeForAdminRefund($booking, $this->sender);
