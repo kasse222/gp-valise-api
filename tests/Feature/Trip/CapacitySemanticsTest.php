@@ -152,3 +152,83 @@ it('considère les trajets actifs et pending comme réservables', function () {
     expect(TripStatusEnum::ACTIVE->isReservable())->toBeTrue()
         ->and(TripStatusEnum::PENDING->isReservable())->toBeTrue();
 });
+
+it('scopeReservable inclut les trips ACTIVE', function () {
+    expect(Trip::reservable()->where('id', $this->trip->id)->exists())->toBeTrue();
+});
+
+it('scopeReservable inclut les trips PENDING', function () {
+    $trip = Trip::factory()->for($this->traveler)->create([
+        'capacity' => 50,
+        'status'   => TripStatusEnum::PENDING,
+    ]);
+
+    expect(Trip::reservable()->where('id', $trip->id)->exists())->toBeTrue();
+});
+
+it('scopeReservable exclut les trips CANCELLED et COMPLETED', function () {
+    $cancelled = Trip::factory()->for($this->traveler)->create([
+        'capacity' => 50,
+        'status'   => TripStatusEnum::CANCELLED,
+    ]);
+    $completed = Trip::factory()->for($this->traveler)->create([
+        'capacity' => 50,
+        'status'   => TripStatusEnum::COMPLETED,
+    ]);
+
+    $ids = Trip::reservable()->pluck('id');
+
+    expect($ids)->not->toContain($cancelled->id)
+        ->and($ids)->not->toContain($completed->id);
+});
+
+it('scopeReservable exclut les trips avec date passée', function () {
+    $past = Trip::factory()->passé()->for($this->traveler)->create([
+        'capacity' => 50,
+        'status'   => TripStatusEnum::ACTIVE,
+    ]);
+
+    expect(Trip::reservable()->where('id', $past->id)->exists())->toBeFalse();
+});
+
+it('scopeReservable exclut un trip saturé par des bookings CONFIRMEE', function () {
+    createCapacityBookingItemForTrip(
+        trip: $this->trip,
+        sender: $this->sender,
+        status: BookingStatusEnum::CONFIRMEE,
+        kgReserved: 50
+    );
+
+    expect(Trip::reservable()->where('id', $this->trip->id)->exists())->toBeFalse();
+});
+
+it('scopeReservable exclut un trip saturé par des EN_PAIEMENT non expirés', function () {
+    createCapacityBookingItemForTrip(
+        trip: $this->trip,
+        sender: $this->sender,
+        status: BookingStatusEnum::CONFIRMEE,
+        kgReserved: 40
+    );
+
+    createCapacityBookingItemForTrip(
+        trip: $this->trip,
+        sender: $this->sender,
+        status: BookingStatusEnum::EN_PAIEMENT,
+        kgReserved: 10,
+        paymentExpiresAt: now()->addMinutes(15)
+    );
+
+    expect(Trip::reservable()->where('id', $this->trip->id)->exists())->toBeFalse();
+});
+
+it('scopeReservable ne compte pas les EN_PAIEMENT expirés dans la capacité', function () {
+    createCapacityBookingItemForTrip(
+        trip: $this->trip,
+        sender: $this->sender,
+        status: BookingStatusEnum::EN_PAIEMENT,
+        kgReserved: 50,
+        paymentExpiresAt: now()->subMinutes(10)
+    );
+
+    expect(Trip::reservable()->where('id', $this->trip->id)->exists())->toBeTrue();
+});
