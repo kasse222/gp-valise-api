@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Enums\UserRoleEnum;
+use App\Actions\Auth\RegisterUser;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Resources\UserResource;
@@ -16,21 +16,14 @@ use Throwable;
 
 class AuthController extends Controller
 {
+    public function __construct(
+        private readonly RegisterUser $registerUser,
+    ) {}
 
     public function register(RegisterRequest $request)
     {
         try {
-            $user = User::create([
-                'first_name'     => $request->first_name,
-                'last_name'      => $request->last_name,
-                'email'          => $request->email,
-                'password'       => Hash::make($request->password),
-                'role'           => UserRoleEnum::from($request->role),
-                'phone'          => $request->phone,
-                'country'        => $request->country,
-                'verified_user'  => false,
-                'kyc_passed_at'  => null,
-            ]);
+            $user = $this->registerUser->execute($request->validated());
 
             $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -42,7 +35,7 @@ class AuthController extends Controller
         } catch (Throwable $e) {
             Log::error('[AuthController@register] ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return response()->json([
-                'message' => 'Une erreur est survenue lors de l’inscription.',
+                'message' => "Une erreur est survenue lors de l'inscription.",
                 'error'   => app()->isLocal() ? $e->getMessage() : null,
             ], 500);
         }

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\WebhookLogStatusEnum;
 use App\Models\WebhookLog;
 use App\Services\Alerting\SlackNotifier;
 use Illuminate\Console\Command;
@@ -42,9 +43,9 @@ class MonitorWebhookHealth extends Command
     private function collectMetrics($since): array
     {
         return [
-            'processed_count' => WebhookLog::where('status', WebhookLog::STATUS_PROCESSED)->where('created_at', '>=', $since)->count(),
-            'ignored_count' => WebhookLog::where('status', WebhookLog::STATUS_IGNORED)->where('created_at', '>=', $since)->count(),
-            'failed_count' => WebhookLog::where('status', WebhookLog::STATUS_FAILED)->where('created_at', '>=', $since)->count(),
+            'processed_count' => WebhookLog::where('status', WebhookLogStatusEnum::PROCESSED)->where('created_at', '>=', $since)->count(),
+            'ignored_count' => WebhookLog::where('status', WebhookLogStatusEnum::IGNORED)->where('created_at', '>=', $since)->count(),
+            'failed_count' => WebhookLog::where('status', WebhookLogStatusEnum::FAILED)->where('created_at', '>=', $since)->count(),
             'failed_jobs_count' => DB::table('failed_jobs')
                 ->where('failed_at', '>=', $since)
                 ->where('payload', 'like', '%ProcessPaymentWebhook%')

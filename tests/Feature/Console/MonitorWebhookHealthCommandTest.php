@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\WebhookLogStatusEnum;
 use App\Jobs\SendSlackAlert;
 use App\Models\WebhookLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,7 +19,7 @@ it('retourne success si aucun seuil critique nest atteint', function () {
         'event_id' => 'evt_ok',
         'event' => 'refund.completed',
         'provider_transaction_id' => 'txn_ok',
-        'status' => WebhookLog::STATUS_PROCESSED,
+        'status' => WebhookLogStatusEnum::PROCESSED,
         'payload' => [],
         'processed_at' => now(),
     ]);
@@ -55,7 +56,7 @@ it('déclenche une alerte si le seuil d échecs webhook est dépassé', function
             'event_id' => "evt_failed_{$i}",
             'event' => 'refund.completed',
             'provider_transaction_id' => "txn_failed_{$i}",
-            'status' => WebhookLog::STATUS_FAILED,
+            'status' => WebhookLogStatusEnum::FAILED,
             'payload' => [],
             'processed_at' => now(),
         ]);

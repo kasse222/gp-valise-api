@@ -3,6 +3,7 @@
 use App\Actions\Payment\HandlePaymentWebhook;
 use App\Enums\BookingStatusEnum;
 use App\Enums\TransactionStatusEnum;
+use App\Enums\WebhookLogStatusEnum;
 use App\Models\Booking;
 use App\Models\Transaction;
 use App\Models\Trip;
@@ -48,7 +49,7 @@ it('marque un refund pending comme completed, passe le booking à remboursee et 
         ->and($refund->processed_at)->not->toBeNull()
         ->and($booking->status)->toBe(BookingStatusEnum::REMBOURSEE)
         ->and($log)->not->toBeNull()
-        ->and($log->status)->toBe(WebhookLog::STATUS_PROCESSED)
+        ->and($log->status)->toBe(WebhookLogStatusEnum::PROCESSED)
         ->and($log->event)->toBe('refund.completed')
         ->and($log->provider_transaction_id)->toBe('fake_refund_123')
         ->and($log->processed_at)->not->toBeNull();
@@ -90,7 +91,7 @@ it('marque un refund pending comme failed, laisse le booking en litige et crée 
         ->and($refund->processed_at)->not->toBeNull()
         ->and($booking->status)->toBe(BookingStatusEnum::EN_LITIGE)
         ->and($log)->not->toBeNull()
-        ->and($log->status)->toBe(WebhookLog::STATUS_PROCESSED)
+        ->and($log->status)->toBe(WebhookLogStatusEnum::PROCESSED)
         ->and($log->processed_at)->not->toBeNull();
 });
 
@@ -178,7 +179,7 @@ it('ignore un event non supporté et crée un log ignored', function () {
     $log = WebhookLog::where('event_id', 'evt_unsupported')->first();
 
     expect($log)->not->toBeNull()
-        ->and($log->status)->toBe(WebhookLog::STATUS_IGNORED)
+        ->and($log->status)->toBe(WebhookLogStatusEnum::IGNORED)
         ->and($log->processed_at)->not->toBeNull();
 });
 
@@ -204,7 +205,7 @@ it('ignore une transaction qui nest pas un refund et crée un log ignored', func
     $log = WebhookLog::where('event_id', 'evt_not_refund')->first();
 
     expect($log)->not->toBeNull()
-        ->and($log->status)->toBe(WebhookLog::STATUS_IGNORED)
+        ->and($log->status)->toBe(WebhookLogStatusEnum::IGNORED)
         ->and($log->processed_at)->not->toBeNull();
 });
 
@@ -243,7 +244,7 @@ it('traite refund.completed depuis un booking CONFIRMEE et passe le booking à R
     expect($refund->status)->toBe(TransactionStatusEnum::COMPLETED)
         ->and($booking->status)->toBe(BookingStatusEnum::REMBOURSEE)
         ->and($log)->not->toBeNull()
-        ->and($log->status)->toBe(WebhookLog::STATUS_PROCESSED);
+        ->and($log->status)->toBe(WebhookLogStatusEnum::PROCESSED);
 });
 
 it('propage le correlationId dans WebhookLog.correlation_id', function () {
@@ -323,6 +324,6 @@ it('ignore un refund déjà finalisé même avec un nouvel event_id', function (
     expect($refund->status)->toBe(TransactionStatusEnum::COMPLETED)
         ->and($booking->status)->toBe(BookingStatusEnum::REMBOURSEE)
         ->and($log)->not->toBeNull()
-        ->and($log->status)->toBe(WebhookLog::STATUS_IGNORED)
+        ->and($log->status)->toBe(WebhookLogStatusEnum::IGNORED)
         ->and($log->error_message)->toBe('Transaction déjà finalisée');
 });

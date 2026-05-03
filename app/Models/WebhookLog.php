@@ -2,15 +2,11 @@
 
 namespace App\Models;
 
+use App\Enums\WebhookLogStatusEnum;
 use Illuminate\Database\Eloquent\Model;
 
 class WebhookLog extends Model
 {
-    public const STATUS_RECEIVED = 'received';
-    public const STATUS_PROCESSED = 'processed';
-    public const STATUS_IGNORED = 'ignored';
-    public const STATUS_FAILED = 'failed';
-
     protected $fillable = [
         'event_id',
         'correlation_id',
@@ -23,7 +19,8 @@ class WebhookLog extends Model
     ];
 
     protected $casts = [
-        'payload' => 'array',
+        'status'       => WebhookLogStatusEnum::class,
+        'payload'      => 'array',
         'processed_at' => 'datetime',
     ];
 }

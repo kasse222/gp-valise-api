@@ -129,7 +129,7 @@ class Trip extends Model
         $now = now();
 
         return $query->whereIn('status', [TripStatusEnum::ACTIVE, TripStatusEnum::PENDING])
-            ->whereDate('date', '>=', $now)
+            ->where('date', '>', $now)
             ->whereRaw('
                 (
                     SELECT COALESCE(SUM(booking_items.kg_reserved), 0)
