@@ -208,6 +208,44 @@ it('ignore une transaction qui nest pas un refund et crée un log ignored', func
         ->and($log->processed_at)->not->toBeNull();
 });
 
+it('traite refund.completed depuis un booking CONFIRMEE et passe le booking à REMBOURSEE (bug C3)', function () {
+    $user = User::factory()->create();
+    $trip = Trip::factory()->create();
+
+    $booking = Booking::factory()->create([
+        'user_id' => $user->id,
+        'trip_id' => $trip->id,
+        'status'  => BookingStatusEnum::CONFIRMEE,
+    ]);
+
+    $refund = Transaction::factory()
+        ->refund()
+        ->pending()
+        ->create([
+            'user_id'                 => $user->id,
+            'booking_id'              => $booking->id,
+            'provider_transaction_id' => 'fake_refund_confirmee_001',
+        ]);
+
+    $payload = [
+        'event_id'                => 'evt_confirmee_refund_001',
+        'event'                   => 'refund.completed',
+        'provider_transaction_id' => 'fake_refund_confirmee_001',
+    ];
+
+    app(HandlePaymentWebhook::class)->execute($payload);
+
+    $refund->refresh();
+    $booking->refresh();
+
+    $log = WebhookLog::where('event_id', 'evt_confirmee_refund_001')->first();
+
+    expect($refund->status)->toBe(TransactionStatusEnum::COMPLETED)
+        ->and($booking->status)->toBe(BookingStatusEnum::REMBOURSEE)
+        ->and($log)->not->toBeNull()
+        ->and($log->status)->toBe(WebhookLog::STATUS_PROCESSED);
+});
+
 it('ignore un payload incomplet sans créer de log', function () {
     app(HandlePaymentWebhook::class)->execute([
         'event' => 'refund.completed',
