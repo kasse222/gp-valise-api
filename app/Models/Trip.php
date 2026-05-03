@@ -126,16 +126,25 @@ class Trip extends Model
 
     public function scopeReservable(Builder $query): Builder
     {
-        return $query->where('status', TripStatusEnum::ACTIVE)
-            ->whereDate('date', '>=', now())
+        $now = now();
+
+        return $query->whereIn('status', [TripStatusEnum::ACTIVE, TripStatusEnum::PENDING])
+            ->whereDate('date', '>=', $now)
             ->whereRaw('
                 (
                     SELECT COALESCE(SUM(booking_items.kg_reserved), 0)
                     FROM bookings
                     JOIN booking_items ON booking_items.booking_id = bookings.id
                     WHERE bookings.trip_id = trips.id
-                    AND bookings.status = ?
+                    AND (
+                        bookings.status = ?
+                        OR (
+                            bookings.status = ?
+                            AND bookings.payment_expires_at IS NOT NULL
+                            AND bookings.payment_expires_at > ?
+                        )
+                    )
                 ) < trips.capacity
-            ', [BookingStatusEnum::CONFIRMEE->value]);
+            ', [BookingStatusEnum::CONFIRMEE->value, BookingStatusEnum::EN_PAIEMENT->value, $now]);
     }
 }
