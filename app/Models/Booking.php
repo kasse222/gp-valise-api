@@ -209,17 +209,4 @@ class Booking extends Model
         return $this->hasCompletedChargeTransaction();
     }
 
-    public function refundableAmount(): float
-    {
-        $charge = $this->transactions()
-            ->where('type', TransactionTypeEnum::CHARGE)
-            ->where('status', TransactionStatusEnum::COMPLETED)
-            ->sum('amount');
-
-        $refunds = $this->transactions()
-            ->where('type', TransactionTypeEnum::REFUND)
-            ->sum('amount');
-
-        return max(0, (float) $charge - (float) $refunds);
-    }
 }

@@ -527,6 +527,35 @@ Migration progressive :
 
 ---
 
+## [2026-05] — AdminRefundTransaction restreint à EN_LITIGE uniquement
+
+### Contexte
+La spec .adamas/ai/domain/payment.md indique que le refund admin override
+est autorisé pour les statuts LIVREE ou EN_LITIGE. Le code actuel
+AdminRefundTransaction::execute() refuse si le statut n'est pas EN_LITIGE.
+
+### Décision
+Restreindre volontairement à EN_LITIGE en MVP.
+Un booking LIVREE avec payout déclenché serait de toute façon bloqué
+par l'invariant PAYOUT ⊕ REFUND. Mais un booking LIVREE sans payout
+reste techniquement remboursable — ce cas est exclu délibérément en MVP
+pour limiter les opérations admin à risque.
+
+### Alternatives considérées
+- Autoriser LIVREE + EN_LITIGE comme la spec : plus conforme, mais expose
+  à des remboursements sur des bookings livrés sans litige formalisé.
+- Blocage total post-livraison : trop restrictif.
+
+### Conséquences
+- Remboursement admin sur LIVREE impossible sans passer par EN_LITIGE.
+- Workflow : forcer le booking en EN_LITIGE avant tout remboursement admin.
+- Décision à réévaluer quand le dispute system sera implémenté.
+
+### Statut
+✅ actif — réévaluer avec dispute system v2
+
+---
+
 # 🔮 Décisions à venir
 
 ## Escrow avancé
