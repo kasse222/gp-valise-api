@@ -1,17 +1,3 @@
-Oui. Ton README actuel est bon, mais il est **en retard** sur ton vrai niveau actuel.
-
-Il faut le mettre à jour avec :
-
-- `.adamas`
-- audit log integrity
-- correlation_id
-- 226 tests / 594 assertions
-- observabilité HTTP → Job → logs
-- backend SaaS transactionnel plus assumé
-
-Voici une version refactorée propre de `README.md` :
-
-````md
 # GP-Valise API — Backend SaaS Logistique & Transactionnel
 
 Backend API Laravel 12 pour une marketplace logistique entre voyageurs et expéditeurs.
@@ -21,7 +7,7 @@ GP-Valise modélise un système SaaS réel avec réservation de capacité, paiem
 ---
 
 [![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)](https://github.com/kasse222/gp-valise-api/actions)
-[![Tests](https://img.shields.io/badge/tests-226%20passing-brightgreen)](#tests)
+[![Tests](https://img.shields.io/badge/tests-260%20passing-brightgreen)](#tests)
 [![Laravel](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com)
 [![PHP](https://img.shields.io/badge/PHP-8.2-blue.svg)](https://php.net)
 
@@ -32,10 +18,10 @@ GP-Valise modélise un système SaaS réel avec réservation de capacité, paiem
 GP-Valise permet :
 
 - à un voyageur de publier un trajet avec une capacité disponible ;
-- à un expéditeur de réserver de l’espace pour transporter un colis ou une valise ;
+- à un expéditeur de réserver de l'espace pour transporter un colis ou une valise ;
 - à la plateforme de sécuriser paiement, livraison, refund, payout et litige.
 
-Le projet vise un backend SaaS crédible, traçable et testable, avec une architecture proche d’un système transactionnel fintech.
+Le projet vise un backend SaaS crédible, traçable et testable, avec une architecture proche d'un système transactionnel fintech.
 
 ---
 
@@ -43,8 +29,7 @@ Le projet vise un backend SaaS crédible, traçable et testable, avec une archit
 
 - Laravel 12
 - PHP 8.2+
-- MySQL en local
-- PostgreSQL en cible future
+- MySQL
 - Redis / Horizon
 - Docker / Docker Compose
 - PestPHP
@@ -59,27 +44,28 @@ Le projet vise un backend SaaS crédible, traçable et testable, avec une archit
 
 Pattern principal :
 
-```txt
+```
 Controller → FormRequest / Policy → Action → Model / Enum / Service → Resource
 ```
-````
 
 Traitements asynchrones :
 
-```txt
+```
 WebhookController → Job → Action → Transaction / Booking / WebhookLog
 ```
 
 Responsabilités :
 
-- Controller : orchestration HTTP uniquement
-- Action : use case métier
-- Policy : autorisation
-- FormRequest : validation d’entrée
-- Enum : source de vérité des statuts/transitions
-- Service : logique transverse
-- Job : traitement async
-- Resource : réponse API
+| Composant   | Rôle                                     |
+| ----------- | ---------------------------------------- |
+| Controller  | Orchestration HTTP uniquement            |
+| Action      | Use case métier                          |
+| Policy      | Autorisation                             |
+| FormRequest | Validation d'entrée                      |
+| Enum        | Source de vérité des statuts/transitions |
+| Service     | Logique transverse                       |
+| Job         | Traitement async                         |
+| Resource    | Réponse API                              |
 
 ---
 
@@ -88,11 +74,9 @@ Responsabilités :
 - Auth / Users / KYC
 - Trips
 - Luggages
-- Bookings
-- BookingItems
-- Transactions
+- Bookings / BookingItems
+- Transactions (CHARGE, PAYOUT, REFUND, FEE, PAYMENT_FEE)
 - Payments
-- Refund / Payout / Fee
 - Webhooks
 - Audit Logs
 - Queue monitoring
@@ -102,29 +86,25 @@ Responsabilités :
 
 ## Booking lifecycle
 
-```txt
-EN_ATTENTE
-→ EN_PAIEMENT
-→ CONFIRMEE
-→ LIVREE
-→ TERMINE
+```
+EN_ATTENTE → EN_PAIEMENT → CONFIRMEE → LIVREE → TERMINE
 ```
 
 Cas alternatifs :
 
-```txt
-EN_PAIEMENT → EXPIREE
-CONFIRMEE / LIVREE → EN_LITIGE
-EN_LITIGE → REMBOURSEE
+```
+EN_PAIEMENT  → EXPIREE
+CONFIRMEE    → REMBOURSEE (via webhook refund)
+CONFIRMEE / LIVREE → EN_LITIGE → REMBOURSEE
 ```
 
-Règles importantes :
+Règles :
 
 - aucune confirmation sans `CHARGE COMPLETED`
-- capacité protégée contre l’overbooking
+- capacité protégée contre l'overbooking
 - transitions centralisées dans les Enums
-- historique des statuts
-- opérations critiques protégées par transaction DB
+- historique des statuts complet
+- toutes les opérations critiques protégées par `DB::transaction()` + `lockForUpdate()`
 
 ---
 
@@ -134,41 +114,38 @@ Règles importantes :
 
 Types supportés :
 
-- `CHARGE`
-- `PAYOUT`
-- `REFUND`
-- `FEE`
-- `PAYMENT_FEE`
+| Type          | Sens                    |
+| ------------- | ----------------------- |
+| `CHARGE`      | Expéditeur → Plateforme |
+| `PAYOUT`      | Plateforme → Voyageur   |
+| `REFUND`      | Plateforme → Expéditeur |
+| `FEE`         | Commission GP-Valise    |
+| `PAYMENT_FEE` | Frais PSP / banque      |
 
 Invariants :
 
-```txt
-PAYOUT ⊕ REFUND
+```
+PAYOUT ⊕ REFUND                         (mutuellement exclusifs)
 PAYOUT + FEE + REFUND <= CHARGE
 profit_net = FEE - PAYMENT_FEE
 ```
 
 Règles :
 
-- pas de double charge
-- pas de double payout
-- pas de double refund
-- pas de double fee
-- montants persistés à la création
-- aucun recalcul historique
-- refund admin uniquement avec audit strict
+- pas de double charge / payout / refund / fee
+- montants persistés à la création, jamais recalculés
+- refund admin uniquement avec audit log sellé obligatoire
 
 ---
 
 ## Webhooks & async
 
-Flow webhook :
+Flow :
 
-```txt
+```
 Provider
-→ WebhookController
-→ vérification HMAC
-→ ProcessPaymentWebhook Job
+→ WebhookController (HMAC verification)
+→ ProcessPaymentWebhook Job (queue: high)
 → HandlePaymentWebhook Action
 → Transaction / Booking / WebhookLog
 ```
@@ -176,86 +153,67 @@ Provider
 Garanties :
 
 - signature HMAC SHA-256
-- idempotence via `event_id`
-- retry contrôlé
-- queue `high`
-- logs d’échec
-- alerting possible
+- idempotence via `event_id` + `lockForUpdate()`
+- retry avec backoff exponentiel
+- alerting Slack sur échec définitif
 - traitement async avec HTTP `202 Accepted`
+- `correlation_id` propagé API → Job → DB
 
 ---
 
 ## Audit trail
 
-Le projet intègre un système d’audit admin :
+- `AuditLog` append-only (update/delete interdits au niveau Model)
+- `integrity_hash` + `previous_hash` — chaîne SHA-256
+- `seal()` appelé à chaque création via `AuditLogIntegrityService`
+- `verifyChainFrom()` — vérification cryptographique complète
+- `correlation_id` persisté sur chaque log
 
-- `AuditLog` append-only
-- update/delete interdits
-- lecture admin uniquement
-- `integrity_hash`
-- `previous_hash`
-- chaîne d’intégrité vérifiable
-- tests de détection de corruption
-
-Objectif :
-
-```txt
-prouver qui a fait quoi, quand, pourquoi, et sur quelle ressource
+```bash
+php artisan tinker
+>>> app(\App\Services\AuditLogIntegrityService::class)->verifyChainFrom(0)
+= true
 ```
 
 ---
 
 ## Observabilité
 
-Le système utilise un `correlation_id` pour tracer les flux :
+Le système propage un `correlation_id` sur tout le flow :
 
-```txt
+```
 HTTP request
-→ response header
+→ X-Correlation-ID (header réponse)
 → logs Laravel
-→ queued job
-→ webhook flow
+→ ProcessPaymentWebhook Job
+→ webhook_logs.correlation_id
+→ transactions.correlation_id
+→ audit_logs.correlation_id
 ```
 
-Header :
-
-```txt
-X-Correlation-ID
-```
-
-Actuellement couvert :
-
-- génération si absent
-- conservation si fourni
-- présence même sur erreur 401
-- propagation HTTP → Job
-- contexte logs Laravel
-
-Prochaine étape :
-
-```txt
-propagation DB → transactions / audit_logs / webhook_logs
-```
+Traçabilité complète API → Job → DB — un seul UUID retrouvable dans les 3 tables critiques.
 
 ---
 
-## Monitoring
+## Protection des queues
 
-Le projet contient des commandes de supervision :
+Commandes de supervision :
 
-- queue health
-- webhook health
-- retry storm detection
-- load simulation
-- retry storm simulation
+```bash
+php artisan monitoring:queues   # santé des queues Redis
+php artisan monitoring:webhooks # santé des webhooks
+php artisan simulate:load       # simulation de charge
+php artisan simulate:retry-storm # simulation retry storm
+```
 
-Objectifs :
+En cas de retry storm détecté, le système bloque automatiquement tout nouveau dispatch :
 
-- détecter backlog
-- détecter slow processing
-- détecter retry storm
-- protéger Horizon / Redis
-- alerter sur incidents critiques
+```
+⛔ Dispatch bloqué sur la queue high.
+Reason: Retry storm détecté sur la fenêtre récente.
+Dominant job: App\Jobs\SimulateRetryStormJob (10 occurrences)
+Recommended action: Suspendre temporairement les nouveaux dispatchs...
+```
 
 ---
 
@@ -265,41 +223,46 @@ Objectifs :
 make test
 ```
 
-État actuel :
-
-```txt
-226 tests passed
-594 assertions
-runtime ~2.5s
+```
+Tests:    260 passed (679 assertions)
+Duration: 2.9s
 ```
 
 Couverture :
 
-- actions métier
-- controllers API
-- policies
-- transactions
-- refunds
-- payouts
-- webhooks
-- jobs
-- monitoring
-- audit integrity
-- correlation_id
+- actions métier (booking, transaction, refund, payout, webhook)
+- controllers API + policies
+- invariants financiers (PAYOUT ⊕ REFUND, double charge, double fee)
+- audit integrity chain
+- correlation_id propagation
+- queue monitoring + retry storm detection
+- webhook idempotence + HMAC
+
+---
+
+## Sécurité
+
+- Auth Sanctum
+- Policies par ressource
+- Rôles stricts — `ADMIN/SUPER_ADMIN` non disponibles à l'inscription publique
+- KYC sur opérations sensibles
+- Rate limiting financier
+- HMAC webhook signature
+- Audit log obligatoire sur refund admin
+- `lockForUpdate()` sur toutes les opérations concurrentes
 
 ---
 
 ## CI/CD
 
-GitHub Actions exécute :
+GitHub Actions :
 
 - installation Composer
-- bootstrap Laravel
 - migrations
-- Pest tests
+- PestPHP tests
 - Redis service pour tests queue/monitoring
 
-Objectif : pipeline rapide, reproductible et fiable.
+[![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)](https://github.com/kasse222/gp-valise-api/actions)
 
 ---
 
@@ -317,57 +280,37 @@ make seed
 
 Accès :
 
-```txt
-API     : http://localhost:8000
-Horizon : http://localhost:8000/horizon
+```
+API        : http://localhost:8000/api/v1
+Horizon    : http://localhost:8000/horizon
+phpMyAdmin : http://localhost:8080
+```
+
+Credentials démo :
+
+```
+admin@gpvalise.demo      / Demo1234!  (ADMIN)
+voyageur@gpvalise.demo   / Demo1234!  (TRAVELER)
+expediteur@gpvalise.demo / Demo1234!  (SENDER)
 ```
 
 ---
 
 ## .adamas
 
-Le dossier `.adamas/` documente les règles d’ingénierie du projet :
+Le dossier `.adamas/` documente les règles d'ingénierie du projet :
 
-```txt
+```
 .adamas/
-├── ai/core
-├── ai/domain
-├── ai/engineering
-├── ai/governance
-├── ai/observability
-└── ai/security
+├── ai/core          → prompt système, contraintes IA
+├── ai/domain        → vérité métier (payment, trip, booking)
+├── ai/engineering   → règles de code, review, git
+├── ai/governance    → decision-log, méthodologie
+├── ai/observability → correlation_id, logging, monitoring
+└── ai/security      → webhook, access control, finance sensible
 ```
 
-Il contient :
-
-- règles d’architecture
-- règles métier
-- contraintes financières
-- méthodologie d’audit
-- checklist de review
-- règles Git
-- observabilité
-- sécurité webhook
-- access control
-
-Objectif :
-
-```txt
-Code + règles + audit + observabilité = système fiable
-```
-
----
-
-## Sécurité
-
-- Auth Sanctum
-- Policies par ressource
-- KYC sur opérations sensibles
-- Rate limiting financier
-- HMAC webhook signature
-- audit admin obligatoire
-- logs sans données sensibles
-- contrôle strict des rôles
+Chaque décision technique est documentée dans `decision-log.md` avant d'être codée.
 
 ---
 
@@ -375,39 +318,34 @@ Code + règles + audit + observabilité = système fiable
 
 Court terme :
 
-- propagation DB du `correlation_id`
-- amélioration README / docs publiques
-- scénarios de démo recruteur
+- scénarios de démo recruteur enrichis
 - durcissement audit signature
 
 Moyen terme :
 
 - Stripe / PSP réel
-- platform_accounts
+- `platform_accounts` multi-pays
 - escrow avancé
 - litiges structurés
-- ledger interne
-- multi-pays / multi-devise
+- ledger interne complet
+- multi-devise
 
 ---
 
----
+## Auteur
 
-## 👨‍💻 Auteur
-
-**Lamine Kasse**  
+**Lamine Kasse**
 Backend Engineer — Laravel / API / systèmes transactionnels
 
 Je conçois des backends SaaS robustes avec :
 
-- gestion de concurrence (lockForUpdate)
-- paiements asynchrones (webhooks, idempotence)
-- audit trail (AuditLog chain)
-- observabilité (correlation_id, logs, queues)
+- gestion de concurrence (`lockForUpdate`, `DB::transaction()`)
+- paiements asynchrones (webhooks, idempotence, retry)
+- audit trail (AuditLog chain SHA-256)
+- observabilité (correlation_id, logs structurés, queues)
 - architecture Action-driven
 
-📍 Casablanca, Maroc  
-📧 kasse.lamine.dev@icloud.com  
-🔗 LinkedIn : https://www.linkedin.com/in/lamine-kasse-05742536a
-
----
+📍 Casablanca, Maroc
+📧 kasse.lamine.dev@icloud.com
+🔗 [LinkedIn](https://www.linkedin.com/in/lamine-kasse-05742536a)
+🔗 [GitHub](https://github.com/kasse222/gp-valise-api)
