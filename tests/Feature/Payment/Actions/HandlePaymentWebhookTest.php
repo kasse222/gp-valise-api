@@ -246,6 +246,39 @@ it('traite refund.completed depuis un booking CONFIRMEE et passe le booking à R
         ->and($log->status)->toBe(WebhookLog::STATUS_PROCESSED);
 });
 
+it('propage le correlationId dans WebhookLog.correlation_id', function () {
+    $user = User::factory()->create();
+    $trip = Trip::factory()->create();
+
+    $booking = Booking::factory()->create([
+        'user_id' => $user->id,
+        'trip_id' => $trip->id,
+        'status'  => BookingStatusEnum::EN_LITIGE,
+    ]);
+
+    Transaction::factory()
+        ->refund()
+        ->pending()
+        ->create([
+            'user_id'                 => $user->id,
+            'booking_id'              => $booking->id,
+            'provider_transaction_id' => 'fake_refund_cid_wh_001',
+        ]);
+
+    $payload = [
+        'event_id'                => 'evt_cid_wh_001',
+        'event'                   => 'refund.completed',
+        'provider_transaction_id' => 'fake_refund_cid_wh_001',
+    ];
+    $correlationId = 'test-correlation-id-wh-001';
+
+    app(HandlePaymentWebhook::class)->execute($payload, $correlationId);
+
+    $log = WebhookLog::where('event_id', 'evt_cid_wh_001')->firstOrFail();
+
+    expect($log->correlation_id)->toBe($correlationId);
+});
+
 it('ignore un payload incomplet sans créer de log', function () {
     app(HandlePaymentWebhook::class)->execute([
         'event' => 'refund.completed',

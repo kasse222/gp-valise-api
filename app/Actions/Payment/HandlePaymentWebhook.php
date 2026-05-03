@@ -14,9 +14,9 @@ use Throwable;
 
 class HandlePaymentWebhook
 {
-    public function execute(array $payload): void
+    public function execute(array $payload, ?string $correlationId = null): void
     {
-        DB::transaction(function () use ($payload) {
+        DB::transaction(function () use ($payload, $correlationId) {
             $eventId = $payload['event_id'] ?? null;
             $event = $payload['event'] ?? null;
             $providerId = $payload['provider_transaction_id'] ?? null;
@@ -35,11 +35,12 @@ class HandlePaymentWebhook
             }
 
             $log = WebhookLog::query()->create([
-                'event_id' => $eventId,
-                'event' => $event,
+                'event_id'                => $eventId,
+                'correlation_id'          => $correlationId,
+                'event'                   => $event,
                 'provider_transaction_id' => $providerId,
-                'status' => WebhookLog::STATUS_RECEIVED,
-                'payload' => $payload,
+                'status'                  => WebhookLog::STATUS_RECEIVED,
+                'payload'                 => $payload,
             ]);
 
             try {

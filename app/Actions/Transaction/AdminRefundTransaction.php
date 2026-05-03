@@ -25,7 +25,7 @@ class AdminRefundTransaction
         private readonly AuditLogIntegrityService $auditLogIntegrityService,
     ) {}
 
-    public function execute(User $admin, Transaction $charge, string $reason): Transaction
+    public function execute(User $admin, Transaction $charge, string $reason, ?string $correlationId = null): Transaction
     {
         if (! $admin->isAdmin()) {
             throw ValidationException::withMessages([
@@ -39,7 +39,7 @@ class AdminRefundTransaction
             ]);
         }
 
-        $refund = DB::transaction(function () use ($admin, $charge, $reason) {
+        $refund = DB::transaction(function () use ($admin, $charge, $reason, $correlationId) {
             $charge = Transaction::query()
                 ->lockForUpdate()
                 ->findOrFail($charge->id);
@@ -160,11 +160,12 @@ class AdminRefundTransaction
             $snapshot['hash'] = hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR));
 
             $auditLog = AuditLog::query()->create([
-                'actor_id' => $admin->id,
-                'action' => 'admin_refund_override',
+                'actor_id'       => $admin->id,
+                'action'         => 'admin_refund_override',
                 'auditable_type' => Transaction::class,
-                'auditable_id' => $refund->id,
-                'metadata' => $snapshot,
+                'auditable_id'   => $refund->id,
+                'metadata'       => $snapshot,
+                'correlation_id' => $correlationId,
             ]);
 
             $this->auditLogIntegrityService->seal($auditLog);
