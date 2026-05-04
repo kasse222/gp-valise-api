@@ -1,12 +1,3 @@
-Voici une version corrigée et enrichie pour :
-
-```txt
-.adamas/ai/governance/decision-log.md
-```
-
-J’ai surtout corrigé la décision `.adamas`, devenue obsolète avec ta nouvelle structure.
-
-````md
 # 🧠 Decision Log — GP-Valise
 
 ## 🎯 Objectif
@@ -18,14 +9,14 @@ Il permet de :
 - comprendre pourquoi un choix a été fait ;
 - éviter de redébattre les mêmes sujets ;
 - aligner les décisions futures avec les choix passés ;
-- guider l’IA dans ses recommandations ;
+- guider l'IA dans ses recommandations ;
 - garder une mémoire technique exploitable en entretien.
 
-> Une décision documentée vaut mieux qu’un bon code oublié.
+> Une décision documentée vaut mieux qu'un bon code oublié.
 
 ---
 
-## 🧾 Format d’une décision
+## 🧾 Format d'une décision
 
 ```txt
 ## [DATE] — Titre court
@@ -48,7 +39,6 @@ Impacts techniques / métier.
 - 🔴 à revoir
 - ⬛ obsolète
 ```
-````
 
 ---
 
@@ -60,7 +50,7 @@ Impacts techniques / métier.
 
 ### Contexte
 
-Besoin d’une cohérence financière forte avec paiements async, webhooks, retry et idempotence.
+Besoin d'une cohérence financière forte avec paiements async, webhooks, retry et idempotence.
 
 ### Décision
 
@@ -71,7 +61,7 @@ La `Transaction` est la seule source de vérité financière.
 
 ### Alternatives considérées
 
-- Stocker l’état financier dans `Booking` ❌ : couplage fort, faible traçabilité.
+- Stocker l'état financier dans `Booking` ❌ : couplage fort, faible traçabilité.
 - Dépendre du provider comme source de vérité ❌ : fragile, async non maîtrisé.
 
 ### Conséquences
@@ -129,7 +119,7 @@ Le `TransactionAmountCalculator` applique le calcul.
 
 ### Alternatives considérées
 
-- Hardcoder le taux dans l’Action ❌.
+- Hardcoder le taux dans l'Action ❌.
 - Config simple globale uniquement ❌.
 
 ### Conséquences
@@ -153,20 +143,18 @@ Recalculer les montants à la volée est dangereux : un changement de taux rendr
 ### Décision
 
 Les montants calculés sont persistés en base au moment de la création.
-
 Ils ne sont jamais recalculés après coup.
 
 ### Alternatives considérées
 
 - Recalcul à la volée ❌.
-- Calcul uniquement à l’affichage ❌.
+- Calcul uniquement à l'affichage ❌.
 
 ### Conséquences
 
 - vérité historique garantie ;
 - audit possible ;
-- contestation possible ;
-- `TransactionAmountCalculator` sert à créer, pas à reconstruire l’historique.
+- `TransactionAmountCalculator` sert à créer, pas à reconstruire l'historique.
 
 ### Statut
 
@@ -292,7 +280,7 @@ MVP :
 
 - système stable ;
 - moins de risque ;
-- base saine pour v5.
+- base saine pour phases suivantes.
 
 ### Statut
 
@@ -316,7 +304,7 @@ Idempotence basée sur `event_id` :
 
 ### Alternatives considérées
 
-- Pas d’idempotence ❌.
+- Pas d'idempotence ❌.
 - Idempotence faible ❌.
 
 ### Conséquences
@@ -381,14 +369,12 @@ Adopter une structure v2 séparant clairement :
 ### Alternatives considérées
 
 - Garder `context/` ❌ : trop vague.
-- Garder `capabilities/` pour coding/review ❌ : moins explicite qu’engineering.
 - Fichier unique ❌ : non maintenable.
 
 ### Conséquences
 
 - meilleure lisibilité ;
 - IA mieux guidée ;
-- documentation plus proche d’un vrai repo d’équipe ;
 - séparation claire entre métier, méthode, code, sécurité et observabilité.
 
 ### Statut
@@ -407,9 +393,9 @@ Les actions sensibles admin doivent être consultables et défendables en cas de
 
 `AuditLog` est append-only :
 
-- pas d’`updated_at` ;
-- update/delete interdits ;
-- suppression d’un actor/user ne supprime pas les logs ;
+- pas d'`updated_at` ;
+- update/delete interdits au niveau Model ;
+- suppression d'un actor/user ne supprime pas les logs ;
 - consultation admin uniquement.
 
 ### Alternatives considérées
@@ -437,13 +423,20 @@ Un audit append-only protège contre les modifications applicatives, mais pas co
 
 ### Décision
 
-Ajouter une chaîne d’intégrité :
+Ajouter une chaîne d'intégrité :
 
 - `integrity_hash` ;
 - `previous_hash` ;
 - `AuditLogIntegrityService`.
 
 Chaque hash couvre les champs critiques du log et le hash précédent.
+`seal()` est appelé à chaque création d'AuditLog en production.
+
+```bash
+# Vérification complète de la chaîne
+app(\App\Services\AuditLogIntegrityService::class)->verifyChainFrom(0)
+# => true
+```
 
 ### Alternatives considérées
 
@@ -453,7 +446,7 @@ Chaque hash couvre les champs critiques du log et le hash précédent.
 ### Conséquences
 
 - détection de modification frauduleuse ;
-- preuve technique plus forte ;
+- preuve technique forte ;
 - base pour signature cryptographique future.
 
 ### Statut
@@ -470,13 +463,17 @@ Les flux async rendent les incidents difficiles à reconstruire sans identifiant
 
 ### Décision
 
-Introduire un `correlation_id` propagé dans :
+Introduire un `correlation_id` propagé sur tout le flow :
 
-- requêtes HTTP ;
-- réponses API ;
-- logs Laravel ;
-- jobs ;
-- webhooks.
+```txt
+HTTP request
+→ X-Correlation-ID (header réponse)
+→ logs Laravel
+→ ProcessPaymentWebhook Job
+→ webhook_logs.correlation_id
+→ transactions.correlation_id
+→ audit_logs.correlation_id
+```
 
 ### Alternatives considérées
 
@@ -485,10 +482,171 @@ Introduire un `correlation_id` propagé dans :
 
 ### Conséquences
 
-- meilleure investigation incident ;
+- traçabilité complète API → Job → DB ;
 - débogage plus rapide ;
-- préparation à une observabilité distribuée ;
-- démo technique forte pour employabilité.
+- préparation à une observabilité distribuée.
+
+### Statut
+
+✅ actif
+
+---
+
+## [2026-05] — AdminRefundTransaction restreint à EN_LITIGE uniquement
+
+### Contexte
+
+La spec `.adamas/ai/domain/payment.md` indique que le refund admin override
+est autorisé pour les statuts `LIVREE` ou `EN_LITIGE`. Le code actuel
+`AdminRefundTransaction::execute()` refuse si le statut n'est pas `EN_LITIGE`.
+
+### Décision
+
+Restreindre volontairement à `EN_LITIGE` en MVP.
+Un booking `LIVREE` avec payout déclenché serait de toute façon bloqué
+par l'invariant `PAYOUT ⊕ REFUND`. Mais un booking `LIVREE` sans payout
+reste techniquement remboursable — ce cas est exclu délibérément en MVP
+pour limiter les opérations admin à risque.
+
+### Alternatives considérées
+
+- Autoriser `LIVREE` + `EN_LITIGE` comme la spec : plus conforme, mais expose
+  à des remboursements sur des bookings livrés sans litige formalisé.
+- Blocage total post-livraison : trop restrictif.
+
+### Conséquences
+
+- Remboursement admin sur `LIVREE` impossible sans passer par `EN_LITIGE`.
+- Workflow : forcer le booking en `EN_LITIGE` avant tout remboursement admin.
+- Décision à réévaluer quand le dispute system sera implémenté.
+
+### Statut
+
+✅ actif — réévaluer avec dispute system (Phase 6)
+
+---
+
+## [2026-05] — Routing PSP corridor Sénégal-Maroc-Europe
+
+### Contexte
+
+GP-Valise opère sur le corridor Sénégal-Maroc avec des utilisateurs européens.
+Les moyens de paiement dominants varient fortement selon le pays :
+
+- Sénégal / CEDEAO : Orange Money, Wave (mobile money)
+- Maroc : cash pickup via agences (Wafacash)
+- Europe : cartes bancaires (Stripe)
+
+Stripe seul est insuffisant — il ne supporte pas le mobile money,
+qui est la norme locale sur le corridor principal.
+
+### Décision
+
+Routing PSP par pays / devise / méthode :
+
+| Marché           | Provider retenu          | Moyens couverts    |
+| ---------------- | ------------------------ | ------------------ |
+| Sénégal / CEDEAO | Kkiapay ou KAYBIC Africa | Orange Money, Wave |
+| Maroc            | Wafacash                 | Cash pickup        |
+| Europe           | Stripe                   | Cartes bancaires   |
+
+Architecture cible :
+
+```php
+class PaymentProviderResolver
+{
+    public function resolve(string $country, string $currency, string $method): PaymentProvider
+    {
+        return match(true) {
+            $currency === 'XOF'                          => app(KkiapayProvider::class),
+            $currency === 'MAD' && $method === 'cash'    => app(WafacashProvider::class),
+            in_array($country, ['FR', 'BE', 'DE', 'ES']) => app(StripeProvider::class),
+            default                                       => app(KkiapayProvider::class),
+        };
+    }
+}
+```
+
+### Providers écartés
+
+**CinetPay** — non retenu.
+Risque opérationnel élevé : des médias spécialisés ont rapporté une cyberattaque
+et un backlog de paiements supérieur à 1M$ envers les commerçants.
+Insuffisant pour un système financier qui doit inspirer confiance dès le départ.
+
+**GeniusPay** — à risque / non retenu en Phase 1.
+Positionnement intéressant mais manque de recul sur la stabilité opérationnelle.
+À réévaluer en Phase 2 si les retours terrain sont positifs.
+
+**Stripe** — exclu du corridor Afrique.
+Pas de support natif mobile money (Orange Money, Wave).
+Repositionné en fallback Europe uniquement.
+
+### Conséquences
+
+- `PaymentProvider` reste une interface — routing au runtime via `PaymentProviderResolver`
+- `platform_accounts` nécessaire pour gérer XOF / MAD / EUR (Phase 3)
+- Change XOF → MAD géré en interne par la plateforme
+- Implémentation sandbox Kkiapay prévue en Phase 2
+
+### Statut
+
+🟡 en cours — sandbox Kkiapay à implémenter (Phase 2)
+
+---
+
+## [2026-05] — Roadmap produit en 6 phases
+
+### Contexte
+
+Le projet nécessite une feuille de route claire pour éviter de mélanger
+les enjeux MVP, PSP réel, escrow, ledger et disputes.
+
+### Décision
+
+```txt
+Phase 1 — MVP démontrable          ✅ terminé
+  FakeProvider / sandbox
+  PaymentProvider interface
+  Transactions propres
+  correlation_id + audit logs
+  DemoSeeder + README + démo
+
+Phase 2 — Routing PSP réel         🟡 en cours
+  PaymentProviderResolver
+  config PSP par pays/devise/method
+  Kkiapay sandbox
+  docs PSP dans .adamas
+
+Phase 3 — platform_accounts        ⏳ à venir
+  table platform_accounts
+  comptes EUR / XOF / MAD
+  routing financier automatique
+
+Phase 4 — Escrow avancé            ⏳ à venir
+  fonds reçus / bloqués
+  payout différé
+  refund conditionnel
+  dispute bloque payout
+
+Phase 5 — Ledger interne           ⏳ à venir
+  écritures comptables internes
+  soldes / mouvements liés
+  historique complet
+  audit financier
+
+Phase 6 — Dispute system complet   ⏳ à venir
+  ouverture litige
+  preuves / arbitrage admin
+  décision refund / payout / compensation
+  audit obligatoire
+```
+
+### Conséquences
+
+- chaque phase est démontrable indépendamment ;
+- pas de `platform_accounts` obligatoire avant Phase 3 ;
+- PSP réel sandbox possible dès Phase 2 sans entité juridique.
 
 ### Statut
 
@@ -507,8 +665,8 @@ Besoin futur de multi-comptes bancaires : Maroc, Sénégal, Europe, PSP multiple
 Migration progressive :
 
 1. MVP : user technique plateforme par devise ;
-2. ensuite : table `platform_accounts` avec `user_id` nullable ;
-3. futur : `transactions.user_id` → `platform_account_id`.
+2. Phase 3 : table `platform_accounts` avec colonnes `provider`, `country_code`, `currency`, `account_type`, `is_active`, `metadata` ;
+3. Futur : `transactions.user_id` → `platform_account_id`.
 
 ### Alternatives considérées
 
@@ -519,68 +677,157 @@ Migration progressive :
 
 - faible risque immédiat ;
 - base multi-pays posée ;
-- compatible roadmap v5.
+- compatible roadmap Phase 3.
 
 ### Statut
 
-🟡 en cours — table à créer
+🟡 en cours — table à créer en Phase 3
 
 ---
 
-## [2026-05] — AdminRefundTransaction restreint à EN_LITIGE uniquement
+## [2026-05] — Bug C3 : CONFIRMEE → REMBOURSEE absent de allowedTransitions()
 
 ### Contexte
-La spec .adamas/ai/domain/payment.md indique que le refund admin override
-est autorisé pour les statuts LIVREE ou EN_LITIGE. Le code actuel
-AdminRefundTransaction::execute() refuse si le statut n'est pas EN_LITIGE.
+
+`HandlePaymentWebhook::handleSuccess()` est appelé quelle que soit la source
+du refund — standard (`RefundTransaction`) ou admin (`AdminRefundTransaction`).
+Il tente `$booking->transitionTo(REMBOURSEE)` sur réception de `refund.completed`.
+
+`BookingStatusEnum::allowedTransitions()` ne définissait que `EN_LITIGE → REMBOURSEE`.
+La transition `CONFIRMEE → REMBOURSEE` était absente.
+
+Conséquence : le webhook recevait `refund.completed`, tentait `CONFIRMEE → REMBOURSEE`,
+levait une `DomainException`, marquait le webhook `FAILED`, retryait 5 fois,
+échouait définitivement. Le provider avait remboursé. La `Transaction` était `COMPLETED`.
+Le `Booking` restait `CONFIRMEE`. Incohérence financière garantie.
 
 ### Décision
-Restreindre volontairement à EN_LITIGE en MVP.
-Un booking LIVREE avec payout déclenché serait de toute façon bloqué
-par l'invariant PAYOUT ⊕ REFUND. Mais un booking LIVREE sans payout
-reste techniquement remboursable — ce cas est exclu délibérément en MVP
-pour limiter les opérations admin à risque.
+
+Ajouter `CONFIRMEE → REMBOURSEE` dans `allowedTransitions()` de `BookingStatusEnum`.
+Formaliser `canBeRefunded()` comme garde-fou obligatoire avant toute création de `REFUND` :
+
+```php
+public function canBeRefunded(): bool
+{
+    return in_array($this, [
+        self::CONFIRMEE,
+        self::EN_LITIGE,
+    ], true);
+}
+```
+
+Documenter la table complète des transitions autorisées dans `booking.md`.
 
 ### Alternatives considérées
-- Autoriser LIVREE + EN_LITIGE comme la spec : plus conforme, mais expose
-  à des remboursements sur des bookings livrés sans litige formalisé.
-- Blocage total post-livraison : trop restrictif.
+
+- Handler séparé par source de refund ❌ : duplication, risque de divergence.
+- Vérifier la source dans `handleSuccess()` ❌ : couplage inverse, fragile.
 
 ### Conséquences
-- Remboursement admin sur LIVREE impossible sans passer par EN_LITIGE.
-- Workflow : forcer le booking en EN_LITIGE avant tout remboursement admin.
-- Décision à réévaluer quand le dispute system sera implémenté.
+
+- `handleSuccess()` fonctionne correctement pour les deux chemins de refund ;
+- `canBeRefunded()` bloque toute création de `REFUND` sur un statut invalide ;
+- table des transitions désormais explicite et testable dans `booking.md` ;
+- test du scénario complet ajouté : webhook `refund.completed` sur booking `CONFIRMEE`.
+
+### Fichiers impactés
+
+- `app/Enums/BookingStatusEnum.php`
+- `tests/Feature/Transaction/Actions/...` (scénario complet webhook)
+- `.adamas/ai/domain/booking.md` (table transitions + canBeRefunded)
+- `.adamas/ai/domain/payment.md` (note handleSuccess agnostique à la source)
 
 ### Statut
-✅ actif — réévaluer avec dispute system v2
+
+✅ actif — corrigé en [2026-05]
 
 ---
 
-# 🔮 Décisions à venir
+## [2026-05] — Pattern create() → seal() dans la même DB::transaction()
 
-## Escrow avancé
+### Contexte
 
-- retenue de fonds conditionnelle ;
-- libération en plusieurs étapes ;
-- dispute system compatible.
+`AdminRefundTransaction` crée un `AuditLog` puis doit le sceller via
+`AuditLogIntegrityService::seal()`. La question d'implémentation : où et quand
+appeler `seal()` par rapport à la transaction DB ?
 
-## Dispute system
+Appeler `seal()` après la fermeture de `DB::transaction()` signifie que le log
+est déjà persisté quand le hash est calculé. Le `save()` subséquent viole
+l'immutabilité de l'audit log et crée une fenêtre de corruption si le process
+est interrompu entre les deux.
 
-- workflow litige structuré ;
-- arbitrage manuel / automatique ;
-- compensation post-payout.
+### Décision
 
-## Platform accounts
+`seal()` est appelé immédiatement après `create()`, à l'intérieur de la même
+`DB::transaction()`, avant le `return`. `AuditLogIntegrityService` est injecté
+en constructeur readonly de l'Action (auto-résolu par le container Laravel).
 
-- comptes par pays / devise ;
-- routing financier automatique ;
-- intégration PSP réels.
+Pattern canonique :
 
-## Ledger interne
+```php
+public function __construct(
+    private readonly AuditLogIntegrityService $auditLogIntegrityService,
+) {}
 
-- `parent_transaction_id` ;
-- journal financier complet ;
-- reporting financier.
+// Dans DB::transaction() :
+$auditLog = AuditLog::query()->create([...]);
+$this->auditLogIntegrityService->seal($auditLog);
+return $refund;
+```
+
+Règle dérivée : aucun `save()` sur un `AuditLog` existant (`$exists === true`)
+n'est autorisé en dehors de `seal()`.
+
+### Alternatives considérées
+
+- `seal()` après fermeture de transaction ❌ : fenêtre de corruption, violation d'immutabilité.
+- Observer Model pour auto-seal ❌ : couplage implicite, difficile à tester isolément.
+
+### Conséquences
+
+- atomicité garantie : refund + audit log + hash dans une seule transaction ;
+- si la transaction DB échoue, aucun log partiel n'est persisté ;
+- pattern documenté dans `__audit.md` comme règle d'architecture ;
+- deux tests ajoutés : premier log (previous_hash null), chaîne de deux logs.
+
+### Fichiers impactés
+
+- `app/Actions/Transaction/AdminRefundTransaction.php`
+- `tests/Feature/Transaction/Actions/AdminRefundTransactionTest.php`
+- `.adamas/ai/governance/audit.md` (pattern + règle critique)
+
+### Statut
+
+✅ actif — implémenté en [2026-05]
+
+---
+
+# 🔮 Décisions à documenter
+
+## Phase 2
+
+- Choix final entre Kkiapay et KAYBIC Africa après test sandbox
+- Format webhook Kkiapay vs HandlePaymentWebhook existant
+
+## Phase 3
+
+- Structure exacte de `platform_accounts`
+- Stratégie de change XOF → MAD
+
+## Phase 4
+
+- Mécanisme de blocage escrow
+- Conditions de libération du payout
+
+## Phase 5
+
+- Structure du ledger interne
+- `parent_transaction_id` actif ou non
+
+## Phase 6
+
+- Workflow arbitrage litige
+- Conditions de compensation post-payout
 
 ---
 
@@ -588,8 +835,3 @@ pour limiter les opérations admin à risque.
 
 > Une décision non documentée est une dette future.
 > Une décision documentée est un accélérateur.
-
-```
-
-À noter : tu devrais garder **une seule décision `.adamas` active**. L’ancienne structure `context/capabilities/memory` doit être remplacée par cette décision v2.
-```

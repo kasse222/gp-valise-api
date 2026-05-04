@@ -143,6 +143,8 @@ PAYOUT ⊕ REFUND
 - [ ] Aucun double payout
 - [ ] Aucun double refund
 - [ ] CHARGE obligatoire avant CONFIRMEE
+- [ ] `canBeRefunded()` vérifié avant toute création de REFUND
+      (statuts valides : CONFIRMEE, EN_LITIGE — voir bug C3)
 
 ---
 
@@ -196,6 +198,8 @@ PAYOUT ⊕ REFUND
 - [ ] integrity_hash présent
 - [ ] previous_hash chaîné
 - [ ] Pas de modification possible
+- [ ] `seal()` appelé immédiatement après `create()`, dans la même `DB::transaction()`
+- [ ] Aucun `save()` sur AuditLog existant hors de `seal()`
 
 ---
 
@@ -213,7 +217,17 @@ PAYOUT ⊕ REFUND
 - [ ] Nominal + erreurs + edge cases
 - [ ] Idempotence testée
 - [ ] Concurrence testée si critique
+- [ ] Transitions Enum testées (dont statuts sources vers REMBOURSEE)
 - [ ] Aucun debug (`dd`, `dump`)
+
+Tests de référence du projet :
+
+| Sujet                                       | Fichier                      |
+| ------------------------------------------- | ---------------------------- |
+| Idempotence webhook                         | `HandlePaymentWebhookTest`   |
+| Alignement `scopeReservable` / `kgReserved` | `CapacitySemanticsTest`      |
+| Chaîne d'intégrité audit                    | `AdminRefundTransactionTest` |
+| Bug C3 — `CONFIRMEE → REMBOURSEE`           | `HandlePaymentWebhookTest`   |
 
 ---
 
