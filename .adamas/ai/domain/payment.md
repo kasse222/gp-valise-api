@@ -378,6 +378,12 @@ Clé : `event_id` unique dans `webhook_logs` + `lockForUpdate()` + vérification
 | `refund.failed`    | `REFUND → FAILED`, `Booking` inchangé (souvent `EN_LITIGE`)          |
 | autres events      | `ignored`                                                            |
 
+> **Important** : `HandlePaymentWebhook::handleSuccess()` est appelé quelle que soit
+> la source du refund (standard via `RefundTransaction` ou admin via `AdminRefundTransaction`).
+> La transition `Booking → REMBOURSEE` doit donc être valide depuis `CONFIRMEE` ET depuis `EN_LITIGE`.
+> Voir bug C3 dans `booking.md` — l'absence de `CONFIRMEE → REMBOURSEE` dans `allowedTransitions()`
+> provoquait un webhook `FAILED` définitif malgré un `REFUND COMPLETED` en base.
+
 ---
 
 ## 🧱 Garanties système

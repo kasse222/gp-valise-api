@@ -136,11 +136,51 @@ Fonctions :
 Action métier → création AuditLog → seal() → persist
 ```
 
+### Pattern obligatoire dans une Action
+
+`AuditLogIntegrityService` doit être injecté en constructeur de l'Action (auto-résolu par le container Laravel). Le `seal()` doit être appelé immédiatement après `create()`, à l'intérieur de la même `DB::transaction()`, avant le `return`.
+
+```php
+// Pattern correct — AdminRefundTransaction
+public function __construct(
+    private readonly AuditLogIntegrityService $auditLogIntegrityService,
+) {}
+
+public function execute(...): Transaction
+{
+    return DB::transaction(function () use (...) {
+        // 1. opération critique
+        $refund = Transaction::create([...]);
+
+        // 2. audit log créé dans la même transaction
+        $auditLog = AuditLog::query()->create([
+            'actor_id'       => $admin->id,
+            'action'         => 'admin_refund_override',
+            'auditable_type' => Booking::class,
+            'auditable_id'   => $booking->id,
+            'reason'         => $reason,
+            'metadata'       => [...],
+        ]);
+
+        // 3. seal() immédiatement — même transaction, avant return
+        $this->auditLogIntegrityService->seal($auditLog);
+
+        return $refund;
+    });
+}
+```
+
+Règle : si seal() est appelé après la fermeture de la transaction DB,
+le hash est calculé sur un log déjà persisté — le save() subséquent
+viole l'immutabilité et crée une fenêtre de corruption.
+
 ---
 
 ## ⚠️ Règles critiques
 
-- un audit log est créé dans la même transaction DB que l’action critique ;
+- un audit log est créé dans la même transaction DB que l'action critique ;
+- `seal()` est appelé immédiatement après `create()`, avant la fin de la transaction ;
+- aucun `save()` sur un AuditLog existant (`$exists === true`) n'est autorisé en dehors de `seal()` ;
 - aucun log ne doit être créé après coup ;
 - aucune action sensible sans audit ;
 - `reason` obligatoire pour toute action admin critique.

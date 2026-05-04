@@ -176,6 +176,20 @@ Possible uniquement si :
 
 ---
 
+### Remboursement
+
+Un booking devient `REMBOURSEE` uniquement si :
+
+- transaction `REFUND` existe et est `COMPLETED`
+- statut source est `CONFIRMEE` ou `EN_LITIGE` (voir `canBeRefunded()`)
+- aucun `PAYOUT` existant (invariant absolu)
+
+Déclencheur : `HandlePaymentWebhook::handleSuccess()` sur event `refund.completed`.
+Ce handler est appelé quelle que soit la source du refund (standard ou admin override).
+La transition doit donc être valide depuis `CONFIRMEE` ET depuis `EN_LITIGE`.
+
+---
+
 ## 🎒 Gestion des bagages
 
 ### Cycle Luggage
@@ -253,6 +267,49 @@ BookingStatusEnum
 - aucune transition hardcodée
 - toujours passer par Enum
 - transitions validées par `canTransitionTo()`
+
+---
+
+### Table des transitions autorisées
+
+| De → Vers                | Déclencheur                 |
+| ------------------------ | --------------------------- |
+| EN_ATTENTE → EN_PAIEMENT | paiement initié             |
+| EN_PAIEMENT → CONFIRMEE  | CHARGE COMPLETED (webhook)  |
+| EN_PAIEMENT → EXPIREE    | payment_expires_at dépassé  |
+| CONFIRMEE → LIVREE       | voyageur confirme livraison |
+| CONFIRMEE → EN_LITIGE    | litige déclaré              |
+| CONFIRMEE → REMBOURSEE   | REFUND COMPLETED (webhook)  |
+| EN_LITIGE → REMBOURSEE   | REFUND COMPLETED (webhook)  |
+| EN_LITIGE → LIVREE       | résolution litige           |
+| LIVREE → TERMINE         | PAYOUT COMPLETED            |
+| LIVREE → EN_LITIGE       | litige post-livraison       |
+
+> **Bug C3 (corrigé)** : `CONFIRMEE → REMBOURSEE` était absent de `allowedTransitions()`.
+> Conséquence : `HandlePaymentWebhook::handleSuccess()` levait une `DomainException`
+> sur `refund.completed`, marquait le webhook `FAILED` après 5 retries,
+> laissant le Booking en `CONFIRMEE` malgré un `REFUND COMPLETED` en base.
+> Incohérence financière garantie. Correction : une ligne dans `BookingStatusEnum`.
+
+---
+
+### canBeRefunded()
+
+Un booking peut être remboursé si son statut est :
+
+```php
+public function canBeRefunded(): bool
+{
+    return in_array($this, [
+        self::CONFIRMEE,
+        self::EN_LITIGE,
+    ], true);
+}
+```
+
+Cette méthode est le garde-fou avant toute création de `REFUND`.
+Elle doit être appelée dans `RefundTransaction` et `AdminRefundTransaction`
+avant toute écriture en base.
 
 ---
 
