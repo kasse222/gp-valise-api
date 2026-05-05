@@ -35,7 +35,7 @@ return new class extends Migration
 
             $table->string('method', 50)
                 ->nullable()
-                ->default(PaymentMethodEnum::CARTE_BANCAIRE->value);
+                ->default(PaymentMethodEnum::CARD->value);
 
             $table->string('status', 30)
                 ->default(TransactionStatusEnum::PENDING->value)

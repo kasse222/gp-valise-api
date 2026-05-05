@@ -1,16 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Enums;
 
 enum PaymentMethodEnum: string
 {
-    case CARTE_BANCAIRE  = 'carte';
-    case PAYPAL          = 'paypal';
-    case CRYPTO          = 'crypto';
-    case VIREMENT        = 'virement';
-    case ESPECE          = 'espece';
-    case MOBILE_MONEY    = 'mobile_money'; // Orange, Wave, etc.
-    case CHEQUE          = 'cheque';
+    case CARD = 'card';
+    case MOBILE_MONEY = 'mobile_money';
+    case BANK_TRANSFER = 'bank_transfer';
+    case CASH = 'cash';
 
     public static function values(): array
     {
@@ -20,41 +19,27 @@ enum PaymentMethodEnum: string
     public function label(): string
     {
         return match ($this) {
-            self::CARTE_BANCAIRE => 'Carte bancaire',
-            self::PAYPAL         => 'PayPal',
-            self::CRYPTO         => 'Cryptomonnaie',
-            self::VIREMENT       => 'Virement bancaire',
-            self::ESPECE         => 'Espèces',
-            self::MOBILE_MONEY   => 'Mobile Money',
-            self::CHEQUE         => 'Chèque',
+            self::CARD => 'Carte bancaire',
+            self::MOBILE_MONEY => 'Mobile Money',
+            self::BANK_TRANSFER => 'Virement bancaire',
+            self::CASH => 'Espèces',
         };
-    }
-
-    public function isDigital(): bool
-    {
-        return in_array($this, [
-            self::CARTE_BANCAIRE,
-            self::PAYPAL,
-            self::CRYPTO,
-            self::MOBILE_MONEY,
-        ]);
-    }
-
-
-    public function requiresVerification(): bool
-    {
-        return in_array($this, [
-            self::VIREMENT,
-            self::CHEQUE,
-        ]);
     }
 
     public function isInstant(): bool
     {
-        return in_array($this, [
-            self::CARTE_BANCAIRE,
-            self::PAYPAL,
-            self::MOBILE_MONEY,
-        ]);
+        return match ($this) {
+            self::CARD,
+            self::MOBILE_MONEY => true,
+            default => false,
+        };
+    }
+
+    public function requiresVerification(): bool
+    {
+        return match ($this) {
+            self::BANK_TRANSFER => true,
+            default => false,
+        };
     }
 }

@@ -1,56 +1,97 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\Payments;
 
 use App\Contracts\Payments\PaymentProvider;
-use App\Data\Payments\PaymentResult;
+use App\Data\Payments\PaymentEventData;
+use App\Data\Payments\PaymentRequestData;
+use App\Data\Payments\PaymentResponseData;
+use App\Data\Payments\RefundRequestData;
+use App\Data\Payments\WebhookVerificationData;
+use App\Enums\CurrencyEnum;
+use App\Enums\PaymentProviderEnum;
 use Illuminate\Support\Str;
 
-class FakePaymentProvider implements PaymentProvider
+final class FakePaymentProvider implements PaymentProvider
 {
-    public function charge(array $payload): PaymentResult
+    public function charge(PaymentRequestData $request): PaymentResponseData
     {
-        return $this->simulate('charge', $payload);
+        return $this->simulate(
+            type: 'charge',
+            amount: $request->amount,
+            currency: $request->currency,
+            metadata: $request->metadata,
+        );
     }
 
-    public function refund(array $payload): PaymentResult
+    public function refund(RefundRequestData $request): PaymentResponseData
     {
-        return $this->simulate('refund', $payload);
+        return $this->simulate(
+            type: 'refund',
+            amount: $request->amount,
+            currency: $request->currency,
+            metadata: [
+                ...$request->metadata,
+                'reason' => $request->reason,
+            ],
+        );
     }
 
-    public function payout(array $payload): PaymentResult
+    public function verifyWebhook(WebhookVerificationData $webhook): bool
     {
-        return $this->simulate('payout', $payload);
+        return true;
     }
 
-    private function simulate(string $type, array $payload): PaymentResult
+    public function normalizeWebhook(WebhookVerificationData $webhook): PaymentEventData
     {
-        $mode = $payload['force_status'] ?? config('payment.fake.mode', 'success');
+        $payload = $webhook->payload;
 
-        return match ($mode) {
-            'failure' => new PaymentResult(
-                success: false,
-                providerTransactionId: 'fake_' . $type . '_' . Str::uuid(),
-                status: 'failed',
-                message: 'Simulated failure',
-                meta: $payload,
-            ),
+        return new PaymentEventData(
+            provider: PaymentProviderEnum::FAKE,
+            eventId: (string) ($payload['event_id'] ?? 'fake_evt_' . Str::uuid()),
+            providerTransactionId: (string) ($payload['provider_transaction_id'] ?? 'fake_tx_' . Str::uuid()),
+            providerStatus: (string) ($payload['status'] ?? 'completed'),
+            amount: (int) ($payload['amount'] ?? 0),
+            currency: CurrencyEnum::from((string) ($payload['currency'] ?? 'EUR')),
+            metadata: $payload['metadata'] ?? [],
+            rawPayload: $payload,
+        );
+    }
 
-            'pending' => new PaymentResult(
-                success: true,
-                providerTransactionId: 'fake_' . $type . '_' . Str::uuid(),
-                status: 'pending',
-                message: 'Simulated pending payment',
-                meta: $payload,
-            ),
+    public function name(): string
+    {
+        return PaymentProviderEnum::FAKE->value;
+    }
 
-            default => new PaymentResult(
-                success: true,
-                providerTransactionId: 'fake_' . $type . '_' . Str::uuid(),
-                status: 'completed',
-                message: 'Simulated success',
-                meta: $payload,
-            ),
+    private function simulate(
+        string $type,
+        int $amount,
+        CurrencyEnum $currency,
+        array $metadata
+    ): PaymentResponseData {
+        $mode = $metadata['force_status'] ?? config('payment.fake.mode', 'success');
+
+        $status = match ($mode) {
+            'failure' => 'failed',
+            'pending' => 'pending',
+            default => 'completed',
         };
+
+        return new PaymentResponseData(
+            provider: PaymentProviderEnum::FAKE,
+            providerTransactionId: 'fake_' . $type . '_' . Str::uuid(),
+            providerStatus: $status,
+            amount: $amount,
+            currency: $currency,
+            checkoutUrl: null,
+            eventId: 'fake_evt_' . Str::uuid(),
+            rawPayload: [
+                'type' => $type,
+                'status' => $status,
+                'metadata' => $metadata,
+            ],
+        );
     }
 }

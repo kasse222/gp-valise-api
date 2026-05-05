@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Actions\Transaction;
 
 use App\Contracts\Payments\PaymentProvider;
+use App\Data\Payments\RefundRequestData;
 use App\Enums\BookingStatusEnum;
+use App\Enums\PaymentProviderEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Events\TransactionRefunded;
@@ -95,27 +97,35 @@ class AdminRefundTransaction
                 ]);
             }
 
-            $providerResult = $this->paymentProvider->refund([
-                'booking_id' => $booking->id,
-                'user_id' => $charge->user_id,
-                'amount' => $refundAmount,
-                'currency' => $charge->currency?->value,
-                'method' => $charge->method?->value,
-                'reason' => $reason,
-            ]);
+            $providerResult = $this->paymentProvider->refund(
+                new RefundRequestData(
+                    provider: PaymentProviderEnum::FAKE,
+                    providerTransactionId: (string) $charge->provider_transaction_id,
+                    amount: (int) round((float) $refundAmount * 100),
+                    currency: $charge->currency,
+                    idempotencyKey: 'admin-refund-' . $charge->id,
+                    reason: $reason,
+                    metadata: [
+                        'booking_id' => $booking->id,
+                        'user_id' => $charge->user_id,
+                        'admin_id' => $admin->id,
+                        'correlation_id' => $correlationId,
+                    ],
+                )
+            );
 
-            if (! $providerResult->success) {
-                throw ValidationException::withMessages([
-                    'refund' => $providerResult->message ?? 'Le provider a refusé le remboursement.',
-                ]);
-            }
-
-            $status = match ($providerResult->status) {
+            $status = match ($providerResult->providerStatus) {
                 'completed' => TransactionStatusEnum::COMPLETED,
                 'pending' => TransactionStatusEnum::PENDING,
                 'failed' => TransactionStatusEnum::FAILED,
-                default => throw new InvalidArgumentException("Statut provider inconnu : {$providerResult->status}"),
+                default => throw new InvalidArgumentException("Statut provider inconnu : {$providerResult->providerStatus}"),
             };
+
+            if ($status === TransactionStatusEnum::FAILED) {
+                throw ValidationException::withMessages([
+                    'refund' => 'Le provider a refusé le remboursement.',
+                ]);
+            }
 
             $refund = Transaction::query()->create([
                 'user_id' => $charge->user_id,

@@ -835,3 +835,90 @@ n'est autorisé en dehors de `seal()`.
 
 > Une décision non documentée est une dette future.
 > Une décision documentée est un accélérateur.
+
+## [2026-05] — Fondation PSP routing typée
+
+### Contexte
+
+La Phase 2 nécessite de préparer l’intégration de PSP réels sans coupler le domaine métier à Stripe, Kkiapay ou un autre provider.
+
+Avant cette décision, certaines Actions échangeaient encore des `array` ou un ancien `PaymentResult` avec le provider, ce qui rendait le contrat fragile et difficile à étendre.
+
+### Décision
+
+Mettre en place une fondation PSP typée basée sur :
+
+- `PaymentProvider` comme contrat unique ;
+- `PaymentProviderResolver` pour sélectionner le provider ;
+- `config/payment_providers.php` pour déclarer le routing ;
+- DTOs stricts :
+    - `PaymentRequestData`
+    - `PaymentResponseData`
+    - `RefundRequestData`
+    - `PaymentEventData`
+    - `WebhookVerificationData`
+- providers préparés :
+    - `FakePaymentProvider`
+    - `KkiapayProvider`
+    - `StripeProvider`
+
+Le routing actuel est :
+
+```txt
+SN + mobile_money → Kkiapay
+SN + card         → Kkiapay
+MA + card         → Stripe
+FR + card         → Stripe
+fallback          → FakeProvider
+```
+
+### Alternatives considérées
+
+- Garder les `array` dans les Actions ❌ : contrat faible, erreurs runtime.
+- Appeler directement Stripe/Kkiapay dans les Actions ❌ : couplage fort.
+- Mettre le routing dans les Controllers ❌ : mauvaise séparation des responsabilités.
+- Intégrer Kkiapay immédiatement sans foundation ❌ : risque de dette technique.
+
+### Conséquences
+
+- Les Actions ne manipulent plus de payload provider brut.
+- Le domaine reste indépendant des PSP.
+- Le système devient prêt pour multi-provider.
+- Les tests du resolver couvrent :
+    - routing Sénégal mobile money ;
+    - routing Maroc carte ;
+    - fallback fake ;
+    - pays lowercase ;
+    - provider manquant ;
+    - provider ne respectant pas le contrat.
+
+- Les providers réels restent à implémenter en sandbox dans les phases suivantes.
+
+### Fichiers impactés
+
+- `app/Contracts/Payments/PaymentProvider.php`
+- `app/Data/Payments/*`
+- `app/Enums/PaymentProviderEnum.php`
+- `app/Enums/PaymentMethodEnum.php`
+- `app/Enums/PaymentOperatorEnum.php`
+- `app/Services/Payments/PaymentProviderResolver.php`
+- `app/Services/Payments/FakePaymentProvider.php`
+- `app/Services/Payments/KkiapayProvider.php`
+- `app/Services/Payments/StripeProvider.php`
+- `config/payment_providers.php`
+- `tests/Unit/Payments/*`
+- `.adamas/ai/domain/psp-routing/*`
+
+### Statut
+
+✅ actif — Phase 2A validée avec 263 tests / 682 assertions
+
+````
+
+Puis mets à jour dans **Décisions à documenter / Phase 2** :
+
+```md
+- Choix final entre Kkiapay et KAYBIC Africa après test sandbox
+- Format webhook Kkiapay vs HandlePaymentWebhook existant
+- Interdiction du fallback FakeProvider en production
+````

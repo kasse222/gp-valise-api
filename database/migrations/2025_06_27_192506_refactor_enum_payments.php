@@ -18,7 +18,7 @@ return new class extends Migration
                 ->change();
 
             $table->string('method')
-                ->default(PaymentMethodEnum::CARTE_BANCAIRE->value)
+                ->default(PaymentMethodEnum::CARD->value)
                 ->comment('Moyen de paiement (enum PaymentMethodEnum)')
                 ->change();
         });

@@ -117,7 +117,7 @@ it('refuse la création de transaction si le booking est expiré', function () {
         'booking_id' => $booking->id,
         'amount' => 100,
         'currency' => 'MAD',
-        'method' => PaymentMethodEnum::CARTE_BANCAIRE->value,
+        'method' => PaymentMethodEnum::CARD->value,
     ];
 
     expect(
