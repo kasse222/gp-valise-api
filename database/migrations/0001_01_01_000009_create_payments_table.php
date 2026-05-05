@@ -29,7 +29,7 @@ return new class extends Migration
                 ->default(CurrencyEnum::EUR->value);
 
             $table->string('method', 50)
-                ->default(PaymentMethodEnum::CARTE_BANCAIRE->value);
+                ->default(PaymentMethodEnum::CARD->value);
 
             $table->unsignedTinyInteger('status')
                 ->default(PaymentStatusEnum::EN_ATTENTE->value);

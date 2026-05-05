@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace App\Actions\Transaction;
 
 use App\Contracts\Payments\PaymentProvider;
+use App\Data\Payments\PaymentRequestData;
 use App\Enums\BookingStatusEnum;
+use App\Enums\CurrencyEnum;
+use App\Enums\PaymentMethodEnum;
+use App\Enums\PaymentOperatorEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Events\TransactionCreated;
@@ -67,32 +71,56 @@ class CreateTransaction
                 ]);
             }
 
-            $providerResult = $this->paymentProvider->charge([
-                'booking_id' => $booking->id,
-                'user_id' => $user->id,
-                'amount' => $data['amount'],
-                'currency' => $data['currency'] ?? null,
-                'method' => $data['method'] ?? null,
-            ]);
+            $currency = $data['currency'] instanceof CurrencyEnum
+                ? $data['currency']
+                : CurrencyEnum::from((string) ($data['currency'] ?? CurrencyEnum::EUR->value));
 
-            if (! $providerResult->success) {
-                throw ValidationException::withMessages([
-                    'payment' => $providerResult->message ?? 'Le provider de paiement a refusé la charge.',
-                ]);
-            }
+            $method = $data['method'] instanceof PaymentMethodEnum
+                ? $data['method']
+                : PaymentMethodEnum::from((string) ($data['method'] ?? PaymentMethodEnum::CARD->value));
 
-            $status = match ($providerResult->status) {
+            $operator = isset($data['operator'])
+                ? ($data['operator'] instanceof PaymentOperatorEnum
+                    ? $data['operator']
+                    : PaymentOperatorEnum::from((string) $data['operator']))
+                : null;
+
+            $providerResult = $this->paymentProvider->charge(
+                new PaymentRequestData(
+                    country: (string) ($data['country'] ?? 'FR'),
+                    currency: $currency,
+                    method: $method,
+                    amount: (int) round((float) $data['amount'] * 100),
+                    idempotencyKey: 'charge-' . $booking->id,
+                    operator: $operator,
+                    metadata: [
+                        'booking_id' => $booking->id,
+                        'user_id' => $user->id,
+                        'correlation_id' => $data['correlation_id'] ?? null,
+                    ],
+                )
+            );
+
+            $status = match ($providerResult->providerStatus) {
                 'completed' => TransactionStatusEnum::COMPLETED,
                 'pending' => TransactionStatusEnum::PENDING,
                 'failed' => TransactionStatusEnum::FAILED,
-                default => throw new InvalidArgumentException("Statut provider inconnu : {$providerResult->status}"),
+                default => throw new InvalidArgumentException("Statut provider inconnu : {$providerResult->providerStatus}"),
             };
+
+            if ($status === TransactionStatusEnum::FAILED) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Le provider de paiement a refusé la charge.',
+                ]);
+            }
 
             return $user->transactions()->create([
                 ...$data,
                 'booking_id' => $booking->id,
                 'type' => TransactionTypeEnum::CHARGE,
                 'status' => $status,
+                'currency' => $currency,
+                'method' => $method,
                 'provider_transaction_id' => $providerResult->providerTransactionId,
                 'processed_at' => $status === TransactionStatusEnum::COMPLETED ? now() : null,
             ])->fresh();

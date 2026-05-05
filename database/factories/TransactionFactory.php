@@ -26,7 +26,7 @@ class TransactionFactory extends Factory
             'amount' => fake()->randomFloat(2, 10, 300),
 
             'currency' => CurrencyEnum::EUR->value,
-            'method'   => PaymentMethodEnum::CARTE_BANCAIRE->value,
+            'method'   => PaymentMethodEnum::CARD->value,
 
 
             'status'       => TransactionStatusEnum::PENDING->value,

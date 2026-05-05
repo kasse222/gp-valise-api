@@ -1,9 +1,10 @@
 <?php
 
 use App\Contracts\Payments\PaymentProvider;
-use App\Data\Payments\PaymentResult;
-use App\Enums\BookingStatusEnum;
+use App\Data\Payments\PaymentResponseData;
+use App\Enums\PaymentProviderEnum;
 use App\Enums\CurrencyEnum;
+use App\Enums\BookingStatusEnum;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
@@ -39,11 +40,15 @@ beforeEach(function () {
     $this->provider = mock(PaymentProvider::class);
 
     $this->provider->shouldReceive('refund')
-        ->andReturn(new PaymentResult(
-            success: true,
+        ->andReturn(new PaymentResponseData(
+            provider: PaymentProviderEnum::FAKE,
             providerTransactionId: 'admin_refund_123',
-            status: 'completed',
-            message: null,
+            providerStatus: 'completed',
+            amount: 10000,
+            currency: CurrencyEnum::EUR,
+            checkoutUrl: null,
+            eventId: null,
+            rawPayload: [],
         ));
 
     app()->forgetInstance(PaymentProvider::class);
@@ -65,7 +70,7 @@ function createAdminRefundScenario(User $sender, Trip $trip)
         'status' => TransactionStatusEnum::COMPLETED,
         'amount' => 100,
         'currency' => CurrencyEnum::EUR,
-        'method' => PaymentMethodEnum::CARTE_BANCAIRE,
+        'method' => PaymentMethodEnum::CARD,
         'processed_at' => now(),
     ]);
 

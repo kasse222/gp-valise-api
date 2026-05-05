@@ -2,9 +2,10 @@
 
 use App\Actions\Transaction\CreateTransaction;
 use App\Contracts\Payments\PaymentProvider;
-use App\Data\Payments\PaymentResult;
-use App\Enums\BookingStatusEnum;
+use App\Data\Payments\PaymentResponseData;
+use App\Enums\PaymentProviderEnum;
 use App\Enums\CurrencyEnum;
+use App\Enums\BookingStatusEnum;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
@@ -26,11 +27,15 @@ beforeEach(function () {
     $this->provider = mock(PaymentProvider::class);
 
     $this->provider->shouldReceive('charge')
-        ->andReturn(new PaymentResult(
-            success: true,
+        ->andReturn(new PaymentResponseData(
+            provider: PaymentProviderEnum::FAKE,
             providerTransactionId: 'txn_123',
-            status: 'completed',
-            message: null,
+            providerStatus: 'completed',
+            amount: 10000,
+            currency: CurrencyEnum::EUR,
+            checkoutUrl: null,
+            eventId: null,
+            rawPayload: [],
         ));
 
     app()->instance(PaymentProvider::class, $this->provider);
@@ -44,7 +49,7 @@ function validCreateTransactionData(Booking $booking): array
         'booking_id' => $booking->id,
         'amount' => 150.00,
         'currency' => CurrencyEnum::EUR->value,
-        'method' => PaymentMethodEnum::CARTE_BANCAIRE->value,
+        'method' => PaymentMethodEnum::CARD->value,
     ];
 }
 

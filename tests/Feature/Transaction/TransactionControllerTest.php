@@ -1,9 +1,10 @@
 <?php
 
 use App\Contracts\Payments\PaymentProvider;
-use App\Data\Payments\PaymentResult;
-use App\Enums\BookingStatusEnum;
+use App\Data\Payments\PaymentResponseData;
+use App\Enums\PaymentProviderEnum;
 use App\Enums\CurrencyEnum;
+use App\Enums\BookingStatusEnum;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
@@ -31,19 +32,27 @@ beforeEach(function () {
     $this->provider = mock(PaymentProvider::class);
 
     $this->provider->shouldReceive('charge')
-        ->andReturn(new PaymentResult(
-            success: true,
+        ->andReturn(new PaymentResponseData(
+            provider: PaymentProviderEnum::FAKE,
             providerTransactionId: 'txn_123',
-            status: 'completed',
-            message: null,
+            providerStatus: 'completed',
+            amount: 10000,
+            currency: CurrencyEnum::EUR,
+            checkoutUrl: null,
+            eventId: null,
+            rawPayload: [],
         ));
 
     $this->provider->shouldReceive('refund')
-        ->andReturn(new PaymentResult(
-            success: true,
-            providerTransactionId: 'refund_test_123',
-            status: 'completed',
-            message: null,
+        ->andReturn(new PaymentResponseData(
+            provider: PaymentProviderEnum::FAKE,
+            providerTransactionId: 'admin_refund_123',
+            providerStatus: 'completed',
+            amount: 10000,
+            currency: CurrencyEnum::EUR,
+            checkoutUrl: null,
+            eventId: null,
+            rawPayload: [],
         ));
 
     app()->forgetInstance(PaymentProvider::class);
@@ -97,7 +106,7 @@ it('crée une transaction charge via endpoint store', function () {
         'booking_id' => $booking->id,
         'amount' => 100,
         'currency' => CurrencyEnum::EUR->value,
-        'method' => PaymentMethodEnum::CARTE_BANCAIRE->value,
+        'method' => PaymentMethodEnum::CARD->value,
     ];
 
     $this->actingAs($this->sender)
@@ -126,7 +135,7 @@ it('refuse la création de charge si le booking appartient à un autre utilisate
         'booking_id' => $booking->id,
         'amount' => 100,
         'currency' => CurrencyEnum::EUR->value,
-        'method' => PaymentMethodEnum::CARTE_BANCAIRE->value,
+        'method' => PaymentMethodEnum::CARD->value,
     ];
 
     $this->actingAs($this->sender)
@@ -148,7 +157,7 @@ it('rembourse une charge via endpoint refund', function () {
         'status' => TransactionStatusEnum::COMPLETED,
         'amount' => 100,
         'currency' => CurrencyEnum::EUR,
-        'method' => PaymentMethodEnum::CARTE_BANCAIRE,
+        'method' => PaymentMethodEnum::CARD,
         'processed_at' => now(),
     ]);
 
@@ -166,7 +175,7 @@ it('rembourse une charge via endpoint refund', function () {
         'type' => TransactionTypeEnum::REFUND->value,
         'status' => TransactionStatusEnum::COMPLETED->value,
         'amount' => 90,
-        'provider_transaction_id' => 'refund_test_123',
+        'provider_transaction_id' => 'admin_refund_123',
     ]);
 });
 

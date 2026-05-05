@@ -278,27 +278,67 @@ Code + Règles + Audit + Observabilité = Système fiable
 
 ---
 
-## 🚀 Auteur
+## ⚙️ Execution Rules
 
-Projet conçu et développé par :
-
-**Backend Engineer (Laravel / API / Transaction Systems)**
-
-Spécialisé :
-
-- systèmes transactionnels
-- async processing
-- observabilité
-- architecture scalable
+Les principes définis dans `.adamas` doivent être appliqués de manière concrète.
 
 ---
 
-## 🧠 Conclusion
+### Webhooks
 
-`.adamas` permet de transformer un projet individuel en :
+NEVER TRUST EXTERNAL INPUT implique :
 
-```txt
-système maintenable
-système explicable
-système crédible en production
-```
+- vérification signature obligatoire (HMAC / provider)
+- rejet immédiat si signature invalide
+- stockage `event_id` avec contrainte UNIQUE
+- idempotence stricte (1 event → 1 effet)
+- traitement dans transaction DB avec lock
+
+---
+
+### Transactions financières
+
+Transaction = source de vérité implique :
+
+- aucune modification directe de balance
+- toute mutation passe par Transaction
+- audit obligatoire pour actions critiques
+- aucun calcul financier inline dans Controller
+
+---
+
+### Sécurité
+
+DENY BY DEFAULT implique :
+
+- toute route protégée par Policy
+- aucune action sans validation métier
+- aucun fallback implicite permissif
+
+---
+
+### Observabilité
+
+correlation_id implique :
+
+- généré à chaque requête
+- propagé dans :
+    - logs
+    - jobs
+    - webhooks
+- utilisé pour debug cross-system
+
+## 🔁 External Systems Rule
+
+Tout système externe (PSP, webhook, API) est considéré comme :
+
+- non fiable
+- duplicable
+- lent
+- incohérent
+
+Le système interne doit rester cohérent même si :
+
+- un webhook est envoyé 3 fois
+- un provider répond partiellement
+- une requête timeout
