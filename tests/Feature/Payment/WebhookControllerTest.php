@@ -2,96 +2,145 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Payments\WebhookProcessorContract;
+use App\Data\Payments\PaymentEventData;
+use App\Enums\CurrencyEnum;
+use App\Enums\PaymentProviderEnum;
 use App\Jobs\ProcessPaymentWebhook;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
-it('dispatch un job pour traiter le webhook paiement avec correlation_id', function (): void {
-    Queue::fake();
+beforeEach(function (): void {
+    $this->processor = Mockery::mock(WebhookProcessorContract::class);
+    $this->app->instance(WebhookProcessorContract::class, $this->processor);
+});
 
-    $payload = [
-        'event_id' => 'evt_123',
-        'event' => 'refund.completed',
-        'provider_transaction_id' => 'fake_refund_123',
-    ];
+it('dispatch un job avec payload normalisé et correlation_id', function (): void {
+    Queue::fake();
 
     $correlationId = (string) Str::uuid();
 
-    $signature = hash_hmac(
-        'sha256',
-        json_encode($payload),
-        config('payment.webhook.secret')
+    $event = new PaymentEventData(
+        provider: PaymentProviderEnum::KKIAPAY,
+        eventId: 'kkp_evt_001',
+        eventType: 'transaction.success',
+        providerTransactionId: 'kkp_tx_001',
+        providerStatus: 'completed',
+        amount: 5000,
+        currency: CurrencyEnum::XOF,
+        metadata: ['booking_id' => 42],
+        rawPayload: ['transactionId' => 'kkp_tx_001'],
     );
 
-    $response = $this->postJson('/api/v1/webhooks/payment', $payload, [
-        'X-Signature' => $signature,
+    $this->processor
+        ->shouldReceive('process')
+        ->once()
+        ->andReturn($event);
+
+    $response = $this->postJson('/api/v1/webhooks/kkiapay', [], [
         'X-Correlation-ID' => $correlationId,
+        'x-kkiapay-secret' => 'test-secret',
     ]);
 
     $response->assertAccepted()
-        ->assertHeader('X-Correlation-ID', $correlationId)
-        ->assertJson([
-            'status' => 'accepted',
-        ]);
+        ->assertJson(['status' => 'accepted']);
 
-    Queue::assertPushed(ProcessPaymentWebhook::class, function (ProcessPaymentWebhook $job) use ($payload, $correlationId): bool {
-        return $job->payload['event_id'] === $payload['event_id']
-            && $job->payload['event'] === $payload['event']
-            && $job->payload['provider_transaction_id'] === $payload['provider_transaction_id']
+    Queue::assertPushed(ProcessPaymentWebhook::class, function (ProcessPaymentWebhook $job) use ($event, $correlationId): bool {
+        return $job->payload['event_id'] === $event->eventId
+            && $job->payload['event_type'] === $event->eventType
+            && $job->payload['provider'] === $event->provider->value
+            && $job->payload['provider_transaction_id'] === $event->providerTransactionId
+            && $job->payload['provider_status'] === $event->providerStatus
+            && $job->payload['amount'] === $event->amount
+            && $job->payload['currency'] === $event->currency->value
             && $job->correlationId === $correlationId;
     });
 });
 
-it('génère un correlation_id si le webhook est reçu sans header dédié', function (): void {
+it('génère un correlation_id si absent du header', function (): void {
     Queue::fake();
 
-    $payload = [
-        'event_id' => 'evt_without_correlation_id',
-        'event' => 'refund.completed',
-        'provider_transaction_id' => 'fake_refund_without_correlation',
-    ];
-
-    $signature = hash_hmac(
-        'sha256',
-        json_encode($payload),
-        config('payment.webhook.secret')
+    $event = new PaymentEventData(
+        provider: PaymentProviderEnum::KKIAPAY,
+        eventId: 'kkp_evt_002',
+        eventType: 'transaction.success',
+        providerTransactionId: 'kkp_tx_002',
+        providerStatus: 'completed',
+        amount: 1000,
+        currency: CurrencyEnum::XOF,
     );
 
-    $response = $this->postJson('/api/v1/webhooks/payment', $payload, [
-        'X-Signature' => $signature,
-    ]);
+    $this->processor
+        ->shouldReceive('process')
+        ->once()
+        ->andReturn($event);
 
-    $response->assertAccepted()
-        ->assertHeader('X-Correlation-ID');
+    $response = $this->postJson('/api/v1/webhooks/kkiapay', []);
 
-    $correlationId = $response->headers->get('X-Correlation-ID');
+    $response->assertAccepted();
 
-    expect(Str::isUuid($correlationId))->toBeTrue();
-
-    Queue::assertPushed(ProcessPaymentWebhook::class, function (ProcessPaymentWebhook $job) use ($payload, $correlationId): bool {
-        return $job->payload['event_id'] === $payload['event_id']
-            && $job->correlationId === $correlationId;
+    Queue::assertPushed(ProcessPaymentWebhook::class, function (ProcessPaymentWebhook $job): bool {
+        return $job->correlationId !== null
+            && Str::isUuid($job->correlationId);
     });
 });
 
-it('rejette le webhook si la signature est invalide et ne dispatch aucun job', function (): void {
+it('retourne 403 si WebhookProcessor lève AccessDeniedHttpException', function (): void {
     Queue::fake();
 
-    $payload = [
-        'event_id' => 'evt_invalid_sig',
-        'event' => 'refund.completed',
-        'provider_transaction_id' => 'fake_refund_invalid',
-    ];
+    $this->processor
+        ->shouldReceive('process')
+        ->once()
+        ->andThrow(new AccessDeniedHttpException('Invalid webhook signature.'));
 
-    $response = $this->postJson('/api/v1/webhooks/payment', $payload, [
-        'X-Signature' => 'invalid_signature',
+    $response = $this->postJson('/api/v1/webhooks/kkiapay', [], [
+        'x-kkiapay-secret' => 'wrong-secret',
     ]);
 
-    $response->assertForbidden()
-        ->assertHeader('X-Correlation-ID');
+    $response->assertForbidden();
+
+    Queue::assertNothingPushed();
+});
+
+it('passe le providerKey correct au WebhookProcessor', function (): void {
+    Queue::fake();
+
+    $event = new PaymentEventData(
+        provider: PaymentProviderEnum::KKIAPAY,
+        eventId: 'kkp_evt_003',
+        eventType: 'transaction.success',
+        providerTransactionId: 'kkp_tx_003',
+        providerStatus: 'completed',
+        amount: 2000,
+        currency: CurrencyEnum::XOF,
+    );
+
+    $this->processor
+        ->shouldReceive('process')
+        ->once()
+        ->withArgs(function ($request, string $providerKey): bool {
+            return $providerKey === 'kkiapay';
+        })
+        ->andReturn($event);
+
+    $this->postJson('/api/v1/webhooks/kkiapay', [])
+        ->assertAccepted();
+});
+
+it('ne dispatch pas si WebhookProcessor lève une exception inattendue', function (): void {
+    Queue::fake();
+
+    $this->processor
+        ->shouldReceive('process')
+        ->once()
+        ->andThrow(new \RuntimeException('Unexpected error'));
+
+    $this->postJson('/api/v1/webhooks/kkiapay', [])
+        ->assertStatus(500);
 
     Queue::assertNothingPushed();
 });

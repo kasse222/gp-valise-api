@@ -1,25 +1,41 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1;
 
+use App\Contracts\Payments\WebhookProcessorContract;
 use App\Jobs\ProcessPaymentWebhook;
+use App\Services\Payments\WebhookProcessor;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
-class WebhookController extends Controller
+final class WebhookController extends Controller
 {
-    public function __invoke(Request $request)
+    public function __construct(
+        private readonly WebhookProcessorContract $processor,
+    ) {}
+
+    public function __invoke(Request $request, string $providerKey): Response
     {
-        $payload = $request->all();
+        $correlationId = $request->header('X-Correlation-ID') ?? (string) Str::uuid();
 
-        ProcessPaymentWebhook::dispatch(
-            payload: $payload,
-            correlationId: $request->header('X-Correlation-ID')
-        );
+        $event = $this->processor->process($request, $providerKey);
 
-        return response()->json([
-            'status' => 'accepted',
-        ], Response::HTTP_ACCEPTED);
+        ProcessPaymentWebhook::dispatch([
+            'event_id'                => $event->eventId,
+            'event_type'              => $event->eventType,
+            'provider'                => $event->provider->value,
+            'provider_transaction_id' => $event->providerTransactionId,
+            'provider_status'         => $event->providerStatus,
+            'amount'                  => $event->amount,
+            'currency'                => $event->currency->value,
+            'metadata'                => $event->metadata,
+            'raw_payload'             => $event->rawPayload,
+        ], $correlationId);
+
+        return response()->json(['status' => 'accepted'], Response::HTTP_ACCEPTED);
     }
 }

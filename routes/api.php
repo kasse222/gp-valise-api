@@ -27,8 +27,8 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
     Route::post('/register', [AuthController::class, 'register'])->name('auth.register');
     Route::post('/login', [AuthController::class, 'login'])->name('auth.login');
 
-    Route::post('/webhooks/payment', WebhookController::class)
-        ->middleware(['webhook.signature', 'throttle:webhooks'])
+    Route::post('/webhooks/{providerKey}', WebhookController::class)
+        ->middleware(['throttle:webhooks'])
         ->name('webhooks.payment');
 });
 

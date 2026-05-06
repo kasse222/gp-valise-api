@@ -12,10 +12,15 @@ final class KkiapayStatusMapper implements PaymentStatusMapper
     public function map(string $providerStatus): PaymentStatusEnum
     {
         return match (strtolower($providerStatus)) {
-            'success', 'successful', 'completed' => PaymentStatusEnum::SUCCES,
-            'pending', 'processing' => PaymentStatusEnum::EN_COURS,
-            'failed', 'failure', 'cancelled', 'canceled' => PaymentStatusEnum::ECHEC,
-            default => throw new InvalidArgumentException("Unknown Kkiapay payment status: {$providerStatus}"),
+            'transaction.success', 'success', 'successful', 'completed'
+            => PaymentStatusEnum::SUCCES,
+            'transaction.pending', 'pending', 'processing'
+            => PaymentStatusEnum::EN_COURS,
+            'transaction.failed', 'failed', 'failure', 'cancelled', 'canceled'
+            => PaymentStatusEnum::ECHEC,
+            default => throw new InvalidArgumentException(
+                "Unknown Kkiapay payment status: {$providerStatus}"
+            ),
         };
     }
 }

@@ -34,7 +34,7 @@ it('marque un refund pending comme completed, passe le booking à remboursee et 
 
     $payload = [
         'event_id' => 'evt_123',
-        'event' => 'refund.completed',
+        'event_type' => 'refund.completed',
         'provider_transaction_id' => 'fake_refund_123',
     ];
 
@@ -76,7 +76,7 @@ it('marque un refund pending comme failed, laisse le booking en litige et crée 
 
     $payload = [
         'event_id' => 'evt_456',
-        'event' => 'refund.failed',
+        'event_type' => 'refund.failed',
         'provider_transaction_id' => 'fake_refund_456',
     ];
 
@@ -116,7 +116,7 @@ it('est idempotent si le même event_id est reçu deux fois', function () {
 
     $payload = [
         'event_id' => 'evt_789',
-        'event' => 'refund.completed',
+        'event_type' => 'refund.completed',
         'provider_transaction_id' => 'fake_refund_789',
     ];
 
@@ -141,7 +141,7 @@ it('est idempotent si le même event_id est reçu deux fois', function () {
 it('lève une exception retryable si la transaction est introuvable', function () {
     $payload = [
         'event_id' => 'evt_retry_missing_tx',
-        'event' => 'refund.completed',
+        'event_type' => 'refund.completed',
         'provider_transaction_id' => 'missing_tx_123',
     ];
 
@@ -170,7 +170,7 @@ it('ignore un event non supporté et crée un log ignored', function () {
 
     $payload = [
         'event_id' => 'evt_unsupported',
-        'event' => 'refund.processing',
+        'event_type' => 'refund.processing',
         'provider_transaction_id' => 'fake_refund_unsupported',
     ];
 
@@ -196,7 +196,7 @@ it('ignore une transaction qui nest pas un refund et crée un log ignored', func
 
     $payload = [
         'event_id' => 'evt_not_refund',
-        'event' => 'refund.completed',
+        'event_type' => 'refund.completed',
         'provider_transaction_id' => 'fake_charge_123',
     ];
 
@@ -230,7 +230,7 @@ it('traite refund.completed depuis un booking CONFIRMEE et passe le booking à R
 
     $payload = [
         'event_id'                => 'evt_confirmee_refund_001',
-        'event'                   => 'refund.completed',
+        'event_type'                   => 'refund.completed',
         'provider_transaction_id' => 'fake_refund_confirmee_001',
     ];
 
@@ -268,7 +268,7 @@ it('propage le correlationId dans WebhookLog.correlation_id', function () {
 
     $payload = [
         'event_id'                => 'evt_cid_wh_001',
-        'event'                   => 'refund.completed',
+        'event_type'                   => 'refund.completed',
         'provider_transaction_id' => 'fake_refund_cid_wh_001',
     ];
     $correlationId = 'test-correlation-id-wh-001';
@@ -282,7 +282,7 @@ it('propage le correlationId dans WebhookLog.correlation_id', function () {
 
 it('ignore un payload incomplet sans créer de log', function () {
     app(HandlePaymentWebhook::class)->execute([
-        'event' => 'refund.completed',
+        'event_type' => 'refund.completed',
     ]);
 
     expect(WebhookLog::count())->toBe(0);
@@ -310,7 +310,7 @@ it('ignore un refund déjà finalisé même avec un nouvel event_id', function (
 
     $payload = [
         'event_id' => 'evt_new_duplicate_finalized',
-        'event' => 'refund.completed',
+        'event_type' => 'refund.completed',
         'provider_transaction_id' => 'fake_refund_finalized',
     ];
 

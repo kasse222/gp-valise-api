@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace App\Services\Payments;
 
 use App\Contracts\Payments\PaymentProvider;
+use App\Contracts\Payments\PaymentProviderResolverContract;
 use App\Data\Payments\PaymentRequestData;
 use RuntimeException;
 
-final class PaymentProviderResolver
+final class PaymentProviderResolver  implements PaymentProviderResolverContract
 {
     public function resolve(PaymentRequestData $request): PaymentProvider
     {
@@ -47,5 +48,22 @@ final class PaymentProviderResolver
         }
 
         return $default;
+    }
+
+    public function resolveByKey(string $providerKey): PaymentProvider
+    {
+        $providerClass = config("payment_providers.providers.{$providerKey}");
+
+        if (! is_string($providerClass) || ! class_exists($providerClass)) {
+            throw new RuntimeException("Payment provider [{$providerKey}] is not configured.");
+        }
+
+        $provider = app($providerClass);
+
+        if (! $provider instanceof PaymentProvider) {
+            throw new RuntimeException("Payment provider [{$providerKey}] must implement PaymentProvider.");
+        }
+
+        return $provider;
     }
 }
