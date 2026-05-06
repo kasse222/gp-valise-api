@@ -19,59 +19,59 @@ uses(Tests\TestCase::class, RefreshDatabase::class);
 it('reçoit un webhook, dispatch le job puis le traitement met à jour refund et booking', function (): void {
     Queue::fake();
 
-    $user = User::factory()->create();
-    $trip = Trip::factory()->create();
-
+    $user    = User::factory()->create();
+    $trip    = Trip::factory()->create();
     $booking = Booking::factory()->create([
         'user_id' => $user->id,
         'trip_id' => $trip->id,
-        'status' => BookingStatusEnum::EN_LITIGE,
+        'status'  => BookingStatusEnum::EN_LITIGE,
     ]);
-
     $refund = Transaction::factory()
         ->refund()
         ->pending()
         ->create([
-            'user_id' => $user->id,
-            'booking_id' => $booking->id,
+            'user_id'                 => $user->id,
+            'booking_id'              => $booking->id,
             'provider_transaction_id' => 'fake_refund_e2e_456',
         ]);
 
-    $payload = [
-        'event_id' => 'evt_e2e_456',
-        'event' => 'refund.completed',
+    // Payload brut FakeProvider
+    $rawPayload = [
+        'event_id'                => 'evt_e2e_456',
+        'event'                   => 'refund.completed',
         'provider_transaction_id' => 'fake_refund_e2e_456',
+        'status'                  => 'completed',
+        'amount'                  => 1000,
+        'currency'                => 'EUR',
     ];
 
     $correlationId = (string) Str::uuid();
 
-    $signature = hash_hmac(
-        'sha256',
-        json_encode($payload),
-        config('payment.webhook.secret')
-    );
-
-    $response = $this->postJson('/api/v1/webhooks/payment', $payload, [
-        'X-Signature' => $signature,
+    $response = $this->postJson('/api/v1/webhooks/fake', $rawPayload, [
         'X-Correlation-ID' => $correlationId,
     ]);
 
-    $response->assertAccepted()
-        ->assertHeader('X-Correlation-ID', $correlationId);
+    $response->assertAccepted();
 
-    Queue::assertPushed(ProcessPaymentWebhook::class, function (ProcessPaymentWebhook $job) use ($payload, $refund, $booking, $correlationId): bool {
-        expect($job->correlationId)->toBe($correlationId)
-            ->and($job->payload)->toMatchArray($payload);
+    Queue::assertPushed(
+        ProcessPaymentWebhook::class,
+        function (ProcessPaymentWebhook $job) use ($refund, $booking, $correlationId): bool {
+            expect($job->correlationId)->toBe($correlationId)
+                ->and($job->payload['event_id'])->toBe('evt_e2e_456')
+                ->and($job->payload['event_type'])->toBe('refund.completed')
+                ->and($job->payload['provider'])->toBe('fake')
+                ->and($job->payload['provider_transaction_id'])->toBe('fake_refund_e2e_456');
 
-        app(HandlePaymentWebhook::class)->execute($job->payload);
+            app(HandlePaymentWebhook::class)->execute($job->payload, $job->correlationId);
 
-        $refund->refresh();
-        $booking->refresh();
+            $refund->refresh();
+            $booking->refresh();
 
-        expect($refund->status)->toBe(TransactionStatusEnum::COMPLETED)
-            ->and($refund->processed_at)->not->toBeNull()
-            ->and($booking->status)->toBe(BookingStatusEnum::REMBOURSEE);
+            expect($refund->status)->toBe(TransactionStatusEnum::COMPLETED)
+                ->and($refund->processed_at)->not->toBeNull()
+                ->and($booking->status)->toBe(BookingStatusEnum::REMBOURSEE);
 
-        return true;
-    });
+            return true;
+        }
+    );
 });

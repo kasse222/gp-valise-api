@@ -52,30 +52,17 @@ final class StripeProvider implements PaymentProvider
     public function normalizeWebhook(WebhookVerificationData $webhook): PaymentEventData
     {
         $payload = $webhook->payload;
-
-        // Stripe envoie souvent :
-        // type: payment_intent.succeeded
-        // data.object.id
-        // data.object.amount
-        // data.object.currency
-
-        $object = $payload['data']['object'] ?? [];
+        $object  = $payload['data']['object'] ?? [];
 
         return new PaymentEventData(
             provider: PaymentProviderEnum::STRIPE,
-
             eventId: (string) ($payload['id'] ?? ''),
-
+            eventType: (string) ($payload['type'] ?? ''),   // 'payment_intent.succeeded'
             providerTransactionId: (string) ($object['id'] ?? ''),
-
             providerStatus: (string) ($object['status'] ?? $payload['type'] ?? ''),
-
             amount: (int) ($object['amount'] ?? 0),
-
             currency: CurrencyEnum::from(strtoupper((string) ($object['currency'] ?? 'EUR'))),
-
             metadata: $object['metadata'] ?? [],
-
             rawPayload: $payload,
         );
     }

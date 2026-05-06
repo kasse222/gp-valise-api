@@ -48,9 +48,12 @@ final class FakePaymentProvider implements PaymentProvider
     {
         $payload = $webhook->payload;
 
+        $rawEvent = (string) ($payload['event'] ?? $payload['event_type'] ?? 'transaction.success');
+
         return new PaymentEventData(
             provider: PaymentProviderEnum::FAKE,
             eventId: (string) ($payload['event_id'] ?? 'fake_evt_' . Str::uuid()),
+            eventType: $rawEvent,
             providerTransactionId: (string) ($payload['provider_transaction_id'] ?? 'fake_tx_' . Str::uuid()),
             providerStatus: (string) ($payload['status'] ?? 'completed'),
             amount: (int) ($payload['amount'] ?? 0),

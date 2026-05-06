@@ -20,11 +20,11 @@ class HandlePaymentWebhook
     public function execute(array $payload, ?string $correlationId = null): void
     {
         DB::transaction(function () use ($payload, $correlationId) {
-            $eventId = $payload['event_id'] ?? null;
-            $event = $payload['event'] ?? null;
+            $eventId    = $payload['event_id'] ?? null;
+            $eventType  = $payload['event_type'] ?? null;
             $providerId = $payload['provider_transaction_id'] ?? null;
 
-            if (! $eventId || ! $event || ! $providerId) {
+            if (! $eventId || ! $eventType || ! $providerId) {
                 return;
             }
 
@@ -40,7 +40,7 @@ class HandlePaymentWebhook
             $log = WebhookLog::query()->create([
                 'event_id'                => $eventId,
                 'correlation_id'          => $correlationId,
-                'event'                   => $event,
+                'event'                   => $eventType,
                 'provider_transaction_id' => $providerId,
                 'status'                  => WebhookLogStatusEnum::RECEIVED,
                 'payload'                 => $payload,
@@ -58,45 +58,94 @@ class HandlePaymentWebhook
                     );
                 }
 
-                if ($transaction->type !== TransactionTypeEnum::REFUND) {
-                    $this->markIgnored($log, 'Transaction non gérée par ce webhook');
-                    return;
-                }
-
                 if ($transaction->isSucceeded() || $transaction->isFailed()) {
                     $this->markIgnored($log, 'Transaction déjà finalisée');
                     return;
                 }
 
-                match ($event) {
-                    'refund.completed' => $this->handleSuccess($transaction, $transaction->booking, $log),
-                    'refund.failed' => $this->handleFailure($transaction, $log),
-                    default => $this->markIgnored($log, "Event non supporté: {$event}"),
+                match ($eventType) {
+                    'transaction.success'
+                    => $this->handleChargeSuccess($transaction, $transaction->booking, $log),
+                    'transaction.failed'
+                    => $this->handleChargeFailure($transaction, $log),
+                    'refund.completed'
+                    => $this->handleRefundSuccess($transaction, $transaction->booking, $log),
+                    'refund.failed'
+                    => $this->handleRefundFailure($transaction, $log),
+                    default
+                    => $this->markIgnored($log, "Event non supporté: {$eventType}"),
                 };
             } catch (RetryableWebhookException $e) {
                 $log->update([
-                    'status' => WebhookLogStatusEnum::FAILED,
+                    'status'        => WebhookLogStatusEnum::FAILED,
                     'error_message' => $e->getMessage(),
-                    'processed_at' => now(),
+                    'processed_at'  => now(),
                 ]);
-
                 throw $e;
             } catch (Throwable $e) {
                 $log->update([
-                    'status' => WebhookLogStatusEnum::FAILED,
+                    'status'        => WebhookLogStatusEnum::FAILED,
                     'error_message' => $e->getMessage(),
-                    'processed_at' => now(),
+                    'processed_at'  => now(),
                 ]);
-
                 throw $e;
             }
         });
     }
 
-    private function handleSuccess(Transaction $transaction, ?Booking $booking, WebhookLog $log): void
+    private function handleChargeSuccess(Transaction $transaction, ?Booking $booking, WebhookLog $log): void
     {
+        if ($transaction->type !== TransactionTypeEnum::CHARGE) {
+            $this->markIgnored($log, 'Event transaction.success sur une transaction non-CHARGE');
+            return;
+        }
+
         $transaction->update([
-            'status' => TransactionStatusEnum::COMPLETED,
+            'status'       => TransactionStatusEnum::COMPLETED,
+            'processed_at' => now(),
+        ]);
+
+        if ($booking) {
+            $booking->transitionTo(
+                BookingStatusEnum::CONFIRMEE,
+                null,
+                'Paiement confirmé par webhook'
+            );
+        }
+
+        $log->update([
+            'status'       => WebhookLogStatusEnum::PROCESSED,
+            'processed_at' => now(),
+        ]);
+    }
+
+    private function handleChargeFailure(Transaction $transaction, WebhookLog $log): void
+    {
+        if ($transaction->type !== TransactionTypeEnum::CHARGE) {
+            $this->markIgnored($log, 'Event transaction.failed sur une transaction non-CHARGE');
+            return;
+        }
+
+        $transaction->update([
+            'status'       => TransactionStatusEnum::FAILED,
+            'processed_at' => now(),
+        ]);
+
+        $log->update([
+            'status'       => WebhookLogStatusEnum::PROCESSED,
+            'processed_at' => now(),
+        ]);
+    }
+
+    private function handleRefundSuccess(Transaction $transaction, ?Booking $booking, WebhookLog $log): void
+    {
+        if ($transaction->type !== TransactionTypeEnum::REFUND) {
+            $this->markIgnored($log, 'Event refund.completed sur une transaction non-REFUND');
+            return;
+        }
+
+        $transaction->update([
+            'status'       => TransactionStatusEnum::COMPLETED,
             'processed_at' => now(),
         ]);
 
@@ -109,20 +158,25 @@ class HandlePaymentWebhook
         }
 
         $log->update([
-            'status' => WebhookLogStatusEnum::PROCESSED,
+            'status'       => WebhookLogStatusEnum::PROCESSED,
             'processed_at' => now(),
         ]);
     }
 
-    private function handleFailure(Transaction $transaction, WebhookLog $log): void
+    private function handleRefundFailure(Transaction $transaction, WebhookLog $log): void
     {
+        if ($transaction->type !== TransactionTypeEnum::REFUND) {
+            $this->markIgnored($log, 'Event refund.failed sur une transaction non-REFUND');
+            return;
+        }
+
         $transaction->update([
-            'status' => TransactionStatusEnum::FAILED,
+            'status'       => TransactionStatusEnum::FAILED,
             'processed_at' => now(),
         ]);
 
         $log->update([
-            'status' => WebhookLogStatusEnum::PROCESSED,
+            'status'       => WebhookLogStatusEnum::PROCESSED,
             'processed_at' => now(),
         ]);
     }
@@ -130,9 +184,9 @@ class HandlePaymentWebhook
     private function markIgnored(WebhookLog $log, ?string $reason = null): void
     {
         $log->update([
-            'status' => WebhookLogStatusEnum::IGNORED,
+            'status'        => WebhookLogStatusEnum::IGNORED,
             'error_message' => $reason,
-            'processed_at' => now(),
+            'processed_at'  => now(),
         ]);
     }
 }

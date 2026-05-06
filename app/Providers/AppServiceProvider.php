@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Contracts\Payments\PaymentProviderResolverContract;
+use App\Contracts\Payments\WebhookProcessorContract;
+use App\Services\Payments\PaymentProviderResolver;
+use App\Services\Payments\WebhookProcessor;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -11,7 +15,15 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        $this->app->bind(
+            PaymentProviderResolverContract::class,
+            PaymentProviderResolver::class,
+        );
+
+        $this->app->bind(
+            WebhookProcessorContract::class,
+            WebhookProcessor::class,
+        );
     }
 
     public function boot(): void
