@@ -1012,6 +1012,69 @@ Le guard dans le resolver coupe court avant instanciation.
 
 ✅ actif — implémenté en [2026-05]
 
+````
+
+## [2026-05] — Confirmation automatique après paiement PSP
+
+### Contexte
+
+Deux logiques coexistaient dans le système :
+- `ConfirmBooking` = confirmation manuelle par le voyageur (guards utilisateur + capacité)
+- `HandlePaymentWebhook::handleChargeSuccess()` = confirmation automatique par preuve PSP
+
+La question métier : le voyageur doit-il valider explicitement après que l'expéditeur a payé ?
+
+### Décision
+
+En MVP : `transaction.success` → `Booking CONFIRMEE` automatiquement.
+Le paiement PSP vaut acceptation implicite du voyageur.
+
+`ConfirmBooking` reste disponible comme action manuelle (admin / edge case)
+mais n'est plus le chemin principal en production Kkiapay.
+
+### Pourquoi
+
+- simplification du flow expéditeur
+- réduction de la complexité escrow
+- réduction des états intermédiaires
+- accélération du MVP
+- cohérence avec les marketplaces classiques (le voyageur a publié = accord implicite)
+
+### Limites
+
+- le voyageur ne valide pas explicitement après paiement
+- aucun mécanisme de refus voyageur en MVP
+- si le voyageur veut refuser : passage manuel en `EN_LITIGE`
+
+### Évolution future — Phase 4 (Escrow)
+
+```txt
+EN_PAIEMENT
+→ EN_ATTENTE_VALIDATION  (déclenché par transaction.success)
+→ CONFIRMEE              (voyageur accepte, délai X heures)
+→ ANNULE + REFUND        (voyageur refuse)
+````
+
+Implique : nouveau statut DB, nouvelle action `AcceptBooking` / `RejectBooking`,
+refacto `HandlePaymentWebhook`, window de validation avec expiration.
+
+### Alternatives considérées
+
+- Double validation immédiate ❌ : trop complexe pour MVP, 280 tests à revalider.
+- Blocage côté voyageur sans remboursement ❌ : inacceptable produit.
+
+### Conséquences
+
+- `transaction.success` → `CONFIRMEE` est le seul chemin automatique en production
+- `ConfirmBooking` garde ses guards mais n'est plus le chemin principal
+- la transition `EN_PAIEMENT → CONFIRMEE` reste valide dans `BookingStatusEnum`
+- à réévaluer obligatoirement en Phase 4 (Escrow avancé)
+
+### Statut
+
+✅ actif — MVP
+⏳ à réévaluer — Phase 4 Escrow
+
 ```
 
 ```
