@@ -327,3 +327,149 @@ it('ignore un refund déjà finalisé même avec un nouvel event_id', function (
         ->and($log->status)->toBe(WebhookLogStatusEnum::IGNORED)
         ->and($log->error_message)->toBe('Transaction déjà finalisée');
 });
+
+it('marque une charge pending comme completed et passe le booking à CONFIRMEE', function () {
+    $user = User::factory()->create();
+    $trip = Trip::factory()->create();
+
+    $booking = Booking::factory()->create([
+        'user_id' => $user->id,
+        'trip_id' => $trip->id,
+        'status'  => BookingStatusEnum::EN_PAIEMENT,
+    ]);
+
+    $charge = Transaction::factory()
+        ->charge()
+        ->pending()
+        ->create([
+            'user_id'                 => $user->id,
+            'booking_id'              => $booking->id,
+            'provider_transaction_id' => 'kkp_charge_001',
+        ]);
+
+    $payload = [
+        'event_id'                => 'kkp_evt_001',
+        'event_type'              => 'transaction.success',
+        'provider_transaction_id' => 'kkp_charge_001',
+    ];
+
+    app(HandlePaymentWebhook::class)->execute($payload);
+
+    $charge->refresh();
+    $booking->refresh();
+
+    $log = WebhookLog::where('event_id', 'kkp_evt_001')->first();
+
+    expect($charge->status)->toBe(TransactionStatusEnum::COMPLETED)
+        ->and($charge->processed_at)->not->toBeNull()
+        ->and($booking->status)->toBe(BookingStatusEnum::CONFIRMEE)
+        ->and($log)->not->toBeNull()
+        ->and($log->status)->toBe(WebhookLogStatusEnum::PROCESSED)
+        ->and($log->event)->toBe('transaction.success');
+});
+
+it('marque une charge pending comme failed et laisse le booking EN_PAIEMENT', function () {
+    $user = User::factory()->create();
+    $trip = Trip::factory()->create();
+
+    $booking = Booking::factory()->create([
+        'user_id' => $user->id,
+        'trip_id' => $trip->id,
+        'status'  => BookingStatusEnum::EN_PAIEMENT,
+    ]);
+
+    $charge = Transaction::factory()
+        ->charge()
+        ->pending()
+        ->create([
+            'user_id'                 => $user->id,
+            'booking_id'              => $booking->id,
+            'provider_transaction_id' => 'kkp_charge_002',
+        ]);
+
+    $payload = [
+        'event_id'                => 'kkp_evt_002',
+        'event_type'              => 'transaction.failed',
+        'provider_transaction_id' => 'kkp_charge_002',
+    ];
+
+    app(HandlePaymentWebhook::class)->execute($payload);
+
+    $charge->refresh();
+    $booking->refresh();
+
+    $log = WebhookLog::where('event_id', 'kkp_evt_002')->first();
+
+    expect($charge->status)->toBe(TransactionStatusEnum::FAILED)
+        ->and($charge->processed_at)->not->toBeNull()
+        ->and($booking->status)->toBe(BookingStatusEnum::EN_PAIEMENT)
+        ->and($log)->not->toBeNull()
+        ->and($log->status)->toBe(WebhookLogStatusEnum::PROCESSED);
+});
+
+it('est idempotent sur transaction.success — un seul CONFIRMEE même si reçu deux fois', function () {
+    $user = User::factory()->create();
+    $trip = Trip::factory()->create();
+
+    $booking = Booking::factory()->create([
+        'user_id' => $user->id,
+        'trip_id' => $trip->id,
+        'status'  => BookingStatusEnum::EN_PAIEMENT,
+    ]);
+
+    $charge = Transaction::factory()
+        ->charge()
+        ->pending()
+        ->create([
+            'user_id'                 => $user->id,
+            'booking_id'              => $booking->id,
+            'provider_transaction_id' => 'kkp_charge_003',
+        ]);
+
+    $payload = [
+        'event_id'                => 'kkp_evt_003',
+        'event_type'              => 'transaction.success',
+        'provider_transaction_id' => 'kkp_charge_003',
+    ];
+
+    $action = app(HandlePaymentWebhook::class);
+    $action->execute($payload);
+    $action->execute($payload);
+
+    $charge->refresh();
+    $booking->refresh();
+
+    expect($charge->status)->toBe(TransactionStatusEnum::COMPLETED)
+        ->and($booking->status)->toBe(BookingStatusEnum::CONFIRMEE)
+        ->and(WebhookLog::where('event_id', 'kkp_evt_003')->count())->toBe(1)
+        ->and(
+            $booking->statusHistories()
+                ->where('new_status', BookingStatusEnum::CONFIRMEE)
+                ->count()
+        )->toBe(1);
+});
+
+it('ignore transaction.success sur une transaction non-CHARGE', function () {
+    $user = User::factory()->create();
+
+    Transaction::factory()
+        ->refund()
+        ->pending()
+        ->create([
+            'user_id'                 => $user->id,
+            'provider_transaction_id' => 'kkp_refund_wrong_event',
+        ]);
+
+    $payload = [
+        'event_id'                => 'kkp_evt_004',
+        'event_type'              => 'transaction.success',
+        'provider_transaction_id' => 'kkp_refund_wrong_event',
+    ];
+
+    app(HandlePaymentWebhook::class)->execute($payload);
+
+    $log = WebhookLog::where('event_id', 'kkp_evt_004')->first();
+
+    expect($log)->not->toBeNull()
+        ->and($log->status)->toBe(WebhookLogStatusEnum::IGNORED);
+});

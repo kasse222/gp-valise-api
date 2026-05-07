@@ -378,6 +378,8 @@ Clé : `event_id` unique dans `webhook_logs` + `lockForUpdate()` + vérification
 | `refund.failed`    | `REFUND → FAILED`, `Booking` inchangé (souvent `EN_LITIGE`)          |
 | autres events      | `ignored`                                                            |
 
+             | Event                  | Effets                                                                |
+
 > **Important** : `HandlePaymentWebhook::handleSuccess()` est appelé quelle que soit
 > la source du refund (standard via `RefundTransaction` ou admin via `AdminRefundTransaction`).
 > La transition `Booking → REMBOURSEE` doit donc être valide depuis `CONFIRMEE` ET depuis `EN_LITIGE`.
@@ -385,6 +387,23 @@ Clé : `event_id` unique dans `webhook_logs` + `lockForUpdate()` + vérification
 > provoquait un webhook `FAILED` définitif malgré un `REFUND COMPLETED` en base.
 
 ---
+
+| Event                 | Effets                                                               |
+| --------------------- | -------------------------------------------------------------------- |
+| `transaction.success` | `CHARGE → COMPLETED`, `processed_at = now()`, `Booking → CONFIRMEE`  |
+| `transaction.failed`  | `CHARGE → FAILED`, `Booking` inchangé (`EN_PAIEMENT`)                |
+| `refund.completed`    | `REFUND → COMPLETED`, `processed_at = now()`, `Booking → REMBOURSEE` |
+| `refund.failed`       | `REFUND → FAILED`, `Booking` inchangé (souvent `EN_LITIGE`)          |
+| autres events         | `ignored`                                                            |
+
+> **Deux chemins de confirmation** :
+>
+> - `ConfirmBooking` = confirmation manuelle par le voyageur (guards utilisateur + capacité)
+> - `HandlePaymentWebhook::handleChargeSuccess()` = confirmation automatique par preuve PSP
+>
+> Le webhook bypass les guards utilisateur délibérément :
+> `transaction.success` est une preuve externe de paiement, pas une action humaine.
+> La transition `EN_PAIEMENT → CONFIRMEE` reste valide dans les deux cas.
 
 ## 🧱 Garanties système
 
