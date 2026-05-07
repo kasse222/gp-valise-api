@@ -291,6 +291,10 @@ BookingStatusEnum
 > laissant le Booking en `CONFIRMEE` malgré un `REFUND COMPLETED` en base.
 > Incohérence financière garantie. Correction : une ligne dans `BookingStatusEnum`.
 
+> **Confirmation** : deux déclencheurs légitimes coexistent.
+> `ConfirmBooking` (action voyageur) et `HandlePaymentWebhook::handleChargeSuccess()` (preuve PSP).
+> Le webhook est prioritaire en production Kkiapay — c'est lui qui confirme après paiement réel.
+
 ---
 
 ### canBeRefunded()
