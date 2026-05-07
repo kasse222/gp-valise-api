@@ -7,6 +7,7 @@ namespace App\Services\Payments;
 use App\Contracts\Payments\PaymentProvider;
 use App\Contracts\Payments\PaymentProviderResolverContract;
 use App\Data\Payments\PaymentRequestData;
+use App\Enums\PaymentProviderEnum;
 use RuntimeException;
 
 final class PaymentProviderResolver  implements PaymentProviderResolverContract
@@ -17,6 +18,8 @@ final class PaymentProviderResolver  implements PaymentProviderResolverContract
             country: strtoupper(trim($request->country)),
             method: $request->method->value,
         );
+
+        $this->guardFakeInProduction($providerKey);
 
         $providerClass = config("payment_providers.providers.{$providerKey}");
 
@@ -52,6 +55,8 @@ final class PaymentProviderResolver  implements PaymentProviderResolverContract
 
     public function resolveByKey(string $providerKey): PaymentProvider
     {
+        $this->guardFakeInProduction($providerKey);
+
         $providerClass = config("payment_providers.providers.{$providerKey}");
 
         if (! is_string($providerClass) || ! class_exists($providerClass)) {
@@ -65,5 +70,12 @@ final class PaymentProviderResolver  implements PaymentProviderResolverContract
         }
 
         return $provider;
+    }
+
+    private function guardFakeInProduction(string $providerKey): void
+    {
+        if ($providerKey === PaymentProviderEnum::FAKE->value && app()->environment('production')) {
+            throw new RuntimeException('FakePaymentProvider is not allowed in production.');
+        }
     }
 }

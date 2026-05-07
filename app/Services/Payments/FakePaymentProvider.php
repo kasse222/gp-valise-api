@@ -16,8 +16,20 @@ use Illuminate\Support\Str;
 
 final class FakePaymentProvider implements PaymentProvider
 {
+
+    private function guardAgainstProduction(): void
+    {
+        if (app()->environment('production')) {
+            throw new \RuntimeException(
+                'FakePaymentProvider is not allowed in production.'
+            );
+        }
+    }
+
     public function charge(PaymentRequestData $request): PaymentResponseData
     {
+        $this->guardAgainstProduction();
+
         return $this->simulate(
             type: 'charge',
             amount: $request->amount,
@@ -28,6 +40,8 @@ final class FakePaymentProvider implements PaymentProvider
 
     public function refund(RefundRequestData $request): PaymentResponseData
     {
+        $this->guardAgainstProduction();
+
         return $this->simulate(
             type: 'refund',
             amount: $request->amount,
