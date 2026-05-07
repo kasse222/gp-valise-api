@@ -31,4 +31,11 @@ return [
             PaymentMethodEnum::CARD->value => PaymentProviderEnum::STRIPE->value,
         ],
     ],
+
+    'stripe' => [
+        'api_key'        => env('STRIPE_API_KEY'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        'success_url'    => env('STRIPE_SUCCESS_URL', 'https://example.com/payment/success'),
+        'cancel_url'     => env('STRIPE_CANCEL_URL', 'https://example.com/payment/cancel'),
+    ],
 ];
