@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Data\Payments\PaymentRequestData;
 use App\Data\Payments\WebhookVerificationData;
 use App\Enums\CurrencyEnum;
+use App\Enums\PaymentMethodEnum;
 use App\Enums\PaymentProviderEnum;
 use App\Services\Payments\FakePaymentProvider;
 
@@ -61,4 +63,20 @@ it('fallback eventId si absent', function () {
     $event = $provider->normalizeWebhook($verification);
 
     expect($event->eventId)->not->toBeNull();
+});
+
+it('lève une exception si utilisé en production', function (): void {
+    app()->detectEnvironment(fn() => 'production');
+
+    expect(fn() => app(FakePaymentProvider::class)->charge(
+        new PaymentRequestData(
+            country: 'FR',
+            currency: CurrencyEnum::EUR,
+            method: PaymentMethodEnum::CARD,
+            amount: 1000,
+            idempotencyKey: 'key_123',
+        )
+    ))->toThrow(RuntimeException::class, 'FakePaymentProvider is not allowed in production.');
+
+    app()->detectEnvironment(fn() => 'testing'); // reset
 });

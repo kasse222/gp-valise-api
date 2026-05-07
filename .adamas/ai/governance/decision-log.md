@@ -913,12 +913,105 @@ fallback          → FakeProvider
 
 ✅ actif — Phase 2A validée avec 263 tests / 682 assertions
 
-````
+## [2026-05] — Normalisation webhook avant dispatch
 
-Puis mets à jour dans **Décisions à documenter / Phase 2** :
+### Contexte
 
-```md
-- Choix final entre Kkiapay et KAYBIC Africa après test sandbox
-- Format webhook Kkiapay vs HandlePaymentWebhook existant
-- Interdiction du fallback FakeProvider en production
-````
+Le `WebhookController` passait initialement le payload brut PSP directement
+à `ProcessPaymentWebhook`. `HandlePaymentWebhook` devait alors interpréter
+des formats hétérogènes selon le provider.
+
+Kkiapay envoie `transactionId` / `event` / `isPaymentSucces`.
+Le domaine attend `event_id` / `event_type` / `provider_transaction_id`.
+Couplage PSP → domaine garanti sans normalisation.
+
+### Décision
+
+Normalisation obligatoire avant dispatch :
+
+```txt
+WebhookController
+  → WebhookProcessor::process()
+      → verifyWebhook()
+      → normalizeWebhook() → PaymentEventData
+  → ProcessPaymentWebhook::dispatch(payload normalisé)
+```
+
+Payload dispatché = vocabulaire domaine uniquement :
+`event_id`, `event_type`, `provider`, `provider_transaction_id`,
+`provider_status`, `amount`, `currency`, `metadata`, `raw_payload`.
+
+### Alternatives considérées
+
+- Normalisation dans `HandlePaymentWebhook` ❌ : couplage PSP dans le domaine.
+- Middleware HTTP ❌ : accès limité au provider résolu.
+- Normalisation dans le Job ❌ : dépendance PSP dans la queue.
+
+### Conséquences
+
+- `HandlePaymentWebhook` est agnostique au PSP ;
+- `WebhookProcessor` est testable unitairement sans HTTP ;
+- ajout d'un nouveau PSP = implémenter `normalizeWebhook()` uniquement ;
+- route `/webhooks/{providerKey}` remplace `/webhooks/payment`.
+
+### Fichiers impactés
+
+- `app/Services/Payments/WebhookProcessor.php` (nouveau)
+- `app/Contracts/Payments/WebhookProcessorContract.php` (nouveau)
+- `app/Contracts/Payments/PaymentProviderResolverContract.php` (nouveau)
+- `app/Http/Controllers/Api/V1/WebhookController.php`
+- `app/Actions/Payment/HandlePaymentWebhook.php`
+- `app/Data/Payments/PaymentEventData.php` (eventType ajouté)
+- `routes/api.php`
+
+### Statut
+
+✅ actif — implémenté en [2026-05]
+
+---
+
+## [2026-05] — FakeProvider interdit en production
+
+### Contexte
+
+`FakePaymentProvider` simule les paiements sans appel PSP réel.
+Aucun guard n'empêchait son utilisation en production si le routing
+ou la config pointait vers lui.
+
+### Décision
+
+Double protection :
+
+1. `FakePaymentProvider::charge()` et `refund()` lèvent `RuntimeException`
+   si `app()->environment('production')`.
+2. `PaymentProviderResolver::resolve()` et `resolveByKey()` lèvent
+   `RuntimeException` si `$providerKey === 'fake'` en production.
+
+Le guard dans le provider est la dernière ligne de défense.
+Le guard dans le resolver coupe court avant instanciation.
+
+### Alternatives considérées
+
+- Guard uniquement en config ❌ : contournable par erreur de config.
+- Guard uniquement dans le resolver ❌ : provider instanciable directement.
+- Supprimer FakeProvider en production ❌ : casse les pipelines CI/CD.
+
+### Conséquences
+
+- `FakeProvider` reste disponible en `testing` et `local` ;
+- double protection indépendante ;
+- test unitaire couvre le scénario production.
+
+### Fichiers impactés
+
+- `app/Services/Payments/FakePaymentProvider.php`
+- `app/Services/Payments/PaymentProviderResolver.php`
+- `tests/Unit/Payments/FakePaymentProviderTest.php`
+
+### Statut
+
+✅ actif — implémenté en [2026-05]
+
+```
+
+```
