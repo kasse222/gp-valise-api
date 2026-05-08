@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Validators;
 
 use App\Models\Luggage;
@@ -62,7 +64,7 @@ class BookingValidator
 
             if (! $luggage->isAvailable()) {
                 throw ValidationException::withMessages([
-                    'items' => "La valise {$luggage->id} n’est pas disponible.",
+                    'items' => "La valise {$luggage->id} n'est pas disponible.",
                 ]);
             }
         }
@@ -70,19 +72,20 @@ class BookingValidator
 
     protected function validateCapacity(Trip $trip, array $data): void
     {
-        $requestedKg = (float) collect($data['items'])->sum('kg_reserved');
+        $requestedGrams = (int) collect($data['items'])->sum('kg_reserved'); // ← grammes
 
-        if ($requestedKg <= 0) {
+        if ($requestedGrams <= 0) {
             throw ValidationException::withMessages([
                 'kg_reserved' => 'Le poids total doit être supérieur à zéro.',
             ]);
         }
 
-        $remaining = $trip->kgDisponible();
+        $remaining = $trip->gramsDisponible(); // ← grammes
 
-        if ($requestedKg > $remaining) {
+        if ($requestedGrams > $remaining) {
+            $remainingKg = round($remaining / 1000, 2);
             throw ValidationException::withMessages([
-                'kg_reserved' => "Capacité insuffisante. Restant : {$remaining} kg.",
+                'kg_reserved' => "Capacité insuffisante. Restant : {$remainingKg} kg.",
             ]);
         }
     }

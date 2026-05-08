@@ -43,18 +43,18 @@ class ConfirmBooking
                 ]);
             }
 
-            $thisBookingKg = (float) $booking->bookingItems->sum('kg_reserved');
-            $occupiedKg = $trip->kgReserved();
+            $thisBookingGrams = (int) $booking->bookingItems->sum('kg_reserved');
+            $occupiedGrams    = $trip->gramsReserved(); // ← kgReserved → gramsReserved
 
             if (
                 $booking->status === BookingStatusEnum::EN_PAIEMENT
                 && $booking->payment_expires_at !== null
                 && $booking->payment_expires_at->isFuture()
             ) {
-                $occupiedKg -= $thisBookingKg;
+                $occupiedGrams -= $thisBookingGrams;
             }
 
-            if (($occupiedKg + $thisBookingKg) > $trip->capacity) {
+            if (($occupiedGrams + $thisBookingGrams) > $trip->capacity) {
                 throw ValidationException::withMessages([
                     'trip' => 'Capacité du trajet insuffisante.',
                 ]);

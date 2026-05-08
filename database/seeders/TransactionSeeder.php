@@ -30,8 +30,8 @@ class TransactionSeeder extends Seeder
             Transaction::create([
                 'user_id'      => $booking->user_id,
                 'booking_id'   => $booking->id,
-                'amount'       => fake()->randomFloat(2, 15, 200),
-                'currency' => CurrencyEnum::default()->value,
+                'amount'       => fake()->numberBetween(1500, 20000),
+                'currency'     => CurrencyEnum::default()->value,
                 'status'       => fake()->randomElement(TransactionStatusEnum::values()),
                 'method'       => fake()->randomElement(PaymentMethodEnum::values()),
                 'processed_at' => Carbon::parse($booking->created_at)->addDays(rand(0, 5)),

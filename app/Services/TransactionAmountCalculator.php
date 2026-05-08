@@ -1,42 +1,41 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services;
 
 use App\Models\Transaction;
 
 class TransactionAmountCalculator
 {
-    public function calculateFeeAmount(Transaction $charge): float
+    public function calculateFeeAmount(Transaction $charge): int
     {
-        return round($this->chargeAmount($charge) * $this->feeRate(), 2);
+        return (int) round($this->chargeAmount($charge) * $this->feeRate());
     }
 
-    public function calculatePaymentFeeAmount(Transaction $charge): float
+    public function calculatePaymentFeeAmount(Transaction $charge): int
     {
-        return round($this->chargeAmount($charge) * $this->paymentFeeRate(), 2);
+        return (int) round($this->chargeAmount($charge) * $this->paymentFeeRate());
     }
 
-    public function calculatePayoutAmount(Transaction $charge): float
+    public function calculatePayoutAmount(Transaction $charge): int
     {
-        return round($this->chargeAmount($charge) - $this->calculateFeeAmount($charge), 2);
+        return $this->chargeAmount($charge) - $this->calculateFeeAmount($charge);
     }
 
-    public function calculateRefundAmount(Transaction $charge): float
+    public function calculateRefundAmount(Transaction $charge): int
     {
-        return round($this->chargeAmount($charge) - $this->calculateFeeAmount($charge), 2);
+        return $this->chargeAmount($charge) - $this->calculateFeeAmount($charge);
     }
 
-    public function calculateNetProfitAmount(Transaction $charge): float
+    public function calculateNetProfitAmount(Transaction $charge): int
     {
-        return round(
-            $this->calculateFeeAmount($charge) - $this->calculatePaymentFeeAmount($charge),
-            2
-        );
+        return $this->calculateFeeAmount($charge) - $this->calculatePaymentFeeAmount($charge);
     }
 
-    private function chargeAmount(Transaction $charge): float
+    private function chargeAmount(Transaction $charge): int
     {
-        return (float) $charge->amount;
+        return (int) $charge->amount;
     }
 
     private function feeRate(): float

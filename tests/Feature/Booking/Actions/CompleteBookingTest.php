@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Actions\Booking\CompleteBooking;
 use App\Enums\BookingStatusEnum;
 use App\Enums\TransactionStatusEnum;
@@ -16,84 +18,71 @@ use function Pest\Laravel\actingAs;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
-beforeEach(function () {
+beforeEach(function (): void {
     config()->set('gpvalise.fee_percentage', 10);
     config()->set('gpvalise.payment_fee_percentage', 2);
 });
 
-it('livre une réservation avec succès', function () {
+it('livre une réservation avec succès', function (): void {
     $voyageur = User::factory()->traveler()->verified()->create();
-
-    $trip = Trip::factory()->create([
-        'user_id' => $voyageur->id,
-    ]);
-
+    $trip     = Trip::factory()->create(['user_id' => $voyageur->id]);
     $expediteur = User::factory()->sender()->verified()->create();
 
     $booking = Booking::factory()->create([
         'user_id' => $expediteur->id,
         'trip_id' => $trip->id,
-        'status' => BookingStatusEnum::CONFIRMEE,
+        'status'  => BookingStatusEnum::CONFIRMEE,
     ]);
 
     actingAs($voyageur);
 
     $result = app(CompleteBooking::class)->execute($booking, $voyageur);
-
     $result->load('statusHistories');
 
     expect($result->status)->toBe(BookingStatusEnum::LIVREE)
         ->and($result->statusHistories->last()->new_status)->toBe(BookingStatusEnum::LIVREE);
 });
 
-it('dispatch BookingDelivered lorsqu une réservation est livrée', function () {
+it('dispatch BookingDelivered lorsqu une réservation est livrée', function (): void {
     Event::fake();
 
-    $voyageur = User::factory()->traveler()->verified()->create();
-
-    $trip = Trip::factory()->create([
-        'user_id' => $voyageur->id,
-    ]);
-
+    $voyageur   = User::factory()->traveler()->verified()->create();
+    $trip       = Trip::factory()->create(['user_id' => $voyageur->id]);
     $expediteur = User::factory()->sender()->verified()->create();
 
     $booking = Booking::factory()->create([
         'user_id' => $expediteur->id,
         'trip_id' => $trip->id,
-        'status' => BookingStatusEnum::CONFIRMEE,
+        'status'  => BookingStatusEnum::CONFIRMEE,
     ]);
 
     actingAs($voyageur);
 
     $result = app(CompleteBooking::class)->execute($booking, $voyageur);
 
-    Event::assertDispatched(BookingDelivered::class, function (BookingDelivered $event) use ($result) {
+    Event::assertDispatched(BookingDelivered::class, function (BookingDelivered $event) use ($result): bool {
         return $event->booking->id === $result->id
             && $event->booking->status === BookingStatusEnum::LIVREE;
     });
 });
 
-it('crée automatiquement un payout pending et une commission lorsqu une réservation est livrée', function () {
-    $voyageur = User::factory()->traveler()->verified()->create();
-
-    $trip = Trip::factory()->create([
-        'user_id' => $voyageur->id,
-    ]);
-
+it('crée automatiquement un payout pending et une commission lorsqu une réservation est livrée', function (): void {
+    $voyageur   = User::factory()->traveler()->verified()->create();
+    $trip       = Trip::factory()->create(['user_id' => $voyageur->id]);
     $expediteur = User::factory()->sender()->verified()->create();
 
     $booking = Booking::factory()->create([
         'user_id' => $expediteur->id,
         'trip_id' => $trip->id,
-        'status' => BookingStatusEnum::CONFIRMEE,
+        'status'  => BookingStatusEnum::CONFIRMEE,
     ]);
 
     Transaction::factory()->create([
-        'user_id' => $expediteur->id,
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::CHARGE,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 120.50,
+        'user_id'      => $expediteur->id,
+        'booking_id'   => $booking->id,
+        'type'         => TransactionTypeEnum::CHARGE,
+        'status'       => TransactionStatusEnum::COMPLETED,
+        'amount'       => 12050, // ← 120.50€ en centimes
         'processed_at' => now(),
     ]);
 
@@ -114,45 +103,40 @@ it('crée automatiquement un payout pending et une commission lorsqu une réserv
     expect($payout)->not->toBeNull()
         ->and($payout->user_id)->toBe($voyageur->id)
         ->and($payout->status)->toBe(TransactionStatusEnum::PENDING)
-        ->and((float) $payout->amount)->toBe(108.45);
+        ->and($payout->amount)->toBe(10845); // ← 108.45€ = 12050 - 1205
 
     expect($fee)->not->toBeNull()
         ->and($fee->user_id)->toBe($voyageur->id)
         ->and($fee->status)->toBe(TransactionStatusEnum::COMPLETED)
-        ->and((float) $fee->amount)->toBe(12.05);
+        ->and($fee->amount)->toBe(1205); // ← 12.05€ = 10% de 12050
 });
 
-it('ne crée pas de deuxième payout si un payout existe déjà', function () {
-    $voyageur = User::factory()->traveler()->verified()->create();
-
-    $trip = Trip::factory()->create([
-        'user_id' => $voyageur->id,
-    ]);
-
+it('ne crée pas de deuxième payout si un payout existe déjà', function (): void {
+    $voyageur   = User::factory()->traveler()->verified()->create();
+    $trip       = Trip::factory()->create(['user_id' => $voyageur->id]);
     $expediteur = User::factory()->sender()->verified()->create();
 
     $booking = Booking::factory()->create([
         'user_id' => $expediteur->id,
         'trip_id' => $trip->id,
-        'status' => BookingStatusEnum::LIVREE,
+        'status'  => BookingStatusEnum::LIVREE,
     ]);
 
     Transaction::factory()->create([
-        'user_id' => $expediteur->id,
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::CHARGE,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 120.50,
+        'user_id'      => $expediteur->id,
+        'booking_id'   => $booking->id,
+        'type'         => TransactionTypeEnum::CHARGE,
+        'status'       => TransactionStatusEnum::COMPLETED,
+        'amount'       => 12050, // ← centimes
         'processed_at' => now(),
     ]);
 
     Transaction::factory()->create([
-        'user_id' => $voyageur->id,
+        'user_id'    => $voyageur->id,
         'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::PAYOUT,
-        'status' => TransactionStatusEnum::PENDING,
-        'amount' => 108.45,
-        'processed_at' => null,
+        'type'       => TransactionTypeEnum::PAYOUT,
+        'status'     => TransactionStatusEnum::PENDING,
+        'amount'     => 10845, // ← centimes
     ]);
 
     expect($booking->hasPayoutTransaction())->toBeTrue();
