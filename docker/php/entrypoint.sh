@@ -7,19 +7,19 @@ echo "APP_ENV=$APP_ENV"
 echo "DB_HOST=$DB_HOST"
 echo "DB_USERNAME=$DB_USERNAME"
 
-echo "📡 Attente de MySQL sur $DB_HOST:$DB_PORT..."
+echo "📡 Attente de PostgreSQL sur $DB_HOST:$DB_PORT..."
 max_try=30
 try=0
 until nc -z "$DB_HOST" "$DB_PORT"; do
   try=$((try+1))
   if [ "$try" -ge "$max_try" ]; then
-    echo "❌ MySQL toujours indisponible après $max_try tentatives. Abandon."
+    echo "❌ PostgreSQL toujours indisponible après $max_try tentatives. Abandon."
     exit 1
   fi
   echo "⏳ Tentative $try/$max_try..."
   sleep 1
 done
-echo "✅ MySQL est prêt !"
+echo "✅ PostgreSQL est prêt !"
 
 if [ ! -f artisan ]; then
   echo "❌ Fichier artisan manquant — arrêt du script."

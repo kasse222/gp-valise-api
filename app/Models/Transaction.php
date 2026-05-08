@@ -30,7 +30,7 @@ class Transaction extends Model
 
     protected $casts = [
         'type' => TransactionTypeEnum::class,
-        'amount' => 'decimal:2',
+        'amount' => 'integer',
         'currency' => CurrencyEnum::class,
         'status' => TransactionStatusEnum::class,
         'method' => PaymentMethodEnum::class,

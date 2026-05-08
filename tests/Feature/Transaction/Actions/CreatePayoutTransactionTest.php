@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Actions\Transaction\CreatePayoutTransaction;
 use App\Enums\BookingStatusEnum;
 use App\Enums\TransactionStatusEnum;
@@ -13,18 +15,14 @@ use Illuminate\Validation\ValidationException;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
-beforeEach(function () {
+beforeEach(function (): void {
     config()->set('gpvalise.fee_percentage', 10);
     config()->set('gpvalise.payment_fee_percentage', 2);
 
-    $this->sender = User::factory()->create();
+    $this->sender   = User::factory()->create();
     $this->traveler = User::factory()->create();
-
-    $this->trip = Trip::factory()->create([
-        'user_id' => $this->traveler->id,
-    ]);
-
-    $this->action = app(CreatePayoutTransaction::class);
+    $this->trip     = Trip::factory()->create(['user_id' => $this->traveler->id]);
+    $this->action   = app(CreatePayoutTransaction::class);
 });
 
 function createDeliveredBookingForPayoutAction(): Booking
@@ -32,27 +30,24 @@ function createDeliveredBookingForPayoutAction(): Booking
     return Booking::factory()
         ->for(test()->sender)
         ->for(test()->trip)
-        ->create([
-            'status' => BookingStatusEnum::LIVREE,
-        ]);
+        ->create(['status' => BookingStatusEnum::LIVREE]);
 }
 
-function createChargeForPayoutAction(Booking $booking, float $amount = 100): Transaction
+function createChargeForPayoutAction(Booking $booking, int $amount = 10000): Transaction
 {
     return Transaction::factory()->create([
-        'user_id' => test()->sender->id,
-        'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::CHARGE,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => $amount,
+        'user_id'      => test()->sender->id,
+        'booking_id'   => $booking->id,
+        'type'         => TransactionTypeEnum::CHARGE,
+        'status'       => TransactionStatusEnum::COMPLETED,
+        'amount'       => $amount, // ← centimes
         'processed_at' => now(),
     ]);
 }
 
-it('crée un payout et une fee pour un booking livré avec charge complétée', function () {
+it('crée un payout et une fee pour un booking livré avec charge complétée', function (): void {
     $booking = createDeliveredBookingForPayoutAction();
-
-    createChargeForPayoutAction($booking, 100);
+    createChargeForPayoutAction($booking, 10000); // 100.00€
 
     $payout = $this->action->execute($booking);
 
@@ -60,78 +55,72 @@ it('crée un payout et une fee pour un booking livré avec charge complétée', 
         ->toBeInstanceOf(Transaction::class)
         ->and($payout->type)->toBe(TransactionTypeEnum::PAYOUT)
         ->and($payout->status)->toBe(TransactionStatusEnum::PENDING)
-        ->and((float) $payout->amount)->toBe(90.0)
+        ->and($payout->amount)->toBe(9000)  // 90.00€
         ->and($payout->user_id)->toBe($this->traveler->id);
 
     $this->assertDatabaseHas('transactions', [
         'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::FEE->value,
-        'status' => TransactionStatusEnum::COMPLETED->value,
-        'amount' => 10,
+        'type'       => TransactionTypeEnum::FEE->value,
+        'status'     => TransactionStatusEnum::COMPLETED->value,
+        'amount'     => 1000, // 10.00€
     ]);
 
     $this->assertDatabaseHas('transactions', [
         'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::PAYOUT->value,
-        'status' => TransactionStatusEnum::PENDING->value,
-        'amount' => 90,
+        'type'       => TransactionTypeEnum::PAYOUT->value,
+        'status'     => TransactionStatusEnum::PENDING->value,
+        'amount'     => 9000, // 90.00€
     ]);
 });
 
-it('refuse un payout si le booking nest pas livré', function () {
+it('refuse un payout si le booking nest pas livré', function (): void {
     $booking = Booking::factory()
         ->for($this->sender)
         ->for($this->trip)
-        ->create([
-            'status' => BookingStatusEnum::CONFIRMEE,
-        ]);
+        ->create(['status' => BookingStatusEnum::CONFIRMEE]);
 
     createChargeForPayoutAction($booking);
-
     $this->action->execute($booking);
 })->throws(ValidationException::class);
 
-it('refuse un payout sans charge complétée', function () {
+it('refuse un payout sans charge complétée', function (): void {
     $booking = createDeliveredBookingForPayoutAction();
-
     $this->action->execute($booking);
 })->throws(ValidationException::class);
 
-it('refuse un double payout', function () {
+it('refuse un double payout', function (): void {
     $booking = createDeliveredBookingForPayoutAction();
-
     createChargeForPayoutAction($booking);
 
     Transaction::factory()->create([
-        'user_id' => $this->traveler->id,
+        'user_id'    => $this->traveler->id,
         'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::PAYOUT,
-        'status' => TransactionStatusEnum::PENDING,
-        'amount' => 90,
+        'type'       => TransactionTypeEnum::PAYOUT,
+        'status'     => TransactionStatusEnum::PENDING,
+        'amount'     => 9000,
     ]);
 
     $this->action->execute($booking);
 })->throws(ValidationException::class);
 
-it('refuse un payout si un refund existe déjà', function () {
+it('refuse un payout si un refund existe déjà', function (): void {
     $booking = createDeliveredBookingForPayoutAction();
-
     createChargeForPayoutAction($booking);
 
     Transaction::factory()->create([
-        'user_id' => $this->sender->id,
+        'user_id'    => $this->sender->id,
         'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::REFUND,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 100,
+        'type'       => TransactionTypeEnum::REFUND,
+        'status'     => TransactionStatusEnum::COMPLETED,
+        'amount'     => 10000,
     ]);
 
     $this->action->execute($booking);
 })->throws(ValidationException::class);
 
-it('crée une PAYMENT_FEE avec le bon montant et statut COMPLETED', function () {
+it('crée une PAYMENT_FEE avec le bon montant et statut COMPLETED', function (): void {
     $booking = createDeliveredBookingForPayoutAction();
-    $charge  = createChargeForPayoutAction($booking, 100);
+    $charge  = createChargeForPayoutAction($booking, 10000);
 
     $this->action->execute($booking);
 
@@ -143,14 +132,14 @@ it('crée une PAYMENT_FEE avec le bon montant et statut COMPLETED', function () 
     $expectedAmount = app(\App\Services\TransactionAmountCalculator::class)
         ->calculatePaymentFeeAmount($charge);
 
-    expect((float) $paymentFee->amount)->toBe($expectedAmount)
+    expect($paymentFee->amount)->toBe($expectedAmount) // 200 centimes = 2.00€
         ->and($paymentFee->status)->toBe(TransactionStatusEnum::COMPLETED)
         ->and($paymentFee->processed_at)->not->toBeNull();
 });
 
-it('profit_net calculable depuis la DB (FEE - PAYMENT_FEE)', function () {
+it('profit_net calculable depuis la DB (FEE - PAYMENT_FEE)', function (): void {
     $booking = createDeliveredBookingForPayoutAction();
-    createChargeForPayoutAction($booking, 100);
+    createChargeForPayoutAction($booking, 10000);
 
     $this->action->execute($booking);
 
@@ -164,23 +153,21 @@ it('profit_net calculable depuis la DB (FEE - PAYMENT_FEE)', function () {
         ->where('type', TransactionTypeEnum::PAYMENT_FEE->value)
         ->firstOrFail();
 
-    $profitNet = (float) $fee->amount - (float) $paymentFee->amount;
+    $profitNet = $fee->amount - $paymentFee->amount;
 
-    // fee_percentage=10%, payment_fee_percentage=2% on 100 → 10 - 2 = 8
-    expect($profitNet)->toBe(8.0);
+    expect($profitNet)->toBe(800); // 1000 - 200 = 800 centimes = 8.00€
 });
 
-it('refuse un payout si une fee existe déjà', function () {
+it('refuse un payout si une fee existe déjà', function (): void {
     $booking = createDeliveredBookingForPayoutAction();
-
     createChargeForPayoutAction($booking);
 
     Transaction::factory()->create([
-        'user_id' => $this->traveler->id,
+        'user_id'    => $this->traveler->id,
         'booking_id' => $booking->id,
-        'type' => TransactionTypeEnum::FEE,
-        'status' => TransactionStatusEnum::COMPLETED,
-        'amount' => 10,
+        'type'       => TransactionTypeEnum::FEE,
+        'status'     => TransactionStatusEnum::COMPLETED,
+        'amount'     => 1000,
     ]);
 
     $this->action->execute($booking);

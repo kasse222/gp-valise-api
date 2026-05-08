@@ -1,29 +1,26 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Enums\TripTypeEnum;
 use App\Models\Trip;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
-use function Pest\Laravel\{actingAs, getJson, postJson, putJson, deleteJson};
+use function Pest\Laravel\actingAs;
+use function Pest\Laravel\deleteJson;
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\postJson;
+use function Pest\Laravel\putJson;
 
-uses(
-    Tests\TestCase::class,
-    Illuminate\Foundation\Testing\RefreshDatabase::class
-);
+uses(Tests\TestCase::class, RefreshDatabase::class);
 
-uses(RefreshDatabase::class);
-
-use App\Enums\UserRoleEnum;
-
-beforeEach(function () {
+beforeEach(function (): void {
     $this->user = User::factory()->traveler()->create();
-
     actingAs($this->user);
 });
 
-
-it('liste les trajets', function () {
+it('liste les trajets', function (): void {
     Trip::factory()->count(3)->create(['user_id' => $this->user->id]);
 
     getJson('/api/v1/trips')
@@ -31,7 +28,7 @@ it('liste les trajets', function () {
         ->assertJsonStructure(['data']);
 });
 
-it('affiche un trajet spécifique', function () {
+it('affiche un trajet spécifique', function (): void {
     $trip = Trip::factory()->create(['user_id' => $this->user->id]);
 
     getJson("/api/v1/trips/{$trip->id}")
@@ -39,15 +36,15 @@ it('affiche un trajet spécifique', function () {
         ->assertJsonFragment(['id' => $trip->id]);
 });
 
-it('crée un trajet avec des données valides', function () {
+it('crée un trajet avec des données valides', function (): void {
     $data = [
-        'departure'      => 'Paris, FR',
-        'destination'    => 'Dakar, SN',
-        'date'           => now()->addDays(3)->toDateString(),
-        'flight_number'  => 'AF123',
-        'capacity'       => 40,
-        'price_per_kg'   => 20.50,
-        'type_trip'      => TripTypeEnum::STANDARD->value, // ou 'standard' si string
+        'departure'     => 'Paris, FR',
+        'destination'   => 'Dakar, SN',
+        'date'          => now()->addDays(3)->toDateString(),
+        'flight_number' => 'AF123',
+        'capacity'      => 40000,       // ← grammes : 40kg
+        'price_per_kg'  => 2050,        // ← centimes : 20.50€/kg
+        'type_trip'     => TripTypeEnum::STANDARD->value,
     ];
 
     postJson('/api/v1/trips', $data)
@@ -55,30 +52,26 @@ it('crée un trajet avec des données valides', function () {
         ->assertJsonFragment([
             'departure'   => 'Paris, FR',
             'destination' => 'Dakar, SN',
-            'capacity'    => 40,
+            'capacity'    => 40000,
         ]);
 });
 
-
-
-it('met à jour un trajet avec autorisation', function () {
+it('met à jour un trajet avec autorisation', function (): void {
     $trip = Trip::factory()->create(['user_id' => $this->user->id]);
 
-    $payload = ['price_per_kg' => 25.00];
-
-    putJson("/api/v1/trips/{$trip->id}", $payload)
+    putJson("/api/v1/trips/{$trip->id}", ['price_per_kg' => 2500]) // ← 25.00€ = 2500 centimes
         ->assertOk()
-        ->assertJsonFragment(['price_per_kg' => 25.00]);
+        ->assertJsonFragment(['price_per_kg' => 2500]);
 });
 
-it('rejette la mise à jour d’un trajet non autorisé', function () {
-    $trip = Trip::factory()->create(); // autre user
+it('rejette la mise à jour d\'un trajet non autorisé', function (): void {
+    $trip = Trip::factory()->create();
 
-    putJson("/api/v1/trips/{$trip->id}", ['price_per_kg' => 30])
+    putJson("/api/v1/trips/{$trip->id}", ['price_per_kg' => 3000])
         ->assertForbidden();
 });
 
-it('supprime un trajet avec succès', function () {
+it('supprime un trajet avec succès', function (): void {
     $trip = Trip::factory()->create(['user_id' => $this->user->id]);
 
     deleteJson("/api/v1/trips/{$trip->id}")
@@ -88,8 +81,8 @@ it('supprime un trajet avec succès', function () {
     $this->assertSoftDeleted($trip);
 });
 
-it('rejette la suppression d’un trajet d’un autre utilisateur', function () {
-    $trip = Trip::factory()->create(); // autre user
+it('rejette la suppression d\'un trajet d\'un autre utilisateur', function (): void {
+    $trip = Trip::factory()->create();
 
     deleteJson("/api/v1/trips/{$trip->id}")
         ->assertForbidden();

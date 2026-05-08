@@ -11,7 +11,7 @@ class CanBeReserved
 {
     public static function handle(Trip $trip): bool
     {
-        if ($trip->kgDisponible() <= 0) {
+        if ($trip->gramsDisponible() <= 0) {
             return false;
         }
 

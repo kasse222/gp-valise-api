@@ -1,15 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
-use App\Models\Luggage;
-use App\Models\User;
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use App\Enums\LuggageStatusEnum;
 use App\Enums\UserRoleEnum;
+use App\Models\Luggage;
 use App\Models\Trip;
+use App\Models\User;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class LuggageSeeder extends Seeder
 {
@@ -27,13 +28,8 @@ class LuggageSeeder extends Seeder
             $count = rand(1, 4);
 
             for ($i = 0; $i < $count; $i++) {
-                $pickupDate = now()->addDays(rand(1, 10));
+                $pickupDate   = now()->addDays(rand(1, 10));
                 $deliveryDate = (clone $pickupDate)->addDays(rand(2, 5));
-
-                $length = fake()->numberBetween(30, 80);
-                $width  = fake()->numberBetween(20, 60);
-                $height = fake()->numberBetween(10, 40);
-                $volume = $length * $width * $height;
 
                 $status = fake()->randomElement(LuggageStatusEnum::cases());
 
@@ -41,11 +37,10 @@ class LuggageSeeder extends Seeder
                     'user_id'             => $sender->id,
                     'trip_id'             => $trips->random()->id,
                     'description'         => fake()->words(3, true),
-                    'weight_kg'           => fake()->randomFloat(1, 2, 25),
-                    'length_cm'           => $length,
-                    'width_cm'            => $width,
-                    'height_cm'           => $height,
-                    //  'volume_cm3'          => $volume,
+                    'weight_kg'           => fake()->numberBetween(5, 250), // ← kg×10
+                    'length_cm'           => fake()->numberBetween(30, 80),
+                    'width_cm'            => fake()->numberBetween(20, 60),
+                    'height_cm'           => fake()->numberBetween(10, 40),
                     'pickup_city'         => fake()->city(),
                     'delivery_city'       => fake()->city(),
                     'pickup_date'         => $pickupDate,

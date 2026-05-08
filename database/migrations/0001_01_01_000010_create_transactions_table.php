@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Enums\CurrencyEnum;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\TransactionStatusEnum;
@@ -28,7 +30,7 @@ return new class extends Migration
                 ->default(TransactionTypeEnum::CHARGE->value)
                 ->index();
 
-            $table->decimal('amount', 10, 2);
+            $table->unsignedBigInteger('amount')->default(0); // ← decimal → integer
 
             $table->string('currency', 10)
                 ->default(CurrencyEnum::EUR->value);

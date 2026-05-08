@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Enums\TripStatusEnum;
 use App\Enums\TripTypeEnum;
 use Illuminate\Database\Migrations\Migration;
@@ -21,7 +23,9 @@ return new class extends Migration
             $table->string('destination', 255);
 
             $table->dateTime('date');
-            $table->float('capacity');
+
+            $table->integer('capacity');              // grammes : 25000 = 25kg, >= 1
+            $table->integer('price_per_kg')->nullable(); // centimes/kg : 1500 = 15.00€, >= 0
 
             $table->string('status', 20)
                 ->default(TripStatusEnum::ACTIVE->value);
@@ -30,8 +34,6 @@ return new class extends Migration
                 ->default(TripTypeEnum::STANDARD->value);
 
             $table->string('flight_number', 30)->nullable();
-
-            $table->decimal('price_per_kg', 8, 2)->nullable();
 
             $table->softDeletes();
             $table->timestamps();

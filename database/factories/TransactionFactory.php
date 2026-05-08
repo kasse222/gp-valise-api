@@ -23,7 +23,7 @@ class TransactionFactory extends Factory
             'booking_id' => Booking::factory(),
 
             'type'   => TransactionTypeEnum::CHARGE->value,
-            'amount' => fake()->randomFloat(2, 10, 300),
+            'amount' => fake()->numberBetween(1000, 30000),
 
             'currency' => CurrencyEnum::EUR->value,
             'method'   => PaymentMethodEnum::CARD->value,

@@ -1,42 +1,41 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Factories;
 
+use App\Enums\TripStatusEnum;
+use App\Enums\TripTypeEnum;
 use App\Models\Trip;
 use App\Models\User;
-use App\Enums\TripTypeEnum;
-use App\Enums\TripStatusEnum;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
-class TripFactory extends Factory
+final class TripFactory extends Factory
 {
     protected $model = Trip::class;
 
     public function definition(): array
     {
         return [
-            'user_id' => User::factory()->traveler(),
-            'departure'      => $this->faker->city() . ', ' . $this->faker->countryCode(),
-            'destination'    => $this->faker->city() . ', ' . $this->faker->countryCode(),
-            'date' => $this->faker->dateTimeBetween('+1 day', '+1 month'),
-            'capacity' => $this->faker->randomFloat(1, 10, 50),
-            'status' => TripStatusEnum::ACTIVE->value,
-            'type_trip' => TripTypeEnum::STANDARD->value,
+            'user_id'       => User::factory()->traveler(),
+            'departure'     => $this->faker->city() . ', ' . $this->faker->countryCode(),
+            'destination'   => $this->faker->city() . ', ' . $this->faker->countryCode(),
+            'date'          => $this->faker->dateTimeBetween('+1 day', '+1 month'),
+            'capacity'      => $this->faker->numberBetween(5000, 50000), // ← grammes : 5kg→50kg
+            'status'        => TripStatusEnum::ACTIVE->value,
+            'type_trip'     => TripTypeEnum::STANDARD->value,
             'flight_number' => strtoupper(Str::random(2)) . $this->faker->numberBetween(100, 9999),
-            'price_per_kg' => $this->faker->randomFloat(2, 5, 30),
+            'price_per_kg'  => $this->faker->numberBetween(500, 3000), // ← centimes : 5.00€→30.00€
         ];
     }
-
 
     public function withLocations(int $steps = 0): static
     {
         return $this->afterCreating(function (Trip $trip) use ($steps) {
-
             $trip->locations()->create(
                 \Database\Factories\LocationFactory::new()->departure()->make()->toArray()
             );
-
 
             for ($i = 1; $i <= $steps; $i++) {
                 $trip->locations()->create(

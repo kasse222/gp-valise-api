@@ -33,8 +33,8 @@ class Trip extends Model
         'date'        => 'datetime',
         'status'     => TripStatusEnum::class,
         'type_trip'  => TripTypeEnum::class,
-        'capacity'    => 'float',
-        'price_per_kg' => 'decimal:2',
+        'capacity'    => 'integer',
+        'price_per_kg' => 'integer',
 
     ];
     public function departureLocation(): HasOne
@@ -84,16 +84,16 @@ class Trip extends Model
         return CanBeReserved::handle($this);
     }
 
-    public function canAcceptKg(float $kg): bool
+    public function canAcceptGrams(int $grams): bool
     {
-        return ($this->kgReserved() + $kg) <= $this->capacity;
+        return ($this->gramsReserved() + $grams) <= $this->capacity;
     }
 
-    public function kgReserved(): float
+    public function gramsReserved(): int
     {
         $now = now();
 
-        return (float) $this->bookingItems()
+        return (int) $this->bookingItems()
             ->whereHas('booking', function ($query) use ($now) {
                 $query->where(function ($q) use ($now) {
                     $q->where('status', BookingStatusEnum::CONFIRMEE->value)
@@ -104,12 +104,12 @@ class Trip extends Model
                         });
                 });
             })
-            ->sum('kg_reserved');
+            ->sum('kg_reserved'); // ← à renommer en grams_reserved sur BookingItem aussi
     }
 
-    public function kgDisponible(): float
+    public function gramsDisponible(): int
     {
-        return max(0, $this->capacity - $this->kgReserved());
+        return max(0, $this->capacity - $this->gramsReserved());
     }
 
     public function isClosed(): bool

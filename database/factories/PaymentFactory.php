@@ -27,7 +27,7 @@ class PaymentFactory extends Factory
             'method'            => $method->value,
             'status'            => $status->value,
             'currency' => CurrencyEnum::default()->value,
-            'payment_reference' => strtoupper(Str::random(12)),
+            'payment_reference' => Str::uuid()->toString(),
             'paid_at'           => $status->isSuccess() ? $this->faker->dateTimeBetween('-2 months', 'now') : null,
         ];
     }
