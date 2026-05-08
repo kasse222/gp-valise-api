@@ -25,11 +25,12 @@ class Transaction extends Model
         'processed_at',
         'provider_transaction_id',
         'correlation_id',
+        'platform_account_id',
     ];
 
     protected $casts = [
         'type' => TransactionTypeEnum::class,
-        'amount' => 'float',
+        'amount' => 'decimal:2',
         'currency' => CurrencyEnum::class,
         'status' => TransactionStatusEnum::class,
         'method' => PaymentMethodEnum::class,
@@ -48,6 +49,10 @@ class Transaction extends Model
         return $this->belongsTo(Booking::class);
     }
 
+    public function platformAccount(): BelongsTo
+    {
+        return $this->belongsTo(PlatformAccount::class);
+    }
 
 
     public function isProcessed(): bool
