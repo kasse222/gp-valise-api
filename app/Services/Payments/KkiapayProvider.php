@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Payments;
 
+use App\Contracts\Payments\KkiapayAdminClientContract;
 use App\Contracts\Payments\PaymentProvider;
 use App\Data\Payments\PaymentEventData;
 use App\Data\Payments\PaymentRequestData;
@@ -12,32 +13,15 @@ use App\Data\Payments\RefundRequestData;
 use App\Data\Payments\WebhookVerificationData;
 use App\Enums\CurrencyEnum;
 use App\Enums\PaymentProviderEnum;
-use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Http;
+use Kkiapay\Kkiapay;
 use RuntimeException;
 
 final class KkiapayProvider implements PaymentProvider
 {
-    private const SANDBOX_BASE_URL = 'https://sandbox-api.kkiapay.me';
-    private const LIVE_BASE_URL    = 'https://api.kkiapay.me';
 
-    private function baseUrl(): string
-    {
-        return config('payment_providers.kkiapay.sandbox', true)
-            ? self::SANDBOX_BASE_URL
-            : self::LIVE_BASE_URL;
-    }
-
-    private function apiKey(): string
-    {
-        $key = config('payment_providers.kkiapay.api_key');
-
-        if (! is_string($key) || $key === '') {
-            throw new RuntimeException('Kkiapay API key is not configured.');
-        }
-
-        return $key;
-    }
+    public function __construct(
+        private readonly KkiapayAdminClientContract $adminClient,
+    ) {}
 
     public function charge(PaymentRequestData $request): PaymentResponseData
     {
@@ -57,17 +41,16 @@ final class KkiapayProvider implements PaymentProvider
         }
 
         try {
-            $response = Http::withHeaders([
-                'x-api-key'    => $this->apiKey(),
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'x-api-key'    => config('payment_providers.kkiapay.public_key'),
                 'Content-Type' => 'application/json',
             ])
                 ->timeout(15)
-                ->post("{$this->baseUrl()}/api/v1/transactions/initialize", $payload);
+                ->post($this->baseUrl() . '/api/v1/transactions/initialize', $payload);
 
             $response->throw();
-
             $body = $response->json();
-        } catch (RequestException $e) {
+        } catch (\Illuminate\Http\Client\RequestException $e) {
             throw new RuntimeException(
                 "Kkiapay charge failed: {$e->getMessage()}",
                 previous: $e,
@@ -75,7 +58,6 @@ final class KkiapayProvider implements PaymentProvider
         }
 
         $transactionId = (string) ($body['transactionId'] ?? '');
-        $status        = (string) ($body['status'] ?? 'pending');
 
         if ($transactionId === '') {
             throw new RuntimeException('Kkiapay charge response missing transactionId.');
@@ -84,7 +66,7 @@ final class KkiapayProvider implements PaymentProvider
         return new PaymentResponseData(
             provider: PaymentProviderEnum::KKIAPAY,
             providerTransactionId: $transactionId,
-            providerStatus: $status,
+            providerStatus: (string) ($body['status'] ?? 'pending'),
             amount: $request->amount,
             currency: $request->currency,
             checkoutUrl: $body['paymentUrl'] ?? null,
@@ -95,7 +77,37 @@ final class KkiapayProvider implements PaymentProvider
 
     public function refund(RefundRequestData $request): PaymentResponseData
     {
-        throw new \BadMethodCallException('Kkiapay refund not implemented yet.');
+        try {
+            $result = $this->adminClient->refund($request->providerTransactionId);
+        } catch (\Exception $e) {
+            throw new RuntimeException(
+                "Kkiapay refund failed: {$e->getMessage()}",
+                previous: $e,
+            );
+        }
+
+        if ($result === false) {
+            throw new RuntimeException(
+                "Kkiapay refund failed for transaction: {$request->providerTransactionId}"
+            );
+        }
+
+        $status = match (strtolower((string) ($result['status'] ?? ''))) {
+            'success', 'successful', 'completed' => 'completed',
+            'pending', 'processing'              => 'pending',
+            default                              => 'failed',
+        };
+
+        return new PaymentResponseData(
+            provider: PaymentProviderEnum::KKIAPAY,
+            providerTransactionId: $request->providerTransactionId,
+            providerStatus: $status,
+            amount: $request->amount,
+            currency: $request->currency,
+            checkoutUrl: null,
+            eventId: null,
+            rawPayload: $result,
+        );
     }
 
     public function verifyWebhook(WebhookVerificationData $webhook): bool
@@ -107,7 +119,9 @@ final class KkiapayProvider implements PaymentProvider
         }
 
         $signature = $webhook->signature
-            ?? ($webhook->headers['x-kkiapay-secret'][0] ?? $webhook->headers['x-kkiapay-secret'] ?? null);
+            ?? ($webhook->headers['x-kkiapay-secret'][0]
+                ?? $webhook->headers['x-kkiapay-secret']
+                ?? null);
 
         if (! is_string($signature) || $signature === '') {
             return false;
@@ -115,7 +129,7 @@ final class KkiapayProvider implements PaymentProvider
 
         return hash_equals($secret, $signature);
     }
-    //KkiapayProvider::normalizeWebhook() pour alimenter eventType
+
     public function normalizeWebhook(WebhookVerificationData $webhook): PaymentEventData
     {
         $payload = $webhook->payload;
@@ -141,9 +155,9 @@ final class KkiapayProvider implements PaymentProvider
         return new PaymentEventData(
             provider: PaymentProviderEnum::KKIAPAY,
             eventId: $transactionId,
-            eventType: $event,               // 'transaction.success' / 'transaction.failed'
+            eventType: $event,
             providerTransactionId: $transactionId,
-            providerStatus: $providerStatus, // 'completed' / 'failed'
+            providerStatus: $providerStatus,
             amount: $amount,
             currency: CurrencyEnum::XOF,
             metadata: (array) ($payload['stateData'] ?? []),
@@ -154,5 +168,12 @@ final class KkiapayProvider implements PaymentProvider
     public function name(): string
     {
         return PaymentProviderEnum::KKIAPAY->value;
+    }
+
+    private function baseUrl(): string
+    {
+        return config('payment_providers.kkiapay.sandbox', true)
+            ? 'https://sandbox-api.kkiapay.me'
+            : 'https://api.kkiapay.me';
     }
 }

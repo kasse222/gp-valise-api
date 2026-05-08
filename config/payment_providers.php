@@ -38,4 +38,12 @@ return [
         'success_url'    => env('STRIPE_SUCCESS_URL', 'https://example.com/payment/success'),
         'cancel_url'     => env('STRIPE_CANCEL_URL', 'https://example.com/payment/cancel'),
     ],
+
+    'kkiapay' => [
+        'public_key'     => env('KKIAPAY_PUBLIC_KEY'),
+        'private_key'    => env('KKIAPAY_PRIVATE_KEY'),
+        'secret'         => env('KKIAPAY_SECRET'),
+        'webhook_secret' => env('KKIAPAY_WEBHOOK_SECRET'),
+        'sandbox'        => env('KKIAPAY_SANDBOX', true),
+    ],
 ];

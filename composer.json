@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.2",
         "doctrine/dbal": "^4.2",
+        "kkiapay/kkiapay-php": "dev-master",
         "laravel/framework": "^12.0",
         "laravel/horizon": "^5.45",
         "laravel/sanctum": "^4.0",
