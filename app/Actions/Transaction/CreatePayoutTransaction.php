@@ -8,6 +8,7 @@ use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Models\Booking;
 use App\Models\Transaction;
+use App\Services\LedgerWriter;
 use App\Services\TransactionAmountCalculator;
 use App\Services\TransactionEligibilityService;
 use Illuminate\Support\Facades\DB;
@@ -17,12 +18,13 @@ class CreatePayoutTransaction
 {
     public function __construct(
         private readonly TransactionEligibilityService $eligibility,
-        private readonly TransactionAmountCalculator $calculator,
+        private readonly TransactionAmountCalculator   $calculator,
+        private readonly LedgerWriter                  $ledger,
     ) {}
 
     public function execute(Booking $booking): Transaction
     {
-        return DB::transaction(function () use ($booking) {
+        return DB::transaction(function () use ($booking): Transaction {
             $booking = Booking::query()
                 ->with('trip')
                 ->lockForUpdate()
@@ -51,7 +53,7 @@ class CreatePayoutTransaction
             $paymentFeeAmount = $this->calculator->calculatePaymentFeeAmount($charge);
             $payoutAmount     = $this->calculator->calculatePayoutAmount($charge);
 
-            Transaction::query()->create([
+            $fee = Transaction::query()->create([
                 'user_id'      => $booking->trip->user_id,
                 'booking_id'   => $booking->id,
                 'type'         => TransactionTypeEnum::FEE,
@@ -62,7 +64,7 @@ class CreatePayoutTransaction
                 'processed_at' => now(),
             ]);
 
-            Transaction::query()->create([
+            $paymentFee = Transaction::query()->create([
                 'user_id'      => $booking->trip->user_id,
                 'booking_id'   => $booking->id,
                 'type'         => TransactionTypeEnum::PAYMENT_FEE,
@@ -73,16 +75,24 @@ class CreatePayoutTransaction
                 'processed_at' => now(),
             ]);
 
-            return Transaction::query()->create([
-                'user_id' => $booking->trip->user_id,
-                'booking_id' => $booking->id,
-                'type' => TransactionTypeEnum::PAYOUT,
-                'amount' => $payoutAmount,
-                'currency' => $charge->currency,
-                'method' => $charge->method,
-                'status' => TransactionStatusEnum::PENDING,
+            $payout = Transaction::query()->create([
+                'user_id'      => $booking->trip->user_id,
+                'booking_id'   => $booking->id,
+                'type'         => TransactionTypeEnum::PAYOUT,
+                'amount'       => $payoutAmount,
+                'currency'     => $charge->currency,
+                'method'       => $charge->method,
+                'status'       => TransactionStatusEnum::PENDING,
                 'processed_at' => null,
             ]);
+
+            // ── Ledger entries ────────────────────────────────────────────────
+            $this->ledger->writeCharge($charge);
+            $this->ledger->writePayoutRelease($charge, $payout, $fee);
+            $this->ledger->writePaymentFee($paymentFee);
+            // ─────────────────────────────────────────────────────────────────
+
+            return $payout;
         });
     }
 }

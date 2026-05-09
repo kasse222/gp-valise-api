@@ -13,6 +13,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
+beforeEach(function (): void {
+    $this->seed(\Database\Seeders\LedgerAccountSeeder::class);
+});
+
 it('marque un refund pending comme completed, passe le booking à remboursee et crée un log processed', function () {
     $user = User::factory()->create();
     $trip = Trip::factory()->create();
