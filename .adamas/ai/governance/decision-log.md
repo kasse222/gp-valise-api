@@ -1258,3 +1258,81 @@ Points d'attention PostgreSQL identifiés :
 ```
 
 ```
+
+## [2026-05] — OpenDispute action — Phase 4 dispute foundation
+
+### Contexte
+
+Le flow escrow bloque le payout si `disputed_at` est renseigné.
+Mais il n'existait pas d'action pour déclencher la dispute.
+Sans `OpenDispute`, le champ `disputed_at` n'était jamais renseigné
+en production — l'escrow guard était mort.
+
+### Décision
+
+`OpenDispute::execute(Booking $booking, User $actor, string $reason): Booking`
+
+Acteurs autorisés :
+
+- expéditeur du booking (protection acheteur)
+- admin / super_admin (modération)
+
+Statuts autorisés : `CONFIRMEE` + `LIVREE` (via `canEnterDispute()`)
+
+Invariants :
+
+- `reason` obligatoire
+- `disputed_at` déjà renseigné → refuse (idempotence stricte)
+- payout existant → refuse
+- refund existant → refuse
+- DB transaction + `lockForUpdate()`
+
+Effets :
+
+- `disputed_at = now()`
+- `transitionTo(EN_LITIGE)`
+- `isEscrowReleasable()` retourne `false` immédiatement
+- `BookingDisputed` event dispatché
+
+### Alternatives considérées
+
+- Voyageur peut ouvrir dispute ❌ : le voyageur veut être payé — lui permettre
+  de bloquer son propre payout est contre-productif en MVP.
+- Dispute sans raison ❌ : pas d'audit possible.
+
+### Conséquences
+
+- escrow guard activement bloquable en production
+- flow dispute → admin refund possible via `AdminRefundTransaction`
+- `BookingFactory` enrichie : `livree()` + `enLitige()`
+- 13 tests couverts
+- `CreatePayoutAfterBookingDelivered` supprimé (listener mort depuis Phase 4)
+
+### Statut
+
+✅ actif — Phase 4 complétée
+
+---
+
+## [2026-05] — Ledger interne double-entry — Phase 5
+
+### Contexte
+
+Les transactions isolées ne permettent pas de répondre à :
+
+- Quelle est la balance escrow à l'instant T ?
+- Combien GP-Valise a-t-il gagné ce mois-ci ?
+- Reconstituer un relevé comptable fiable ?
+
+### Décision
+
+Implémentation d'un ledger double-entry au-dessus des transactions existantes.
+
+Principe : chaque mouvement financier génère deux écritures symétriques.
+Invariant absolu : `SUM(debits) = SUM(credits)`
+
+Comptes Phase 5 (EUR + XOF) :
+
+```txt
+
+```

@@ -267,3 +267,105 @@ it('flow complet charge + refund est équilibré', function (): void {
     expect($this->reader->isBalanced())->toBeTrue();
     expect($this->reader->escrowBalance('eur'))->toBe(0);
 });
+
+it('writeCharge est idempotent — double appel ne crée pas de doublon', function (): void {
+    $charge = makeTransaction(
+        $this->user,
+        $this->booking,
+        TransactionTypeEnum::CHARGE,
+        TransactionStatusEnum::COMPLETED,
+        10000
+    );
+
+    $this->writer->writeCharge($charge);
+    $this->writer->writeCharge($charge);
+
+    expect(LedgerEntry::count())->toBe(2)
+        ->and($this->reader->isBalanced())->toBeTrue();
+});
+
+it('writePayoutPaid est idempotent', function (): void {
+    $payout = makeTransaction(
+        $this->traveler,
+        $this->booking,
+        TransactionTypeEnum::PAYOUT,
+        TransactionStatusEnum::COMPLETED,
+        9000
+    );
+
+    $this->writer->writePayoutPaid($payout);
+    $this->writer->writePayoutPaid($payout);
+
+    expect(LedgerEntry::count())->toBe(2)
+        ->and($this->reader->isBalanced())->toBeTrue();
+});
+
+it('writePaymentFee est idempotent', function (): void {
+    $paymentFee = makeTransaction(
+        $this->user,
+        $this->booking,
+        TransactionTypeEnum::PAYMENT_FEE,
+        TransactionStatusEnum::COMPLETED,
+        200
+    );
+
+    $this->writer->writePaymentFee($paymentFee);
+    $this->writer->writePaymentFee($paymentFee);
+
+    expect(LedgerEntry::count())->toBe(2)
+        ->and($this->reader->isBalanced())->toBeTrue();
+});
+
+it('writeRefund est idempotent', function (): void {
+    $charge = makeTransaction(
+        $this->user,
+        $this->booking,
+        TransactionTypeEnum::CHARGE,
+        TransactionStatusEnum::COMPLETED,
+        10000
+    );
+    $refund = makeTransaction(
+        $this->user,
+        $this->booking,
+        TransactionTypeEnum::REFUND,
+        TransactionStatusEnum::COMPLETED,
+        10000
+    );
+
+    $this->writer->writeCharge($charge);
+    $this->writer->writeRefund($charge, $refund);
+    $this->writer->writeRefund($charge, $refund);
+
+    expect(LedgerEntry::count())->toBe(4)
+        ->and($this->reader->isBalanced())->toBeTrue();
+});
+
+it('writePayoutRelease est idempotent', function (): void {
+    $charge = makeTransaction(
+        $this->user,
+        $this->booking,
+        TransactionTypeEnum::CHARGE,
+        TransactionStatusEnum::COMPLETED,
+        10000
+    );
+    $payout = makeTransaction(
+        $this->traveler,
+        $this->booking,
+        TransactionTypeEnum::PAYOUT,
+        TransactionStatusEnum::PENDING,
+        9000
+    );
+    $fee = makeTransaction(
+        $this->traveler,
+        $this->booking,
+        TransactionTypeEnum::FEE,
+        TransactionStatusEnum::COMPLETED,
+        1000
+    );
+
+    $this->writer->writePayoutRelease($charge, $payout, $fee);
+    $this->writer->writePayoutRelease($charge, $payout, $fee);
+
+    expect(LedgerEntry::count())->toBe(3)
+        ->and($this->reader->isBalanced())->toBeTrue();
+});
