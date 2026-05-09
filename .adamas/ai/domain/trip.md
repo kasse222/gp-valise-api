@@ -10,17 +10,17 @@ et les conditions de réservation.
 
 ## 🧩 Modèle Trip
 
-| Champ         | Type           | Description                     |
-| ------------- | -------------- | ------------------------------- |
-| user_id       | FK User        | Voyageur propriétaire du trajet |
-| departure     | string         | Ville de départ                 |
-| destination   | string         | Ville d'arrivée                 |
-| date          | datetime       | Date du vol / trajet            |
-| capacity      | float          | Capacité totale en kg           |
-| status        | TripStatusEnum | Statut du trajet                |
-| type_trip     | TripTypeEnum   | Type (avion, bateau, etc.)      |
-| flight_number | string null    | Numéro de vol                   |
-| price_per_kg  | decimal(10,2)  | Prix par kilogramme             |
+| Champ         | Type           | Description                               |
+| ------------- | -------------- | ----------------------------------------- |
+| user_id       | FK User        | Voyageur propriétaire du trajet           |
+| departure     | string         | Ville de départ                           |
+| destination   | string         | Ville d'arrivée                           |
+| date          | datetime       | Date du vol / trajet                      |
+| capacity      | integer        | Capacité totale en grammes (25000 = 25kg) |
+| status        | TripStatusEnum | Statut du trajet                          |
+| type_trip     | TripTypeEnum   | Type (avion, bateau, etc.)                |
+| flight_number | string null    | Numéro de vol                             |
+| price_per_kg  | integer null   | Prix par kg en centimes (1500 = 15.00€)   |
 
 ---
 
@@ -30,7 +30,7 @@ et les conditions de réservation.
 
 Un Trip est réservable si et seulement si :
 
-- `kgDisponible() > 0`
+- `gramsDisponible() > 0`
 - `date` est dans le futur
 - `status.isReservable() === true`
 
@@ -42,15 +42,18 @@ Un Trip est réservable si et seulement si :
 ### Capacité
 
 ```
-kgReserved()    = SUM(kg_reserved) des BookingItems
-                  pour bookings CONFIRMEE
-                  + bookings EN_PAIEMENT non expirés
+gramsReserved()    = SUM(kg_reserved) des BookingItems
+                     pour bookings CONFIRMEE
+                     + bookings EN_PAIEMENT non expirés
 
-kgDisponible()  = max(0, capacity - kgReserved())
-canAcceptKg(kg) = (kgReserved() + kg) <= capacity
+gramsDisponible()  = max(0, capacity - gramsReserved())
+canAcceptGrams(g)  = (gramsReserved() + g) <= capacity
 ```
 
-> ⚠️ `scopeReservable()` doit être aligné avec `kgReserved()`.
+> Unité canonique : grammes (integer)
+> 25000 = 25kg, 500 = 0.5kg
+
+> ⚠️ `scopeReservable()` doit être aligné avec `gramsReserved()`.
 > Les deux doivent compter CONFIRMEE + EN_PAIEMENT non expirés.
 > Une incohérence entre les deux crée des fantômes de capacité.
 
@@ -74,7 +77,7 @@ canAcceptKg(kg) = (kgReserved() + kg) <= capacity
 | Trip Model       | données, relations, agrégats de capacité  |
 | CanBeReserved    | décide si un Trip est réservable          |
 | TripResource     | sérialise is_reservable via CanBeReserved |
-| scopeReservable  | filtre SQL aligné avec kgReserved()       |
+| scopeReservable  | filtre SQL aligné avec gramsReserved()    |
 | ReserveBooking   | valide et crée la réservation             |
 | BookingValidator | valide les bagages avant réservation      |
 
@@ -84,17 +87,18 @@ canAcceptKg(kg) = (kgReserved() + kg) <= capacity
 
 - Ne jamais appeler une Action depuis le Model Trip
 - Ne jamais calculer is_reservable sans passer par CanBeReserved
-- Ne jamais diverger scopeReservable() de kgReserved()
+- Ne jamais diverger scopeReservable() de gramsReserved()
 - Ne jamais recalculer la capacité depuis un Booking directement
 
 ---
 
 ## 🧠 Résumé
 
-> Un Trip expose sa capacité. CanBeReserved décide.
+> Un Trip expose sa capacité en grammes. CanBeReserved décide.
 > TripResource sérialise. scopeReservable filtre.
 > Ces quatre composants doivent rester cohérents.
 
 ```
 
+---
 ```

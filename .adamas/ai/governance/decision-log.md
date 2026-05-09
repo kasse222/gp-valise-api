@@ -1075,6 +1075,186 @@ refacto `HandlePaymentWebhook`, window de validation avec expiration.
 ✅ actif — MVP
 ⏳ à réévaluer — Phase 4 Escrow
 
+````
+## [2026-05] — Migration integer units — Phase 3D
+
+### Contexte
+
+Le domaine utilisait `float` et `decimal` pour les montants financiers,
+les poids et les dimensions. Incompatible avec une architecture fintech-grade :
+erreurs d'arrondi, arithmetic non déterministe, incompatibilité ledger future.
+
+### Décision
+
+Migration complète vers integer minor units sur toutes les colonnes critiques :
+
+| Domaine          | Colonne              | Avant          | Après                          |
+| ---------------- | -------------------- | -------------- | ------------------------------ |
+| Finance          | transactions.amount  | decimal(10,2)  | bigInteger (centimes)          |
+| Capacité trajet  | trips.capacity       | float          | integer (grammes)              |
+| Prix trajet      | trips.price_per_kg   | decimal(8,2)   | integer (centimes/kg)          |
+| Poids item       | booking_items.kg_reserved | float     | integer (grammes)              |
+| Prix item        | booking_items.price  | decimal(8,2)   | integer (centimes)             |
+| Poids valise     | luggages.weight_kg   | float          | integer (kg×10, 25 = 2.5kg)   |
+| Dimensions       | luggages.dimensions  | float          | integer (cm)                   |
+
+Règles de conversion :
+
+```txt
+centimes  : 1500 = 15.00€
+grammes   : 25000 = 25kg
+kg × 10   : 25 = 2.5kg (précision 0.1kg)
+cm entiers: 60 = 60cm
+````
+
+Renommages Trip model :
+
+```txt
+kgReserved()   → gramsReserved(): int
+kgDisponible() → gramsDisponible(): int
+canAcceptKg()  → canAcceptGrams(int $grams): bool
+```
+
+DB engine migré : MySQL 8.0 → PostgreSQL 16 Alpine.
+Note PostgreSQL : `unsignedInteger` non portable → `integer` avec contrainte applicative.
+
+### Alternatives considérées
+
+- Conserver float en MVP ❌ : dette irréversible sur les calculs financiers.
+- Money Value Object ❌ : sur-ingénierie pour le MVP.
+- Migration progressive ❌ : incohérence temporaire dangereuse.
+
+### Conséquences
+
+- `TransactionAmountCalculator` : toutes méthodes retournent `int`
+- `BookingValidator.validateCapacity` : grammes
+- `TripResource` : `kgDisponible` → `gramsDisponible`, suppression de `round()`
+- `CanBeReserved` : `gramsDisponible()`
+- `ConfirmBooking` : `gramsReserved()`
+- Tous les tests migrés vers integer amounts
+- 308 tests / 798 assertions — tout vert
+
+### Statut
+
+✅ actif — Phase 3D complété
+
+---
+
+## [2026-05] — Escrow release — Phase 4 foundation
+
+### Contexte
+
+`LIVREE` déclenchait un payout immédiat via `CreatePayoutAfterBookingDelivered`.
+Aucun délai de protection pour l'expéditeur en cas de litige post-livraison.
+Architecture fragile : payout immédiat = impossible de rembourser si problème constaté après.
+
+### Décision
+
+```txt
+LIVREE ≠ payout immédiat
+LIVREE = début de période escrow (48h par défaut)
+```
+
+Nouveaux champs `bookings` :
+
+| Champ                  | Type               | Rôle                              |
+| ---------------------- | ------------------ | --------------------------------- |
+| `delivered_at`         | timestamp nullable | Moment de livraison               |
+| `escrow_releasable_at` | timestamp nullable | delivered_at + escrow_delay_hours |
+| `disputed_at`          | timestamp nullable | Bloque escrow si renseigné        |
+
+Invariant payout :
+
+```txt
+booking.status = LIVREE
+AND escrow_releasable_at <= now()
+AND disputed_at IS NULL
+AND charge COMPLETED EXISTS
+AND no REFUND EXISTS
+AND no PAYOUT EXISTS
+AND no FEE EXISTS
+```
+
+Architecture :
+
+```txt
+CompleteBooking → LIVREE + markDelivered()
+CreatePayoutAfterBookingDelivered → vide (commenté)
+scheduler hourly → escrow:release-payouts
+→ ReleaseEscrowBatch::execute()
+→ ReleaseEscrowPayoutJob::dispatch($booking)
+→ CreatePayoutTransaction::execute()
+```
+
+Config :
+
+```env
+GPVALISE_ESCROW_DELAY_HOURS=48
+```
+
+### Alternatives considérées
+
+- Job différé `dispatch()->delay(48h)` ❌ : fragile si worker redémarre, job perdu.
+- Double validation expéditeur + voyageur ❌ : friction trop élevée MVP.
+- Payout immédiat maintenu ❌ : aucune protection post-livraison.
+
+### Conséquences
+
+- `TransactionEligibilityService.canCreatePayout()` : + `isEscrowReleasable()`
+- `CreatePayoutAfterBookingDelivered` : vidé — plus de payout immédiat
+- `CompleteBookingTest` : payout non créé immédiatement, escrow timestamps vérifiés
+- `CreatePayoutTransactionTest` : + cas escrow non libérable + dispute active
+- 318 tests / 812 assertions — tout vert
+- Dispute system (Phase 4 suite) : `disputed_at` setter + `OpenDispute` action
+
+### Pourquoi scheduler plutôt que job différé
+
+Un job différé `delay(48h)` est perdu si le worker redémarre.
+Le scheduler horaire est idempotent, rejouable, observable via Horizon.
+`ReleaseEscrowBatch` re-scanne et est sans effet si le payout existe déjà.
+
+### Statut
+
+✅ actif — Phase 4 foundation complétée
+⏳ Phase 4 suite — dispute system + OpenDispute action
+
+---
+
+## [2026-05] — PostgreSQL 16 comme DB principale
+
+### Contexte
+
+MySQL 8.0 était utilisé en dev. Pour un système fintech-grade avec escrow,
+ledger et transactions complexes, PostgreSQL offre de meilleures garanties :
+MVCC strict, types stricts (uuid, bigint), meilleur support des contraintes.
+
+### Décision
+
+Migrer vers PostgreSQL 16 Alpine en dev/prod.
+Tests : SQLite in-memory conservé (performance, isolation).
+
+Points d'attention PostgreSQL identifiés :
+
+- `Str::random()` → `Str::uuid()` dans les factories (uuid strict)
+- `unsignedInteger` non portable → `integer` avec contrainte applicative
+- Séparation `Schema::table` + `renameColumn` en étapes distinctes
+
+### Alternatives considérées
+
+- Garder MySQL 8.0 ❌ : moins adapté à l'évolution ledger.
+- Utiliser PostgreSQL uniquement en prod ❌ : divergence env dev/prod dangereuse.
+
+### Conséquences
+
+- `docker-compose.yml` : MySQL → PostgreSQL 16 Alpine
+- `Dockerfile` : `pdo_mysql` → `pdo_pgsql` + `libpq-dev`
+- `.env.docker` : `DB_CONNECTION=pgsql`
+- `PaymentFactory` : uuid corrigé
+
+### Statut
+
+✅ actif — Phase 3C complétée
+
 ```
 
 ```
