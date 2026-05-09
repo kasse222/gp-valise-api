@@ -119,40 +119,25 @@ FakeProvider interdit en production.
 
 ## 5. Montants float vs integer
 
-### Situation actuelle
+### Décision finale — Phase 3D
 
-| Niveau  | Type               |
-| ------- | ------------------ |
-| domaine | float              |
-| PSP     | integer (centimes) |
+Migration complète vers integer minor units.
 
-### Décision MVP
-
-Le domaine conserve des montants lisibles (`float`),
-mais les providers utilisent des montants entiers.
+| Domaine          | Unité              | Exemple       |
+| ---------------- | ------------------ | ------------- |
+| Montants argent  | centimes (integer) | 1500 = 15.00€ |
+| Poids (capacity) | grammes (integer)  | 25000 = 25kg  |
+| Poids (luggage)  | kg × 10 (integer)  | 25 = 2.5kg    |
+| Dimensions       | cm (integer)       | 60 = 60cm     |
 
 ### Avantages
 
-- simplicité métier ;
-- rapidité MVP ;
-- meilleure lisibilité.
+- arithmetic déterministe
+- zéro erreur d'arrondi
+- fintech-grade
+- ledger-compatible
 
-### Inconvénients
-
-- risque d’arrondis ;
-- dette technique fintech ;
-- pas idéal pour ledger avancé.
-
-### Évolution prévue
-
-Migration future vers :
-
-```txt
-Money Value Object
-+ integer minor units partout
-```
-
----
+### Status : DONE — Phase 3D
 
 ## 6. Provider hardcodé en MVP
 
