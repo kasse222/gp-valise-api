@@ -4,14 +4,17 @@ namespace App\Models;
 
 use App\Enums\PlanTypeEnum;
 use App\Enums\UserRoleEnum;
-use Illuminate\Foundation\Auth\User as Authenticatable;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Models\Contracts\HasName;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser, HasName
 {
     use HasApiTokens, HasFactory, Notifiable;
 
@@ -39,6 +42,18 @@ class User extends Authenticatable
         'verified_user'     => 'boolean',
         'role'              => UserRoleEnum::class,
     ];
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $this->isAdmin();
+    }
+
+    public function getFilamentName(): string
+    {
+        $fullName = trim("{$this->first_name} {$this->last_name}");
+
+        return $fullName !== '' ? $fullName : $this->email;
+    }
 
     public function plan(): BelongsTo
     {
@@ -74,12 +89,6 @@ class User extends Authenticatable
     {
         return $this->hasMany(Invitation::class, 'sender_id');
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Business Logic
-    |--------------------------------------------------------------------------
-    */
 
     public function isAdmin(): bool
     {

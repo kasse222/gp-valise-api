@@ -27,11 +27,11 @@ enum TransactionStatusEnum: string
     {
         return match ($this) {
             self::PENDING     => 'gray',
-            self::PROCESSING  => 'blue',
-            self::COMPLETED   => 'green',
-            self::FAILED      => 'red',
-            self::REFUNDED    => 'orange',
-            self::CANCELLED   => 'red',
+            self::PROCESSING  => 'info',
+            self::COMPLETED   => 'success',
+            self::FAILED      => 'danger',
+            self::REFUNDED    => 'warning',
+            self::CANCELLED   => 'danger',
         };
     }
 
