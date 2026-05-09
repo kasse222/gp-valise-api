@@ -34,10 +34,6 @@ class EventServiceProvider extends ServiceProvider
         BookingConfirmed::class => [
             LogBookingConfirmed::class,
         ],
-        BookingDelivered::class => [
-            LogBookingDelivered::class,
-            CreatePayoutAfterBookingDelivered::class,
-        ],
         BookingCanceled::class => [
             LogBookingCanceled::class,
         ],

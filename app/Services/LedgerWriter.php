@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Enums\CurrencyEnum;
 use App\Enums\LedgerDirectionEnum;
 use App\Models\LedgerAccount;
 use App\Models\LedgerEntry;
@@ -22,6 +21,10 @@ final class LedgerWriter
      */
     public function writeCharge(Transaction $transaction): void
     {
+        if ($this->hasExistingEntries($transaction)) {
+            return;
+        }
+
         $currency = $this->currencySlug($transaction);
 
         $this->writeDoubleEntry(
@@ -46,6 +49,11 @@ final class LedgerWriter
         Transaction $feeTransaction,
     ): void {
         $currency = $this->currencySlug($chargeTransaction);
+
+        if ($this->hasExistingDebitOnAccount($chargeTransaction, "escrow_{$currency}")) {
+            return;
+        }
+
         $chargeAmount = $chargeTransaction->amount;
         $payoutAmount = $payoutTransaction->amount;
         $feeAmount    = $feeTransaction->amount;
@@ -61,7 +69,6 @@ final class LedgerWriter
             $payoutAmount,
             $feeAmount,
         ): void {
-            // DEBIT escrow
             $this->writeEntry(
                 transaction: $chargeTransaction,
                 slug: "escrow_{$currency}",
@@ -70,7 +77,6 @@ final class LedgerWriter
                 description: "Payout release booking#{$chargeTransaction->booking_id} — escrow libéré",
             );
 
-            // CREDIT payable_voyageur
             $this->writeEntry(
                 transaction: $payoutTransaction,
                 slug: "payable_voyageur_{$currency}",
@@ -79,7 +85,6 @@ final class LedgerWriter
                 description: "Payout release booking#{$chargeTransaction->booking_id} — dette voyageur",
             );
 
-            // CREDIT revenue_fees
             $this->writeEntry(
                 transaction: $feeTransaction,
                 slug: "revenue_fees_{$currency}",
@@ -98,6 +103,10 @@ final class LedgerWriter
      */
     public function writePayoutPaid(Transaction $payoutTransaction): void
     {
+        if ($this->hasExistingEntries($payoutTransaction)) {
+            return;
+        }
+
         $currency = $this->currencySlug($payoutTransaction);
 
         $this->writeDoubleEntry(
@@ -117,6 +126,10 @@ final class LedgerWriter
      */
     public function writePaymentFee(Transaction $paymentFeeTransaction): void
     {
+        if ($this->hasExistingEntries($paymentFeeTransaction)) {
+            return;
+        }
+
         $currency = $this->currencySlug($paymentFeeTransaction);
 
         $this->writeDoubleEntry(
@@ -136,6 +149,10 @@ final class LedgerWriter
      */
     public function writeRefund(Transaction $chargeTransaction, Transaction $refundTransaction): void
     {
+        if ($this->hasExistingEntries($refundTransaction)) {
+            return;
+        }
+
         $currency = $this->currencySlug($chargeTransaction);
 
         $this->writeDoubleEntry(
@@ -193,14 +210,27 @@ final class LedgerWriter
         ]);
     }
 
-    private function assertBalanced(int $debits, int $credits, string $context): void
+    private function hasExistingEntries(Transaction $transaction): bool
     {
-        if ($debits !== $credits) {
-            throw new RuntimeException(
-                "Ledger déséquilibré [{$context}] : debits={$debits} credits={$credits}"
-            );
-        }
+        return LedgerEntry::where('transaction_id', $transaction->id)->exists();
     }
+
+    private function hasExistingDebitOnAccount(Transaction $transaction, string $slug): bool
+    {
+        $account = LedgerAccount::where('slug', $slug)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $account) {
+            return false;
+        }
+
+        return LedgerEntry::where('transaction_id', $transaction->id)
+            ->where('account_id', $account->id)
+            ->where('direction', LedgerDirectionEnum::DEBIT)
+            ->exists();
+    }
+
     private function currencySlug(Transaction $transaction): string
     {
         $currency = $transaction->currency;
@@ -210,5 +240,14 @@ final class LedgerWriter
                 ? $currency->value
                 : (string) $currency
         );
+    }
+
+    private function assertBalanced(int $debits, int $credits, string $context): void
+    {
+        if ($debits !== $credits) {
+            throw new RuntimeException(
+                "Ledger déséquilibré [{$context}] : debits={$debits} credits={$credits}"
+            );
+        }
     }
 }

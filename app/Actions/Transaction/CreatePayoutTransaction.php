@@ -87,7 +87,6 @@ class CreatePayoutTransaction
             ]);
 
             // ── Ledger entries ────────────────────────────────────────────────
-            $this->ledger->writeCharge($charge);
             $this->ledger->writePayoutRelease($charge, $payout, $fee);
             $this->ledger->writePaymentFee($paymentFee);
             // ─────────────────────────────────────────────────────────────────
