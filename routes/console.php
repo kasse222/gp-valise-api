@@ -19,3 +19,6 @@ Schedule::command('monitoring:webhooks')
 Schedule::command('monitoring:queues')
     ->everyMinute()
     ->withoutOverlapping();
+
+Schedule::command('escrow:release-payouts')
+    ->hourly();

@@ -1,294 +1,504 @@
+````md id="q4w9h2"
 # 💳 Transaction Domain — GP-Valise
 
-## 🎯 Objectif
+---
+
+# 🎯 Objectif
 
 Ce document définit le modèle transactionnel de GP-Valise.
 
-La transaction est la **source de vérité financière absolue** du système.
+La transaction représente :
+
+```txt
+les événements financiers persistés du système
+```
+````
 
 Elle garantit :
 
-- traçabilité complète ;
-- cohérence comptable ;
-- auditabilité ;
-- compatibilité async (webhooks) ;
-- extensibilité vers un ledger complet.
+- traçabilité complète
+- cohérence transactionnelle
+- auditabilité
+- compatibilité async/webhooks
+- extensibilité ledger-compatible
 
 ---
 
-## 🧠 Principe fondamental
+# 🧠 Principe fondamental
 
-> Transaction = vérité financière  
-> Payment = vue métier
+> Transaction = événement financier métier persisté
+> Payment = vue métier utilisateur
 
-Aucune décision financière ne doit dépendre uniquement du statut Booking ou Payment.
+Aucune décision financière ne doit dépendre uniquement :
+
+- du statut Booking
+- du statut Payment
+
+Les décisions financières dépendent toujours :
+
+- des Transactions
+- des invariants métier
+- de l’état escrow
+- du treasury routing
 
 ---
 
-## 🧩 Types de transactions
+# 🧩 Types de transactions
 
 | Type          | Description             |
 | ------------- | ----------------------- |
 | `CHARGE`      | Expéditeur → plateforme |
 | `PAYOUT`      | Plateforme → voyageur   |
 | `REFUND`      | Plateforme → expéditeur |
-| `FEE`         | Commission GP-Valise    |
-| `PAYMENT_FEE` | Frais PSP / bancaires   |
+| `FEE`         | Commission plateforme   |
+| `PAYMENT_FEE` | Frais PSP/bancaires     |
 
 ---
 
-## 🔁 Cycle de vie d’une transaction
+# 🔁 Cycle de vie d’une transaction
 
-```txt
-PENDING → COMPLETED
-        → FAILED
+```txt id="wzj5ht"
+PENDING
+→ COMPLETED
+→ FAILED
 ```
 
-### Règles
+---
 
-- une transaction finalisée est immuable ;
-- aucune transition inverse autorisée ;
-- une transaction ne peut être traitée qu’une seule fois ;
-- toute transition doit être atomique.
+# 🔒 Règles de cycle de vie
+
+Une transaction finalisée :
+
+- est immuable
+- ne peut pas être modifiée
+- ne peut pas revenir à `PENDING`
+
+Toute correction future doit passer par :
+
+```txt id="84ww80"
+une nouvelle transaction liée
+```
+
+et jamais par mutation directe.
 
 ---
 
-## 🔒 Invariants financiers
+# 🔒 Invariants financiers
 
-### Exclusivité
+---
 
-```txt
+## 1. Exclusivité financière
+
+```txt id="mjlwmg"
 PAYOUT ⊕ REFUND
 ```
 
 Un booking ne peut jamais avoir :
 
-- un payout ET un refund.
+- payout ET refund
 
 ---
 
-### Conservation de la valeur
+## 2. Conservation de valeur
 
-```txt
+```txt id="nt6u7w"
 PAYOUT + FEE + REFUND ≤ CHARGE
 ```
 
 ---
 
-### Profit plateforme
+## 3. Profit plateforme
 
-```txt
+```txt id="jlwm7z"
 profit_net = FEE - PAYMENT_FEE
 ```
 
 ---
 
-## 🔗 Relations
+## 4. Escrow consistency
 
-Une transaction est liée à :
+```txt id="jlwmg5"
+LIVREE ≠ payout immédiat
+```
 
-- `booking_id` (obligatoire)
-- `user_id` (acteur du mouvement)
-- `provider_transaction_id` (si externe)
+Le payout devient éligible uniquement après :
 
-Option future :
-
-- `parent_transaction_id` (ledger complet)
+- délai escrow écoulé
+- absence de dispute
+- validation des guards financiers
 
 ---
 
-## 💰 Calculs financiers
+# 🔗 Relations
+
+Une transaction est liée à :
+
+| Champ                     | Description             |
+| ------------------------- | ----------------------- |
+| `booking_id`              | réservation concernée   |
+| `user_id`                 | acteur financier        |
+| `platform_account_id`     | compte treasury interne |
+| `provider_transaction_id` | identifiant PSP externe |
+
+Préparation future :
+
+| Champ futur             | Objectif                   |
+| ----------------------- | -------------------------- |
+| `parent_transaction_id` | linked transactions        |
+| `ledger_entry_id`       | comptabilité double entrée |
+
+---
+
+# 🏦 Treasury Ownership
+
+## CHARGE
+
+```txt id="jlwmwe"
+expéditeur → plateforme
+```
+
+Les fonds sont détenus temporairement par la plateforme.
+
+---
+
+## PAYOUT
+
+```txt id="jlwmg9"
+plateforme → voyageur
+```
+
+---
+
+## REFUND
+
+```txt id="jlwm8m"
+plateforme → expéditeur
+```
+
+---
+
+## FEE
+
+```txt id="jlwmvs"
+revenu plateforme
+```
+
+---
+
+## PAYMENT_FEE
+
+```txt id="jjlwmz"
+coût PSP / bancaire
+```
+
+---
+
+# 💰 Représentation monétaire
+
+## Canonical unit
+
+```txt id="jlwm8w"
+minor integer units
+```
+
+Exemple :
+
+```txt id="jlwm6y"
+1500 = 15.00€
+```
+
+---
+
+## Interdits
+
+- float
+- decimal métier
+- calcul approximatif
+
+---
+
+## Autorisés
+
+- integer arithmetic
+- deterministic computation
+
+---
+
+# 💰 Calculs financiers
 
 Centralisés dans :
 
-```php
+```php id="jlwmr7"
 TransactionAmountCalculator
 ```
 
-### Formules MVP
+---
 
-```txt
-FEE         = CHARGE * fee_percentage
-PAYOUT      = CHARGE - FEE
-REFUND      = CHARGE - FEE
+# 📐 Formules MVP
+
+## Fee
+
+```txt id="jlwm1t"
+FEE = CHARGE * fee_percentage
+```
+
+---
+
+## Payout
+
+```txt id="jlwmz2"
+PAYOUT = CHARGE - FEE
+```
+
+---
+
+## Refund
+
+```txt id="jlwm4x"
+REFUND = CHARGE - FEE
+```
+
+### Règle MVP
+
+```txt id="jlwmv8"
+La commission plateforme n’est pas remboursée.
+```
+
+---
+
+## Payment fee
+
+```txt id="jlwm8v"
 PAYMENT_FEE = CHARGE * payment_fee_percentage
 ```
 
 ---
 
-## ⚠️ Règles critiques
+# ⚠️ Règles critiques
 
-- aucun calcul dans les Actions ;
-- aucun recalcul après persistance ;
-- tous les montants sont figés à la création ;
-- PAYMENT_FEE n’impacte pas payout ni refund (MVP).
+- aucun calcul financier dans les Actions
+- aucun recalcul après persistance
+- montants figés à la création
+- PAYMENT_FEE n’impacte pas payout/refund dans le MVP
 
 ---
 
-## 🔁 Flows transactionnels
+# 🔁 Flows transactionnels
 
-### 1. CHARGE
+---
+
+## 1. CHARGE
 
 Créée lors du paiement :
 
-```txt
-EN_PAIEMENT → CHARGE → COMPLETED
+```txt id="jlwm9v"
+EN_PAIEMENT
+→ CHARGE
+→ COMPLETED
 ```
 
 Conditions :
 
-- booking appartient à l’utilisateur ;
-- booking non expiré ;
-- aucune autre charge existante.
+- booking appartient à l’utilisateur
+- booking non expiré
+- aucune charge existante
 
 ---
 
-### 2. PAYOUT
+## 2. PAYOUT
 
-Créé lors de la livraison :
+Le payout n’est plus immédiat.
 
-```txt
-LIVREE → PAYOUT + FEE
+Flow :
+
+```txt id="jlwm4l"
+LIVREE
+→ escrow pending
+→ payout releasable
+→ PAYOUT + FEE
 ```
 
 Conditions :
 
-- booking livré ;
-- charge complétée ;
-- aucun payout existant ;
-- aucun refund existant ;
-- aucune fee existante.
-
----
-
-### 3. REFUND (standard)
-
-Conditions :
-
-- booking confirmé ou en litige ;
-- charge complétée ;
-- aucun refund existant ;
-- aucun payout existant.
-
----
-
-### 4. REFUND (admin override)
-
-Conditions :
-
-- admin uniquement ;
-- booking en litige ou livré ;
-- aucun payout existant ;
-- raison obligatoire ;
-- audit log obligatoire.
-
----
-
-## 🔄 Idempotence
-
-### Objectif
-
-Éviter :
-
-- double charge ;
-- double payout ;
-- double refund.
-
-### Stratégies
-
-- contraintes métier ;
-- vérification préalable en DB ;
-- `lockForUpdate()` ;
-- statut final comme verrou logique.
-
----
-
-## 🔁 Async & Webhooks
-
-### Flow
-
-```txt
-Webhook → Controller → Job → Action → Transaction
+```txt id="jlwm8l"
+booking.status = LIVREE
+AND escrow_releasable_at <= now()
+AND disputed_at IS NULL
+AND charge COMPLETED EXISTS
+AND no REFUND EXISTS
+AND no PAYOUT EXISTS
+AND no FEE EXISTS
 ```
 
-### Garanties
+Le payout est déclenché par :
 
-- idempotence via `event_id` ;
-- transaction DB ;
-- retry contrôlé ;
-- log complet via `webhook_logs`.
+```txt id="jlwmr3"
+scheduler escrow
+```
+
+et non directement par l’événement livraison.
 
 ---
 
-## 🔐 Concurrence
+## 3. REFUND (standard)
+
+Conditions :
+
+- booking confirmé ou en litige
+- charge complétée
+- aucun refund existant
+- aucun payout existant
+
+---
+
+## 4. REFUND (admin override)
+
+Conditions :
+
+- admin uniquement
+- booking en litige
+- aucun payout existant
+- raison obligatoire
+- audit log obligatoire
+
+---
+
+# 🔄 Idempotence
+
+Objectifs :
+
+- éviter double charge
+- éviter double payout
+- éviter double refund
+
+---
+
+# 🛡️ Stratégies idempotence
+
+- contraintes métier
+- vérification DB
+- `lockForUpdate()`
+- statuts finaux comme verrou logique
+
+---
+
+# 🔁 Async & Webhooks
+
+## Flow
+
+```txt id="jlwm6j"
+Webhook
+→ Controller
+→ Job
+→ Action
+→ Transaction
+```
+
+---
+
+# Garanties
+
+- idempotence via `event_id`
+- DB transaction obligatoire
+- retry contrôlé
+- webhook logs complets
+
+---
+
+# 🔐 Concurrence
 
 Toutes les opérations critiques doivent :
 
-- utiliser une transaction DB ;
-- utiliser `lockForUpdate()` ;
-- vérifier les invariants métier ;
-- être idempotentes.
+- utiliser transaction DB
+- utiliser `lockForUpdate()`
+- vérifier les invariants métier
+- rester idempotentes
 
 ---
 
-## 🧾 Audit & traçabilité
+# 🧾 Audit & traçabilité
 
-Chaque transaction critique doit être traçable via :
+Chaque transaction critique doit être corrélée avec :
 
-- audit_logs ;
-- webhook_logs ;
-- logs applicatifs ;
-- correlation_id.
+- audit_logs
+- webhook_logs
+- application logs
+- correlation_id
 
 ---
 
-## 🔍 Observabilité
-
-Chaque transaction doit être corrélée avec :
-
-- correlation_id (requête → job → DB) ;
-- logs Laravel ;
-- webhook events.
+# 🔍 Observabilité
 
 Objectif :
 
-```txt
-retrouver l’origine exacte d’une transaction
+```txt id="jlwm9q"
+retrouver l’origine exacte d’un événement financier
 ```
 
+Une transaction doit être traçable :
+
+- requête
+- webhook
+- job
+- transition métier
+- écriture DB
+
 ---
 
-## 🏗️ Extension future (Ledger)
+# 🏗️ Ledger Compatibility
 
-Préparation pour :
+Le système est progressivement aligné vers :
 
-- `parent_transaction_id`
+```txt id="jlwm5h"
+un modèle ledger-compatible
+```
+
+Préparations déjà présentes :
+
+- PlatformAccount
+- integer units
+- PostgreSQL
+- treasury routing
+- escrow layer
+- immutable transactions
+
+---
+
+# 🔮 Extensions futures
+
+- parent_transaction_id
+- linked transactions
 - double-entry accounting
-- comptes plateforme multi-devise
-- journaux financiers complets
+- reconciliation engine
+- reserve balances
+- suspense accounts
+- settlement batching
+- dispute compensation
+- multi-currency treasury
 
 ---
 
-## ⚠️ Anti-patterns interdits
+# ⚠️ Anti-patterns interdits
 
-- calcul financier dans une Action ;
-- dépendre du statut Booking pour une décision financière ;
-- créer une transaction sans vérifier l’existant ;
-- modifier une transaction finalisée ;
-- ignorer l’idempotence ;
-- bypass audit pour les actions admin ;
-- coupler Transaction avec le provider directement.
+- calcul financier dans Actions
+- dépendre uniquement du statut Booking
+- modifier transaction finalisée
+- bypass escrow
+- ignorer idempotence
+- bypass audit admin
+- coupler Transaction avec PSP
+- utiliser float pour money
 
 ---
 
-## 🧠 Résumé exécutif
+# 🧠 Résumé exécutif
 
-```txt
-CHARGE      = source de vérité
+```txt id="jlwmv4"
+CHARGE      = entrée plateforme
+PAYOUT      = sortie voyageur
+REFUND      = retour expéditeur
 FEE         = revenu plateforme
-PAYMENT_FEE = coût externe
-PAYOUT      = paiement voyageur
-REFUND      = remboursement utilisateur
+PAYMENT_FEE = coût PSP
 
 PAYOUT ⊕ REFUND
 profit_net = FEE - PAYMENT_FEE
@@ -296,17 +506,19 @@ profit_net = FEE - PAYMENT_FEE
 
 ---
 
-## 🧠 Design intention
+# 🧠 Design intention
 
-Le système transactionnel de GP-Valise est conçu pour être :
+Le système transactionnel GP-Valise est conçu pour être :
 
-- simple en MVP ;
-- strict sur les invariants ;
-- robuste face à la concurrence ;
-- compatible async ;
-- extensible vers un système fintech complet.
+- robuste
+- déterministe
+- audit-friendly
+- async-compatible
+- escrow-aware
+- treasury-oriented
+- extensible ledger-compatible
 
-> La priorité est la cohérence et la traçabilité, pas la complexité prématurée.
+> La priorité absolue est la cohérence transactionnelle.
 
 ```
 

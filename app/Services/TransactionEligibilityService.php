@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services;
 
 use App\Enums\BookingStatusEnum;
@@ -13,6 +15,7 @@ class TransactionEligibilityService
     public function canCreatePayout(Booking $booking): bool
     {
         return $booking->status === BookingStatusEnum::LIVREE
+            && $booking->isEscrowReleasable()          // ← nouveau check escrow
             && $this->hasCompletedCharge($booking)
             && ! $this->hasPayout($booking)
             && ! $this->hasRefund($booking)
