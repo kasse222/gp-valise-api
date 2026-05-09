@@ -12,14 +12,19 @@ use App\Exceptions\RetryableWebhookException;
 use App\Models\Booking;
 use App\Models\Transaction;
 use App\Models\WebhookLog;
+use App\Services\LedgerWriter;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class HandlePaymentWebhook
 {
+    public function __construct(
+        private readonly LedgerWriter $ledger,
+    ) {}
+
     public function execute(array $payload, ?string $correlationId = null): void
     {
-        DB::transaction(function () use ($payload, $correlationId) {
+        DB::transaction(function () use ($payload, $correlationId): void {
             $eventId    = $payload['event_id'] ?? null;
             $eventType  = $payload['event_type'] ?? null;
             $providerId = $payload['provider_transaction_id'] ?? null;
@@ -93,8 +98,11 @@ class HandlePaymentWebhook
         });
     }
 
-    private function handleChargeSuccess(Transaction $transaction, ?Booking $booking, WebhookLog $log): void
-    {
+    private function handleChargeSuccess(
+        Transaction $transaction,
+        ?Booking $booking,
+        WebhookLog $log,
+    ): void {
         if ($transaction->type !== TransactionTypeEnum::CHARGE) {
             $this->markIgnored($log, 'Event transaction.success sur une transaction non-CHARGE');
             return;
@@ -104,6 +112,11 @@ class HandlePaymentWebhook
             'status'       => TransactionStatusEnum::COMPLETED,
             'processed_at' => now(),
         ]);
+
+        // ── Ledger : fonds reçus, bloqués en escrow ───────────────────────────
+        $transaction->refresh();
+        $this->ledger->writeCharge($transaction);
+        // ─────────────────────────────────────────────────────────────────────
 
         if ($booking) {
             $booking->transitionTo(
@@ -137,8 +150,11 @@ class HandlePaymentWebhook
         ]);
     }
 
-    private function handleRefundSuccess(Transaction $transaction, ?Booking $booking, WebhookLog $log): void
-    {
+    private function handleRefundSuccess(
+        Transaction $transaction,
+        ?Booking $booking,
+        WebhookLog $log,
+    ): void {
         if ($transaction->type !== TransactionTypeEnum::REFUND) {
             $this->markIgnored($log, 'Event refund.completed sur une transaction non-REFUND');
             return;
@@ -148,6 +164,18 @@ class HandlePaymentWebhook
             'status'       => TransactionStatusEnum::COMPLETED,
             'processed_at' => now(),
         ]);
+
+        // ── Ledger : remboursement — escrow → PSP ─────────────────────────────
+        $charge = $transaction->booking?->transactions()
+            ->where('type', TransactionTypeEnum::CHARGE)
+            ->where('status', TransactionStatusEnum::COMPLETED)
+            ->latest()
+            ->first();
+
+        if ($charge) {
+            $this->ledger->writeRefund($charge, $transaction);
+        }
+        // ─────────────────────────────────────────────────────────────────────
 
         if ($booking) {
             $booking->transitionTo(

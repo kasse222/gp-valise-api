@@ -19,6 +19,8 @@ beforeEach(function (): void {
     config()->set('gpvalise.fee_percentage', 10);
     config()->set('gpvalise.payment_fee_percentage', 2);
 
+    $this->seed(\Database\Seeders\LedgerAccountSeeder::class);
+
     $this->sender   = User::factory()->create();
     $this->traveler = User::factory()->create();
     $this->trip     = Trip::factory()->create(['user_id' => $this->traveler->id]);
