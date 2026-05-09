@@ -65,7 +65,6 @@ it('dispatch BookingDelivered lorsqu une réservation est livrée', function ():
             && $event->booking->status === BookingStatusEnum::LIVREE;
     });
 });
-
 it('crée automatiquement un payout pending et une commission lorsqu une réservation est livrée', function (): void {
     $voyageur   = User::factory()->traveler()->verified()->create();
     $trip       = Trip::factory()->create(['user_id' => $voyageur->id]);
@@ -82,33 +81,28 @@ it('crée automatiquement un payout pending et une commission lorsqu une réserv
         'booking_id'   => $booking->id,
         'type'         => TransactionTypeEnum::CHARGE,
         'status'       => TransactionStatusEnum::COMPLETED,
-        'amount'       => 12050, // ← 120.50€ en centimes
+        'amount'       => 12050,
         'processed_at' => now(),
     ]);
 
     actingAs($voyageur);
 
-    app(CompleteBooking::class)->execute($booking, $voyageur);
+    $result = app(CompleteBooking::class)->execute($booking, $voyageur);
 
+    $result->refresh();
+
+    // Payout NON créé immédiatement — escrow en attente
     $payout = Transaction::query()
         ->where('booking_id', $booking->id)
         ->where('type', TransactionTypeEnum::PAYOUT)
         ->first();
 
-    $fee = Transaction::query()
-        ->where('booking_id', $booking->id)
-        ->where('type', TransactionTypeEnum::FEE)
-        ->first();
-
-    expect($payout)->not->toBeNull()
-        ->and($payout->user_id)->toBe($voyageur->id)
-        ->and($payout->status)->toBe(TransactionStatusEnum::PENDING)
-        ->and($payout->amount)->toBe(10845); // ← 108.45€ = 12050 - 1205
-
-    expect($fee)->not->toBeNull()
-        ->and($fee->user_id)->toBe($voyageur->id)
-        ->and($fee->status)->toBe(TransactionStatusEnum::COMPLETED)
-        ->and($fee->amount)->toBe(1205); // ← 12.05€ = 10% de 12050
+    expect($payout)->toBeNull()
+        ->and($result->status)->toBe(BookingStatusEnum::LIVREE)
+        ->and($result->delivered_at)->not->toBeNull()
+        ->and($result->escrow_releasable_at)->not->toBeNull()
+        ->and($result->escrow_releasable_at->isAfter(now()))->toBeTrue()
+        ->and($result->disputed_at)->toBeNull();
 });
 
 it('ne crée pas de deuxième payout si un payout existe déjà', function (): void {
@@ -117,9 +111,11 @@ it('ne crée pas de deuxième payout si un payout existe déjà', function (): v
     $expediteur = User::factory()->sender()->verified()->create();
 
     $booking = Booking::factory()->create([
-        'user_id' => $expediteur->id,
-        'trip_id' => $trip->id,
-        'status'  => BookingStatusEnum::LIVREE,
+        'user_id'              => $expediteur->id,
+        'trip_id'              => $trip->id,
+        'status'               => BookingStatusEnum::LIVREE,
+        'delivered_at'         => now()->subHours(49),
+        'escrow_releasable_at' => now()->subHours(1),
     ]);
 
     Transaction::factory()->create([
@@ -127,7 +123,7 @@ it('ne crée pas de deuxième payout si un payout existe déjà', function (): v
         'booking_id'   => $booking->id,
         'type'         => TransactionTypeEnum::CHARGE,
         'status'       => TransactionStatusEnum::COMPLETED,
-        'amount'       => 12050, // ← centimes
+        'amount'       => 12050,
         'processed_at' => now(),
     ]);
 
@@ -136,7 +132,7 @@ it('ne crée pas de deuxième payout si un payout existe déjà', function (): v
         'booking_id' => $booking->id,
         'type'       => TransactionTypeEnum::PAYOUT,
         'status'     => TransactionStatusEnum::PENDING,
-        'amount'     => 10845, // ← centimes
+        'amount'     => 10845,
     ]);
 
     expect($booking->hasPayoutTransaction())->toBeTrue();

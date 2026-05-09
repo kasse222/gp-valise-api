@@ -1,482 +1,644 @@
+````md id="t8x4m1"
 # 💳 Payment Logic — GP-Valise
 
-## 🎯 Objectif
+---
 
-Définir le comportement financier de GP-Valise :
+# 🎯 Objectif
 
-- **CHARGE** : paiement expéditeur
-- **PAYOUT** : versement voyageur
-- **REFUND** : remboursement expéditeur
-- **FEE** : commission plateforme (variable)
-- **PAYMENT_FEE** : frais PSP / bancaires (persistée)
+Définir le comportement financier transactionnel de GP-Valise.
 
-Le système doit être traçable, idempotent, compatible escrow, compatible multi-pays / multi-PSP, extensible vers un ledger complet.
+Le système gère :
+
+- `CHARGE`
+- `PAYOUT`
+- `REFUND`
+- `FEE`
+- `PAYMENT_FEE`
+
+avec :
+
+- cohérence transactionnelle
+- idempotence
+- escrow
+- compatibilité async/webhooks
+- compatibilité multi-PSP
+- extensibilité treasury / ledger
 
 ---
 
-## 🧠 Principe fondamental
+# 🧠 Principe fondamental
 
-> Transaction = source de vérité financière.
+> Transaction = événement financier persisté  
+> Payment = workflow métier utilisateur
 
-- **Payment** = vue métier / workflow utilisateur
-- **Transaction** = mouvement financier atomique et traçable
+Les décisions financières ne doivent jamais dépendre uniquement :
+
+- du statut Booking
+- du statut Payment
+
+Elles dépendent :
+
+- des Transactions
+- des invariants métier
+- des règles escrow
+- des guards treasury
 
 ---
 
-## 🧩 Types de transactions
+# 🧩 Types de transactions
 
 | Type          | Sens métier             |
 | ------------- | ----------------------- |
-| `CHARGE`      | Expéditeur → Plateforme |
-| `PAYOUT`      | Plateforme → Voyageur   |
-| `REFUND`      | Plateforme → Expéditeur |
-| `FEE`         | Commission GP-Valise    |
-| `PAYMENT_FEE` | Frais PSP / banque      |
+| `CHARGE`      | Expéditeur → plateforme |
+| `PAYOUT`      | Plateforme → voyageur   |
+| `REFUND`      | Plateforme → expéditeur |
+| `FEE`         | Commission plateforme   |
+| `PAYMENT_FEE` | Frais PSP/bancaires     |
 
 ---
 
-## 🔁 Flow financier complet
+# 🔁 Flow financier global
 
+```txt id="t8f2j7"
+CHARGE       = 10000   expéditeur → plateforme
+FEE          = 1000    revenu GP-Valise (10%)
+PAYMENT_FEE  = 200     coût PSP (2%)
+PAYOUT       = 9000    plateforme → voyageur
+profit_net   = 800     FEE - PAYMENT_FEE
 ```
-CHARGE       = 100   expéditeur → plateforme
-FEE          = 10    revenu GP-Valise (10%)
-PAYMENT_FEE  = 2     coût PSP / banque (2%)
-PAYOUT       = 90    plateforme → voyageur
-profit_net   = 8     FEE - PAYMENT_FEE
+````
+
+---
+
+# 💰 Représentation monétaire
+
+## Canonical unit
+
+```txt id="r5n7q2"
+minor integer units
+```
+
+Exemple :
+
+```txt id="c2k8z9"
+1500 = 15.00€
 ```
 
 ---
 
-## 🔒 Invariants de cohérence
+# 🚫 Interdits
 
+- float
+- decimal métier
+- calcul approximatif
+
+---
+
+# ✅ Autorisés
+
+- integer arithmetic
+- deterministic computation
+
+---
+
+# 🔒 Invariants financiers
+
+---
+
+## 1. Exclusivité financière
+
+```txt id="q1d6m4"
+PAYOUT ⊕ REFUND
 ```
-PAYOUT + FEE + REFUND <= CHARGE
+
+Un booking ne peut jamais avoir :
+
+- payout ET refund
+
+---
+
+## 2. Conservation de valeur
+
+```txt id="y3k8b1"
+PAYOUT + FEE + REFUND ≤ CHARGE
+```
+
+---
+
+## 3. Profit plateforme
+
+```txt id="v6x9h2"
 profit_net = FEE - PAYMENT_FEE
 ```
 
-Règles absolues :
+---
 
-- `CHARGE` = montant brut payé, jamais modifié
-- `FEE` = revenu commercial GP-Valise, calculé sur `CHARGE` brut
-- `PAYMENT_FEE` = coût externe, ne réduit **pas** le payout voyageur
-- `PAYOUT` et `REFUND` sont **mutuellement exclusifs** sur un même booking
+## 4. Escrow consistency
+
+```txt id="f4j7p2"
+LIVREE ≠ payout immédiat
+```
+
+Le payout devient éligible uniquement après :
+
+- expiration escrow
+- absence de dispute
+- validation des guards financiers
 
 ---
 
-## 🔁 Flow métier principal
+# 🏦 Treasury Ownership
 
-### 1. Création booking
+## CHARGE
 
+```txt id="j7r3v1"
+expéditeur → plateforme
 ```
-STATUT → EN_PAIEMENT
-```
 
-### 2. Paiement CHARGE
-
-**Action** : `CreateTransaction`
-
-| Résultat provider | Statut transaction |
-| ----------------- | ------------------ |
-| `completed`       | `COMPLETED`        |
-| `pending`         | `PENDING`          |
-| `failed`          | `FAILED`           |
-
-### 3. Confirmation booking
-
-Un booking devient `CONFIRMEE` uniquement si :
-
-- une transaction `CHARGE` existe
-- cette `CHARGE` est `COMPLETED`
-
-### 4. Livraison → Payout + Fee
-
-Quand le booking devient `LIVREE` :
-
-- un `PAYOUT` est créé
-- une `FEE` est créée au même moment
-- aucun double payout / double fee possible (idempotence obligatoire)
-
-**Décision MVP** : FEE créée au moment du PAYOUT.
-
-Pourquoi : évite de prélever une commission sur un booking annulé, reste cohérent avec l'escrow, simplifie le refund v1.
+Les fonds restent détenus par la plateforme durant l’escrow.
 
 ---
 
-## 🧮 TransactionAmountCalculator
+## PAYOUT
 
-### Objectif
-
-Centraliser tous les calculs financiers. Les Actions exécutent les flux. Le Calculator calcule les montants.
-
-> ⚠️ Aucun calcul financier ne doit être écrit directement dans une Action.
-
-### Source de calcul
-
-Le calculator travaille sur une `Transaction $charge` (pas sur un `Booking`).
-
-Pré-requis : `$charge->type === CHARGE` et `$charge->status === COMPLETED`.
-
-### Formules MVP
-
+```txt id="x5m1w8"
+plateforme → voyageur
 ```
-FEE         = CHARGE * fee_percentage
-PAYOUT      = CHARGE - FEE
-REFUND      = CHARGE - FEE
+
+---
+
+## REFUND
+
+```txt id="q2t6p4"
+plateforme → expéditeur
+```
+
+---
+
+## FEE
+
+```txt id="s8k3n7"
+revenu plateforme
+```
+
+---
+
+## PAYMENT_FEE
+
+```txt id="h4d9m2"
+coût PSP/bancaire
+```
+
+---
+
+# 🔗 Relations
+
+Une transaction est liée à :
+
+| Champ                     | Description             |
+| ------------------------- | ----------------------- |
+| `booking_id`              | réservation concernée   |
+| `user_id`                 | acteur métier           |
+| `platform_account_id`     | compte treasury         |
+| `provider_transaction_id` | identifiant PSP externe |
+
+Préparation future :
+
+| Champ futur             | Objectif                   |
+| ----------------------- | -------------------------- |
+| `parent_transaction_id` | linked transactions        |
+| `ledger_entry_id`       | comptabilité double entrée |
+
+---
+
+# 🔁 Cycle de vie transactionnel
+
+```txt id="g3m9t5"
+PENDING
+→ COMPLETED
+→ FAILED
+```
+
+---
+
+# 🔒 Règles de cycle de vie
+
+Une transaction finalisée :
+
+- est immuable
+- ne peut pas être modifiée
+- ne peut pas revenir à `PENDING`
+
+Toute correction future doit passer par :
+
+```txt id="n8r2x6"
+une nouvelle transaction liée
+```
+
+---
+
+# 🧮 TransactionAmountCalculator
+
+## Objectif
+
+Centraliser tous les calculs financiers.
+
+Les Actions :
+
+```txt id="v7f1q8"
+orchestrent
+```
+
+Le calculator :
+
+```txt id="m5k2z1"
+calcule
+```
+
+---
+
+# ⚠️ Règle absolue
+
+Aucun calcul financier ne doit être écrit directement dans une Action.
+
+---
+
+# 📐 Formules MVP
+
+## Fee
+
+```txt id="c9d4h7"
+FEE = CHARGE * fee_percentage
+```
+
+---
+
+## Payout
+
+```txt id="b2x6m9"
+PAYOUT = CHARGE - FEE
+```
+
+---
+
+## Refund
+
+```txt id="k4r8n3"
+REFUND = CHARGE - FEE
+```
+
+---
+
+## Payment fee
+
+```txt id="t1m5w7"
 PAYMENT_FEE = CHARGE * payment_fee_percentage
-profit_net  = FEE - PAYMENT_FEE
 ```
 
-### Règles importantes
+---
 
-- `PAYMENT_FEE` ne réduit pas le payout voyageur
-- `PAYMENT_FEE` ne réduit pas le refund MVP
-- `PAYMENT_FEE` réduit uniquement le profit net plateforme
-- La FEE est calculée sur le montant brut `CHARGE`, jamais sur le payout ou le net
-- Les montants calculés sont **persistés** au moment de la création de la transaction (jamais recalculés après coup)
+# ⚠️ Règles importantes
 
-### Configuration MVP
+- PAYMENT_FEE ne réduit pas le payout
+- PAYMENT_FEE ne réduit pas le refund MVP
+- FEE calculée sur CHARGE brute
+- montants persistés à la création
+- aucun recalcul post-persistence
 
-```env
+---
+
+# ⚙️ Configuration MVP
+
+```env id="r9x1p4"
 GPVALISE_FEE_PERCENTAGE=10
 GPVALISE_PAYMENT_FEE_PERCENTAGE=2
 ```
 
-```php
-// config/gpvalise.php
-return [
-    'fee_percentage'         => env('GPVALISE_FEE_PERCENTAGE', 10),
-    'payment_fee_percentage' => env('GPVALISE_PAYMENT_FEE_PERCENTAGE', 2),
-];
-```
+---
 
-### Responsabilités par composant
+# 🧱 Responsabilités par composant
 
-| Composant                       | Responsabilité                           |
-| ------------------------------- | ---------------------------------------- |
-| `TransactionAmountCalculator`   | calcule fee, payout, refund, payment_fee |
-| `FeeCalculator`                 | résout le taux applicable (pays, B2B…)   |
-| `TransactionEligibilityService` | décide si payout / refund est autorisé   |
-| `CreatePayoutTransaction`       | exécute création FEE + PAYOUT            |
-| `RefundTransaction`             | exécute création REFUND standard         |
-| `AdminRefundTransaction`        | exécute refund admin override avec audit |
-| `PaymentProvider`               | exécute charge / refund / payout PSP     |
+| Composant                       | Responsabilité        |
+| ------------------------------- | --------------------- |
+| `TransactionAmountCalculator`   | calcul financier      |
+| `FeeCalculator`                 | résolution du taux    |
+| `TransactionEligibilityService` | guards payout/refund  |
+| `CreatePayoutTransaction`       | création payout + fee |
+| `RefundTransaction`             | refund standard       |
+| `AdminRefundTransaction`        | refund admin          |
+| `PaymentProvider`               | communication PSP     |
 
 ---
 
-## 💸 FEE — Commission plateforme
+# 💸 FEE — Commission plateforme
 
-### Règles
+---
 
-- calculée à partir de la `CHARGE` brute (jamais du payout)
-- créée **une seule fois** par booking (idempotence obligatoire)
-- ne doit jamais dépasser la `CHARGE`
+# Règles
+
+- calculée depuis CHARGE brute
+- créée une seule fois
 - indépendante du provider
-- créée au moment du PAYOUT dans le MVP
-
-### FeeCalculator — architecture
-
-La FEE est **variable** selon pays, type utilisateur (B2C / B2B), règles futures (volume, plan).
-
-```php
-interface FeeCalculator
-{
-    public function calculate(Booking $booking): Money;
-}
-```
-
-Le `FeeCalculator` résout le taux. Le `TransactionAmountCalculator` applique le calcul. Ces deux responsabilités sont strictement séparées.
-
-### Structure `FeeRule` (extensible)
-
-| Paramètre      | MVP         | Long terme                           |
-| -------------- | ----------- | ------------------------------------ |
-| Type de calcul | Pourcentage | Fixe / % / hybride (fixe + %)        |
-| Scope          | Global      | Par pays / devise / type utilisateur |
-| Source         | Config      | Table `fee_rules` dynamique          |
+- créée au payout release
 
 ---
 
-## 🏦 PAYMENT_FEE — Frais PSP / bancaires
+# ⚠️ Important
 
-### Règles
+La FEE n’est plus créée lors du passage à `LIVREE`.
 
-- créée seulement si une `CHARGE` existe
-- **persistée en base** (non optionnelle dès le MVP)
-- coût plateforme uniquement, pas un coût utilisateur
-- ne réduit pas le payout voyageur
-- réduit uniquement le profit net GP-Valise
+Flow réel :
 
-### Moment de création
-
-```
-Idéal    : webhook charge.completed (montant réel PSP)
-Fallback : CreateTransaction MVP (montant estimé via config)
+```txt id="d6j8w2"
+LIVREE
+→ escrow pending
+→ payout release
+→ PAYOUT + FEE
 ```
 
 ---
 
-## 🔁 Refund
-
-### Principe
-
-Un `REFUND` est toujours une transaction explicite. Il ne doit jamais être implicite ni seulement déduit d'un statut Booking.
-
-Il existe deux chemins de refund, avec des contraintes distinctes.
+# 🏦 PAYMENT_FEE
 
 ---
 
-### Chemin 1 — Refund standard (avant livraison)
+# Règles
 
-**Conditions** :
-
-- statut booking : `CONFIRMEE` ou `EN_LITIGE`
-- `CHARGE` en statut `COMPLETED`
-- aucun `REFUND` existant
-- aucun `PAYOUT` existant
-
-**Calcul** :
-
-```
-refund_possible = CHARGE - FEE
-```
-
-**Règles** :
-
-- `PAYMENT_FEE` non remboursable en MVP
-- jamais calculé depuis le payout
+- persistée en base
+- coût plateforme uniquement
+- indépendante du payout
+- indépendante du refund MVP
 
 ---
 
-### Chemin 2 — Refund admin override (après livraison)
+# Moment de création
 
-**Décision** : Option C — override admin avec audit obligatoire, interdit si payout existe.
+```txt id="y5q8m1"
+Idéal :
+webhook charge.completed
 
-**Pourquoi pas le blocage total (Option A)** : un litige avéré peut nécessiter un remboursement même après livraison (bagage perdu, détruit, fraude confirmée). Bloquer tout refund post-livraison serait une faiblesse produit.
-
-**Pourquoi pas un simple endpoint admin (Option B)** : sans contraintes, un endpoint admin expose à des erreurs catastrophiques — rembourser un voyageur déjà payé, casser l'invariant financier.
-
-**Conditions strictes** :
-
-- **admin uniquement** (rôle vérifié obligatoirement)
-- statut booking : `LIVREE` ou `EN_LITIGE`
-- `CHARGE` en statut `COMPLETED`
-- aucun `REFUND` existant
-- **aucun `PAYOUT` existant** (invariant absolu — jamais remboursable si payout effectué)
-- raison explicite obligatoire (`reason` non vide)
-- audit log obligatoire créé atomiquement avec le refund
-
-**Garanties** :
-
-- l'invariant `PAYOUT ⊕ REFUND` est maintenu sans exception
-- toute opération est tracée avec : admin_id, booking_id, reason, montant, timestamp
-- le refund admin est créé dans la même transaction DB que l'audit log
-
-**Action dédiée** : `AdminRefundTransaction`
-
-```
-AdminRefundTransaction::execute(
-    booking: Booking,
-    charge: Transaction,
-    admin: User,
-    reason: string
-): Transaction
+Fallback MVP :
+estimation config
 ```
 
 ---
 
-### Calcul commun
+# 🔁 Escrow Integration
 
-```
-refund_possible = CHARGE - FEE
-```
+## Nouveau modèle
 
-> ⚠️ `PAYMENT_FEE` non remboursable dans les deux chemins.
-> Le refund ne doit jamais être calculé depuis le payout.
-
----
-
-## 🔍 Traçabilité financière
-
-> Est-ce que ton système peut expliquer exactement ce qui s'est passé sur une transaction contestée ?
-
-**Oui**, grâce à :
-
-- chaque `Transaction` liée à un `booking_id` et un `provider_transaction_id`
-- chaque refund admin lié à un audit log avec raison et auteur
-- chaque webhook loggé dans `webhook_logs` avec statut et `event_id`
-- les montants persistés au moment de la création (jamais recalculés)
-- le statut final bloquant toute modification ultérieure
-
-En cas de contestation, la reconstruction complète du flux financier est possible depuis la DB sans aucune ambiguïté.
-
----
-
-## 🔗 Relation entre transactions
-
-Toutes les transactions d'un même flux sont liées par :
-
-- `booking_id` (obligatoire)
-- `provider_transaction_id` (si disponible)
-
-Option future (ledger) :
-
-- `parent_transaction_id` : PAYMENT_FEE → CHARGE, FEE → CHARGE, REFUND → CHARGE
-
----
-
-## ⚠️ Concurrence et cohérence
-
-- `lockForUpdate()` sur toutes les opérations critiques
-- transaction DB obligatoire pour toute opération multi-modèles
-- statut final (`COMPLETED`, `FAILED`) = blocage de toute modification ultérieure
-
----
-
-## 🔁 Webhook async
-
-### Flow
-
-```
-Provider → WebhookController → vérification HMAC → dispatch Job
-→ HandlePaymentWebhook → Transaction + Booking update → WebhookLog
+```txt id="m2v7k4"
+delivery event ≠ payout event
 ```
 
-### Sécurité
+---
 
-- signature HMAC obligatoire, comparaison via `hash_equals`
-- rejet immédiat si invalide → `HTTP 403`
-- payload incomplet → ignoré sans créer de log
+# Flow escrow
 
-### Payload minimal
-
-```json
-{
-    "event_id": "evt_123",
-    "event": "refund.completed",
-    "provider_transaction_id": "txn_abc"
-}
+```txt id="q8x1d5"
+CONFIRMEE
+→ LIVREE
+→ escrow pending
+→ payout releasable
+→ PAYOUT + FEE
 ```
 
-### Idempotence
-
-Clé : `event_id` unique dans `webhook_logs` + `lockForUpdate()` + vérification statut final.
-
-### Statuts WebhookLog
-
-| Statut      | Signification        |
-| ----------- | -------------------- |
-| `received`  | reçu                 |
-| `processed` | traité               |
-| `ignored`   | ignoré (idempotence) |
-| `failed`    | erreur de traitement |
-
-### Events MVP
-
-| Event              | Effets                                                               |
-| ------------------ | -------------------------------------------------------------------- |
-| `refund.completed` | `REFUND → COMPLETED`, `processed_at = now()`, `Booking → REMBOURSEE` |
-| `refund.failed`    | `REFUND → FAILED`, `Booking` inchangé (souvent `EN_LITIGE`)          |
-| autres events      | `ignored`                                                            |
-
-             | Event                  | Effets                                                                |
-
-> **Important** : `HandlePaymentWebhook::handleSuccess()` est appelé quelle que soit
-> la source du refund (standard via `RefundTransaction` ou admin via `AdminRefundTransaction`).
-> La transition `Booking → REMBOURSEE` doit donc être valide depuis `CONFIRMEE` ET depuis `EN_LITIGE`.
-> Voir bug C3 dans `booking.md` — l'absence de `CONFIRMEE → REMBOURSEE` dans `allowedTransitions()`
-> provoquait un webhook `FAILED` définitif malgré un `REFUND COMPLETED` en base.
-
 ---
 
-| Event                 | Effets                                                               |
-| --------------------- | -------------------------------------------------------------------- |
-| `transaction.success` | `CHARGE → COMPLETED`, `processed_at = now()`, `Booking → CONFIRMEE`  |
-| `transaction.failed`  | `CHARGE → FAILED`, `Booking` inchangé (`EN_PAIEMENT`)                |
-| `refund.completed`    | `REFUND → COMPLETED`, `processed_at = now()`, `Booking → REMBOURSEE` |
-| `refund.failed`       | `REFUND → FAILED`, `Booking` inchangé (souvent `EN_LITIGE`)          |
-| autres events         | `ignored`                                                            |
+# Conditions payout
 
-> **Deux chemins de confirmation** :
->
-> - `ConfirmBooking` = confirmation manuelle par le voyageur (guards utilisateur + capacité)
-> - `HandlePaymentWebhook::handleChargeSuccess()` = confirmation automatique par preuve PSP
->
-> Le webhook bypass les guards utilisateur délibérément :
-> `transaction.success` est une preuve externe de paiement, pas une action humaine.
-> La transition `EN_PAIEMENT → CONFIRMEE` reste valide dans les deux cas.
-
-## 🧱 Garanties système
-
-- `CHARGE` obligatoire avant confirmation booking
-- pas de double charge / payout / fee / refund
-- `PAYOUT` et `REFUND` mutuellement exclusifs **sans exception**
-- idempotence webhook via `event_id`
-- audit complet via `webhook_logs` et audit log refund admin
-- transaction DB sur toutes les opérations critiques
-- montants persistés à la création, jamais recalculés
-
----
-
-## 🏗️ Roadmap multi-comptes (Maroc / Sénégal / Stripe)
-
-### Table `platform_accounts`
-
-| Colonne        | Description                         |
-| -------------- | ----------------------------------- |
-| `id`           | identifiant                         |
-| `name`         | ex : "Plateforme Maroc EUR"         |
-| `currency`     | EUR, XOF, MAD…                      |
-| `country_code` | MA, SN…                             |
-| `is_active`    | booléen                             |
-| `metadata`     | JSON (infos bancaires, PSP associé) |
-
-### Stratégie de migration
-
-1. MVP : user technique "Plateforme" par devise via `getPlatformAccountId(string $currency)`
-2. Maintenant : table `platform_accounts` créée avec `user_id` nullable
-3. Futur : `transactions.user_id` → `platform_account_id` sans refacto lourde
-
----
-
-## 🚫 À ne pas faire maintenant
-
-- ledger complet / `parent_transaction_id` actif
-- multi-refunds / refund partiel
-- compensation après payout
-- `platform_account_id` obligatoire immédiatement
-- `PAYMENT_FEE` réelle fournie par provider (MVP = estimation config)
-- refonte globale de Payment / Transaction
-
----
-
-## 🧭 Cible long terme
-
-- `FeeRule` dynamique par pays / B2B / volume
-- `platform_account_id` obligatoire sur transactions FEE
-- ledger interne complet avec `parent_transaction_id`
-- refund partiel + compensation post-payout
-- arbitrage litige avancé
-- intégration PSP réel (Stripe, CMI, Wave)
-- `PAYMENT_FEE` réelle via webhook provider
-
----
-
-## 🧠 Résumé exécutif
-
+```txt id="w3m7t1"
+booking.status = LIVREE
+AND escrow_releasable_at <= now()
+AND disputed_at IS NULL
+AND charge COMPLETED EXISTS
+AND no REFUND EXISTS
+AND no PAYOUT EXISTS
+AND no FEE EXISTS
 ```
-CHARGE      = montant brut payé (source de vérité, persisté)
-FEE         = revenu plateforme (variable, FeeCalculator, persisté)
-PAYMENT_FEE = coût PSP (persisté, config MVP)
-PAYOUT      = CHARGE - FEE (versé au voyageur, persisté)
-REFUND      = CHARGE - FEE (remboursé à l'expéditeur, persisté)
 
-PAYOUT + FEE + REFUND <= CHARGE
+---
+
+# Scheduler
+
+Le payout est déclenché via :
+
+```txt id="v9r4k6"
+scheduler escrow
+```
+
+et non via l’événement livraison.
+
+---
+
+# 🔁 Refund
+
+---
+
+# Principe
+
+Le refund est toujours :
+
+```txt id="s7d2x8"
+une transaction explicite
+```
+
+Jamais :
+
+- implicite
+- déduite d’un statut
+
+---
+
+# Refund standard
+
+Conditions :
+
+- booking CONFIRMEE ou EN_LITIGE
+- CHARGE COMPLETED
+- aucun refund existant
+- aucun payout existant
+
+---
+
+# Refund admin override
+
+Conditions :
+
+- admin uniquement
+- booking EN_LITIGE
+- aucun payout existant
+- raison obligatoire
+- audit log obligatoire
+
+---
+
+# Invariant absolu
+
+```txt id="n1w6p9"
+jamais de refund si payout existe
+```
+
+---
+
+# 🔍 Traçabilité financière
+
+Chaque transaction critique doit être traçable via :
+
+- transactions
+- webhook_logs
+- audit_logs
+- correlation_id
+- application logs
+
+---
+
+# 🔐 Concurrence
+
+Toutes les opérations critiques doivent :
+
+- utiliser transaction DB
+- utiliser `lockForUpdate()`
+- vérifier les invariants métier
+- rester idempotentes
+
+---
+
+# 🔁 Async & Webhooks
+
+## Flow
+
+```txt id="x4k7m2"
+Provider
+→ WebhookController
+→ verification
+→ Job
+→ Action
+→ Transaction update
+→ Booking update
+→ WebhookLog
+```
+
+---
+
+# Garanties
+
+- idempotence via `event_id`
+- transaction DB obligatoire
+- retry contrôlé
+- webhook logs complets
+
+---
+
+# Webhook Priority
+
+Les webhooks restent :
+
+```txt id="b7m3r1"
+la source primaire de signal financier async
+```
+
+Les réponses PSP optimistes ne suffisent jamais.
+
+---
+
+# 🔄 Events MVP
+
+| Event                 | Effets                                |
+| --------------------- | ------------------------------------- |
+| `transaction.success` | CHARGE COMPLETED + Booking CONFIRMEE  |
+| `transaction.failed`  | CHARGE FAILED                         |
+| `refund.completed`    | REFUND COMPLETED + Booking REMBOURSEE |
+| `refund.failed`       | REFUND FAILED                         |
+| autres events         | ignored                               |
+
+---
+
+# 🛡️ Garanties système
+
+- CHARGE obligatoire avant confirmation
+- pas de double payout/refund/fee
+- payout/refund mutuellement exclusifs
+- idempotence webhook
+- auditabilité complète
+- persistence immuable
+
+---
+
+# 🏗️ Ledger Compatibility
+
+Le système est progressivement aligné vers :
+
+```txt id="z6t1k8"
+un modèle ledger-compatible
+```
+
+Préparations déjà présentes :
+
+- PlatformAccount
+- integer units
+- PostgreSQL
+- escrow layer
+- immutable transactions
+- treasury routing
+
+---
+
+# 🔮 Extensions futures
+
+- double-entry accounting
+- reconciliation engine
+- reserve balances
+- suspense accounts
+- dispute compensation
+- settlement batching
+- provider failover
+- partial refunds
+- multi-currency treasury
+
+---
+
+# 🚫 Anti-patterns interdits
+
+- calcul financier dans Actions
+- dépendre uniquement du statut Booking
+- modifier transaction finalisée
+- bypass escrow
+- ignorer idempotence
+- coupler domaine ↔ PSP
+- utiliser float pour money
+
+---
+
+# 🧠 Résumé exécutif
+
+```txt id="g8v2k5"
+CHARGE      = entrée plateforme
+PAYOUT      = sortie voyageur
+REFUND      = retour expéditeur
+FEE         = revenu plateforme
+PAYMENT_FEE = coût PSP
+
+PAYOUT ⊕ REFUND
 profit_net = FEE - PAYMENT_FEE
-PAYOUT ⊕ REFUND  (mutuellement exclusifs, sans exception)
-
-Refund post-livraison : admin override uniquement
-  → raison obligatoire + audit log + pas de payout existant
 ```
 
-> GP-Valise reste simple en MVP mais pose dès maintenant
-> une base financière propre, traçable, auditée et extensible.
+---
+
+# 🧠 Design intention
+
+Le système financier GP-Valise est conçu pour être :
+
+- déterministe
+- audit-friendly
+- escrow-aware
+- treasury-oriented
+- async-compatible
+- provider-isolated
+- extensible ledger-compatible
+
+> La priorité absolue est la cohérence transactionnelle.
+
+```
+
+```

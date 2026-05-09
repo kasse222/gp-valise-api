@@ -27,6 +27,9 @@ class Booking extends Model
         'expired_at',
         'payment_expires_at',
         'comment',
+        'delivered_at',
+        'escrow_releasable_at',
+        'disputed_at',
     ];
 
     protected $casts = [
@@ -36,6 +39,9 @@ class Booking extends Model
         'cancelled_at' => 'datetime',
         'expired_at' => 'datetime',
         'payment_expires_at' => 'datetime',
+        'delivered_at'        => 'datetime',
+        'escrow_releasable_at' => 'datetime',
+        'disputed_at'         => 'datetime',
     ];
 
     protected static bool $disableStatusAutoCreate = false;
@@ -59,6 +65,28 @@ class Booking extends Model
                 'reason' => 'Création initiale',
             ]);
         });
+    }
+
+    public function isEscrowReleasable(): bool
+    {
+        return $this->status === BookingStatusEnum::LIVREE
+            && $this->escrow_releasable_at !== null
+            && $this->escrow_releasable_at->isPast()
+            && $this->disputed_at === null;
+    }
+
+    public function hasActiveDispute(): bool
+    {
+        return $this->disputed_at !== null;
+    }
+
+    public function markDelivered(): void
+    {
+        $delayHours = config('gpvalise.escrow_delay_hours', 48);
+
+        $this->delivered_at         = now();
+        $this->escrow_releasable_at = now()->addHours($delayHours);
+        $this->save();
     }
 
     public function user(): BelongsTo
@@ -208,5 +236,4 @@ class Booking extends Model
     {
         return $this->hasCompletedChargeTransaction();
     }
-
 }

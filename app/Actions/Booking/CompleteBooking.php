@@ -43,6 +43,8 @@ class CompleteBooking
                 'Livraison confirmée par le voyageur'
             );
 
+            $booking->markDelivered();
+
             return $booking->fresh(['bookingItems.luggage', 'trip']);
         });
 

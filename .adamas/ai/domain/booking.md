@@ -1,19 +1,17 @@
-# 🧠 Booking Domain — GP-Valise
-
 ````md
 # 🧠 Booking Domain — GP-Valise
 
 ---
 
-## 🎯 Objectif
+# 🎯 Objectif
 
 Le Booking est l’entité centrale du système GP-Valise.
 
 Il représente :
 
-- une **réservation logistique**
-- un **engagement financier**
-- un **cycle métier complet**
+- une réservation logistique
+- un engagement financier
+- un cycle métier transactionnel complet
 
 Il garantit la cohérence entre :
 
@@ -24,19 +22,21 @@ Expéditeur ↔ Trip ↔ Luggage ↔ Transaction
 
 ---
 
-## 🧠 Principe fondamental
+# 🧠 Principe fondamental
 
 > Le Booking est le pivot métier.
 
-- Il orchestre la logistique (Trip, Luggage)
-- Il dépend de la finance (Transaction)
-- Il ne contient pas la vérité financière
+Le Booking :
+
+- orchestre la logistique
+- dépend des événements financiers
+- ne calcule jamais la finance lui-même
 
 ---
 
-## 🧱 Structure
+# 🧱 Structure
 
-### Relations principales
+## Relations principales
 
 | Relation          | Description                |
 | ----------------- | -------------------------- |
@@ -48,9 +48,9 @@ Expéditeur ↔ Trip ↔ Luggage ↔ Transaction
 
 ---
 
-## 🔁 Cycle de vie
+# 🔁 Cycle de vie
 
-### Flow principal
+## Flow principal
 
 ```txt
 EN_ATTENTE
@@ -62,7 +62,7 @@ EN_ATTENTE
 
 ---
 
-### États alternatifs
+## États alternatifs
 
 | Statut     | Description               |
 | ---------- | ------------------------- |
@@ -73,36 +73,42 @@ EN_ATTENTE
 
 ---
 
-## 🔒 Invariants critiques
+# 🔒 Invariants critiques
 
-### 1. Immutabilité finale
+---
+
+## 1. États finaux
+
+États considérés comme finaux :
 
 ```txt
-CONFIRMEE → LIVREE → TERMINE
+TERMINE
+REMBOURSEE
+ANNULE
+EXPIREE
 ```
 
 Une fois finalisé :
 
-- aucune modification métier possible
-- aucun changement de statut
-- aucune mutation des données critiques
+- aucune mutation métier critique
+- aucune transition standard
+- aucune écriture financière supplémentaire
 
 ---
 
-### 2. Couplage avec Transaction
+## 2. Couplage avec Transaction
 
-Un Booking dépend toujours des transactions pour :
+Le Booking dépend toujours des Transactions pour :
 
-| Action     | Condition                |
-| ---------- | ------------------------ |
-| CONFIRMEE  | CHARGE COMPLETED         |
-| REMBOURSEE | REFUND COMPLETED         |
-| LIVREE     | action métier (voyageur) |
-| TERMINE    | PAYOUT COMPLETED         |
+| Action     | Condition        |
+| ---------- | ---------------- |
+| CONFIRMEE  | CHARGE COMPLETED |
+| REMBOURSEE | REFUND COMPLETED |
+| TERMINE    | PAYOUT COMPLETED |
 
 ---
 
-### 3. Exclusivité financière
+## 3. Exclusivité financière
 
 ```txt
 PAYOUT ⊕ REFUND
@@ -114,7 +120,7 @@ Un booking ne peut jamais avoir :
 
 ---
 
-### 4. Cohérence logistique
+## 4. Cohérence logistique
 
 Toujours garantir :
 
@@ -124,11 +130,27 @@ Booking ↔ BookingItem ↔ Luggage ↔ Trip
 
 ---
 
-## ⚠️ Règles métier critiques
+## 5. Escrow consistency
+
+```txt
+LIVREE ≠ payout immédiat
+```
+
+Un booking livré entre dans une phase escrow.
+
+Le payout devient éligible uniquement après :
+
+- expiration du délai escrow
+- absence de dispute
+- validation des invariants financiers
 
 ---
 
-### Confirmation
+# ⚠️ Règles métier critiques
+
+---
+
+## Confirmation
 
 Un booking devient `CONFIRMEE` uniquement si :
 
@@ -137,7 +159,7 @@ Un booking devient `CONFIRMEE` uniquement si :
 
 ---
 
-### Expiration
+## Expiration
 
 Un booking `EN_PAIEMENT` devient `EXPIREE` si :
 
@@ -145,77 +167,161 @@ Un booking `EN_PAIEMENT` devient `EXPIREE` si :
 
 Effets :
 
-- libère la capacité du trip
-- remet les bagages disponibles
+- libération de capacité
+- bagages remis disponibles
 
 ---
 
-### Livraison
+## Livraison
 
 Lors du passage à `LIVREE` :
 
-- création `PAYOUT`
-- création `FEE`
-- aucune duplication possible
+- `delivered_at` est renseigné
+- `escrow_releasable_at` est calculé
+- les fonds restent détenus par la plateforme
+- aucun payout immédiat n'est créé
+
+Le payout devient éligible après la période escrow.
 
 ---
 
-### Annulation
+## Escrow release
+
+Le payout est autorisé uniquement si :
+
+```txt
+booking.status = LIVREE
+AND escrow_releasable_at <= now()
+AND disputed_at IS NULL
+AND charge COMPLETED EXISTS
+AND no REFUND EXISTS
+AND no PAYOUT EXISTS
+AND no FEE EXISTS
+```
+
+Le scheduler escrow est responsable de la libération.
+
+---
+
+## Annulation
 
 Possible uniquement si :
 
-- pas encore confirmé
-- ou cas métier spécifique
+- booking non confirmé
+- aucun engagement financier irréversible
 
 ---
 
-### Litige
+## Litige
 
-- bloque payout
-- ouvre possibilité de refund admin
+Un litige :
+
+- bloque l’escrow
+- interdit le payout
+- peut mener à refund admin
+- nécessite résolution explicite
 
 ---
 
-### Remboursement
+## Remboursement
 
 Un booking devient `REMBOURSEE` uniquement si :
 
-- transaction `REFUND` existe et est `COMPLETED`
-- statut source est `CONFIRMEE` ou `EN_LITIGE` (voir `canBeRefunded()`)
-- aucun `PAYOUT` existant (invariant absolu)
+- transaction `REFUND` existe
+- refund status = `COMPLETED`
+- aucun payout existant
 
-Déclencheur : `HandlePaymentWebhook::handleSuccess()` sur event `refund.completed`.
-Ce handler est appelé quelle que soit la source du refund (standard ou admin override).
-La transition doit donc être valide depuis `CONFIRMEE` ET depuis `EN_LITIGE`.
+Le refund est déclenché via :
+
+```txt
+HandlePaymentWebhook::handleSuccess()
+```
+
+sur :
+
+```txt
+refund.completed
+```
 
 ---
 
-## 🎒 Gestion des bagages
+# 🏦 Treasury Ownership
 
-### Cycle Luggage
+Avant payout :
 
 ```txt
-EN_ATTENTE → RESERVEE → EN_TRANSIT → LIVREE
+fonds détenus par la plateforme
 ```
 
-### Règles
+Après payout :
 
-- un bagage ne peut être réservé qu’une fois
-- dépend du booking
+```txt
+fonds transférés au voyageur
+```
+
+Après refund :
+
+```txt
+fonds retournés à l’expéditeur
+```
+
+Le Booking ne possède jamais directement les fonds.
+
+La trésorerie est orchestrée via :
+
+- Transactions
+- PlatformAccounts
+- Escrow lifecycle
+
+---
+
+# 🎒 Gestion des bagages
+
+## Cycle Luggage
+
+```txt
+EN_ATTENTE
+→ RESERVEE
+→ EN_TRANSIT
+→ LIVREE
+```
+
+---
+
+## Règles
+
+- un bagage ne peut être réservé qu’une seule fois
+- dépend toujours d’un Booking
 - libéré si booking expire ou annulé
 
 ---
 
-## 🚚 Gestion de capacité
+# 🚚 Gestion de capacité
 
-### Calcul
+## Canonical unit
 
-Capacité utilisée :
+```txt
+grams integer
+```
 
-- CONFIRMEE → définitif
-- EN_PAIEMENT non expiré → temporaire
+Exemple :
 
-### Règle
+```txt
+25000 = 25kg
+```
+
+---
+
+## Calcul capacité utilisée
+
+Comptabilisés :
+
+- CONFIRMEE
+- EN_PAIEMENT non expiré
+
+---
+
+## Règle
 
 ```txt
 capacity_used ≤ capacity_trip
@@ -223,36 +329,70 @@ capacity_used ≤ capacity_trip
 
 ---
 
-## 🔒 Concurrence
+# 💰 Représentation monétaire
 
-### Cas critiques
+## Canonical unit
+
+```txt
+minor integer units
+```
+
+Exemple :
+
+```txt
+1500 = 15.00€
+```
+
+---
+
+## Règles
+
+Interdits :
+
+- float
+- decimal métier
+- calculs approximatifs
+
+Autorisés :
+
+- integer arithmetic
+- deterministic computation
+
+---
+
+# 🔒 Concurrence
+
+## Cas critiques
 
 - réservation
 - confirmation
 - expiration
-- ajout de bookingItem
-
-### Stratégie
-
-- transaction DB obligatoire
-- `lockForUpdate()`
-- vérification capacité avant écriture
+- payout release
+- ouverture litige
 
 ---
 
-## 🔁 Idempotence
+## Stratégie
+
+- DB transaction obligatoire
+- `lockForUpdate()`
+- validation avant écriture
+
+---
+
+# 🔁 Idempotence
 
 Doit être garantie pour :
 
 - confirmation
 - expiration
-- livraison
+- payout release
 - refund
-- payout
+- webhook handling
 
 ---
 
-## 🔄 Transitions
+# 🔄 Transitions
 
 Centralisées dans :
 
@@ -262,75 +402,45 @@ BookingStatusEnum
 
 ---
 
-### Règles
+## Règles
 
 - aucune transition hardcodée
-- toujours passer par Enum
-- transitions validées par `canTransitionTo()`
+- toujours via Enum
+- validation via `canTransitionTo()`
 
 ---
 
-### Table des transitions autorisées
+## Table des transitions autorisées
 
-| De → Vers                | Déclencheur                 |
-| ------------------------ | --------------------------- |
-| EN_ATTENTE → EN_PAIEMENT | paiement initié             |
-| EN_PAIEMENT → CONFIRMEE  | CHARGE COMPLETED (webhook)  |
-| EN_PAIEMENT → EXPIREE    | payment_expires_at dépassé  |
-| CONFIRMEE → LIVREE       | voyageur confirme livraison |
-| CONFIRMEE → EN_LITIGE    | litige déclaré              |
-| CONFIRMEE → REMBOURSEE   | REFUND COMPLETED (webhook)  |
-| EN_LITIGE → REMBOURSEE   | REFUND COMPLETED (webhook)  |
-| EN_LITIGE → LIVREE       | résolution litige           |
-| LIVREE → TERMINE         | PAYOUT COMPLETED            |
-| LIVREE → EN_LITIGE       | litige post-livraison       |
-
-> **Bug C3 (corrigé)** : `CONFIRMEE → REMBOURSEE` était absent de `allowedTransitions()`.
-> Conséquence : `HandlePaymentWebhook::handleSuccess()` levait une `DomainException`
-> sur `refund.completed`, marquait le webhook `FAILED` après 5 retries,
-> laissant le Booking en `CONFIRMEE` malgré un `REFUND COMPLETED` en base.
-> Incohérence financière garantie. Correction : une ligne dans `BookingStatusEnum`.
-
-> **Confirmation** : deux déclencheurs légitimes coexistent.
-> `ConfirmBooking` (action voyageur) et `HandlePaymentWebhook::handleChargeSuccess()` (preuve PSP).
-> Le webhook est prioritaire en production Kkiapay — c'est lui qui confirme après paiement réel.
+| De → Vers                | Déclencheur            |
+| ------------------------ | ---------------------- |
+| EN_ATTENTE → EN_PAIEMENT | paiement initié        |
+| EN_PAIEMENT → CONFIRMEE  | charge completed       |
+| EN_PAIEMENT → EXPIREE    | expiration paiement    |
+| CONFIRMEE → LIVREE       | livraison confirmée    |
+| CONFIRMEE → EN_LITIGE    | ouverture litige       |
+| CONFIRMEE → REMBOURSEE   | refund completed       |
+| LIVREE → EN_LITIGE       | dispute post-livraison |
+| LIVREE → TERMINE         | payout completed       |
+| EN_LITIGE → REMBOURSEE   | refund admin           |
+| EN_LITIGE → LIVREE       | résolution litige      |
 
 ---
 
-### canBeRefunded()
-
-Un booking peut être remboursé si son statut est :
-
-```php
-public function canBeRefunded(): bool
-{
-    return in_array($this, [
-        self::CONFIRMEE,
-        self::EN_LITIGE,
-    ], true);
-}
-```
-
-Cette méthode est le garde-fou avant toute création de `REFUND`.
-Elle doit être appelée dans `RefundTransaction` et `AdminRefundTransaction`
-avant toute écriture en base.
-
----
-
-## 🧾 Historisation
+# 🧾 Historisation
 
 Chaque changement de statut doit :
 
-- être enregistré dans `booking_status_histories`
+- être historisé
 - contenir :
     - ancien statut
     - nouveau statut
     - acteur
-    - raison (si applicable)
+    - raison éventuelle
 
 ---
 
-## 🔍 Observabilité
+# 🔍 Observabilité
 
 Un booking doit être traçable via :
 
@@ -341,81 +451,99 @@ Un booking doit être traçable via :
 
 ---
 
-## ⚖️ Couplage avec finance
+# ⚖️ Séparation des responsabilités
 
-Le Booking ne calcule jamais :
+Le Booking :
 
-- fee
-- payout
-- refund
+- orchestre
+- valide
+- coordonne
 
-Il dépend uniquement des Transactions.
+Le Booking ne :
 
----
-
-## 🔐 Sécurité
-
-- accès via Policy
-- expéditeur → ses bookings
-- voyageur → bookings de ses trips
-- admin → accès global
+- calcule pas les montants
+- ne calcule pas les fees
+- ne connaît pas les PSP
+- ne gère pas la trésorerie
 
 ---
 
-## 🧪 Testabilité
+# 🔐 Sécurité
 
-Doit être testé :
+Accès via Policies :
+
+| Acteur     | Accès                 |
+| ---------- | --------------------- |
+| Expéditeur | ses bookings          |
+| Voyageur   | bookings de ses trips |
+| Admin      | accès global          |
+
+---
+
+# 🧪 Testabilité
+
+Le domaine doit être testé pour :
 
 - transitions
 - capacité
-- expiration
-- idempotence
-- couplage avec transaction
 - concurrence
+- escrow
+- payout guards
+- refund guards
+- idempotence
+- cohérence transactionnelle
 
 ---
 
-## ⚠️ Anti-patterns interdits
+# ⚠️ Anti-patterns interdits
 
-- modifier statut sans Enum
-- calcul financier dans Booking
+- mutation statut hors Enum
+- finance dans Booking
 - bypass Transaction
-- ignorer expiration
-- réserver sans lock
-- accès direct DB sans transaction
+- bypass escrow
+- float pour money/weight
+- réservation sans lock
+- payout immédiat à LIVREE
 
 ---
 
-## 🔮 Extensions futures
+# 🔮 Extensions futures
 
-- multi-valises avancé
-- réservation partielle dynamique
-- réservation par volume (cm3)
-- litige avancé avec compensation
-- escrow complet
+- dispute resolution workflow
+- escrow configurable
+- reserve balances
+- payout batching
+- reconciliation engine
+- ledger interne
+- multi-currency treasury
+- volume-based booking
+- risk scoring
 
 ---
 
-## 🧠 Résumé exécutif
+# 🧠 Résumé exécutif
 
 ```txt
-Booking = pivot métier
+Booking = pivot métier transactionnel
 
 - orchestre logistique
 - dépend de la finance
-- ne calcule rien financièrement
+- protège les invariants
+- reste découplé des PSP
+- évolue vers un système treasury complet
 ```
 
 ---
 
-## 🧠 Design intention
+# 🧠 Design intention
 
 Le Booking est conçu pour :
 
 - centraliser la logique métier
-- rester simple en MVP
-- garantir cohérence et traçabilité
-- évoluer vers un système transactionnel complet
+- garantir cohérence transactionnelle
+- préserver auditabilité et traçabilité
+- supporter escrow et treasury
+- évoluer vers un backend marketplace robuste
 
 > Un Booking mal conçu casse tout le système.
 

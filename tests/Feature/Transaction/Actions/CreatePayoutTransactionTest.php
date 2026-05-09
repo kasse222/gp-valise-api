@@ -30,7 +30,12 @@ function createDeliveredBookingForPayoutAction(): Booking
     return Booking::factory()
         ->for(test()->sender)
         ->for(test()->trip)
-        ->create(['status' => BookingStatusEnum::LIVREE]);
+        ->create([
+            'status'               => BookingStatusEnum::LIVREE,
+            'delivered_at'         => now()->subHours(49),
+            'escrow_releasable_at' => now()->subHours(1), // ← escrow libérable
+            'disputed_at'          => null,
+        ]);
 }
 
 function createChargeForPayoutAction(Booking $booking, int $amount = 10000): Transaction
@@ -40,14 +45,14 @@ function createChargeForPayoutAction(Booking $booking, int $amount = 10000): Tra
         'booking_id'   => $booking->id,
         'type'         => TransactionTypeEnum::CHARGE,
         'status'       => TransactionStatusEnum::COMPLETED,
-        'amount'       => $amount, // ← centimes
+        'amount'       => $amount,
         'processed_at' => now(),
     ]);
 }
 
 it('crée un payout et une fee pour un booking livré avec charge complétée', function (): void {
     $booking = createDeliveredBookingForPayoutAction();
-    createChargeForPayoutAction($booking, 10000); // 100.00€
+    createChargeForPayoutAction($booking, 10000);
 
     $payout = $this->action->execute($booking);
 
@@ -55,21 +60,21 @@ it('crée un payout et une fee pour un booking livré avec charge complétée', 
         ->toBeInstanceOf(Transaction::class)
         ->and($payout->type)->toBe(TransactionTypeEnum::PAYOUT)
         ->and($payout->status)->toBe(TransactionStatusEnum::PENDING)
-        ->and($payout->amount)->toBe(9000)  // 90.00€
+        ->and($payout->amount)->toBe(9000)
         ->and($payout->user_id)->toBe($this->traveler->id);
 
     $this->assertDatabaseHas('transactions', [
         'booking_id' => $booking->id,
         'type'       => TransactionTypeEnum::FEE->value,
         'status'     => TransactionStatusEnum::COMPLETED->value,
-        'amount'     => 1000, // 10.00€
+        'amount'     => 1000,
     ]);
 
     $this->assertDatabaseHas('transactions', [
         'booking_id' => $booking->id,
         'type'       => TransactionTypeEnum::PAYOUT->value,
         'status'     => TransactionStatusEnum::PENDING->value,
-        'amount'     => 9000, // 90.00€
+        'amount'     => 9000,
     ]);
 });
 
@@ -85,6 +90,36 @@ it('refuse un payout si le booking nest pas livré', function (): void {
 
 it('refuse un payout sans charge complétée', function (): void {
     $booking = createDeliveredBookingForPayoutAction();
+    $this->action->execute($booking);
+})->throws(ValidationException::class);
+
+it('refuse un payout si escrow non libérable', function (): void {
+    $booking = Booking::factory()
+        ->for($this->sender)
+        ->for($this->trip)
+        ->create([
+            'status'               => BookingStatusEnum::LIVREE,
+            'delivered_at'         => now(),
+            'escrow_releasable_at' => now()->addHours(47), // ← pas encore libérable
+            'disputed_at'          => null,
+        ]);
+
+    createChargeForPayoutAction($booking);
+    $this->action->execute($booking);
+})->throws(ValidationException::class);
+
+it('refuse un payout si dispute active', function (): void {
+    $booking = Booking::factory()
+        ->for($this->sender)
+        ->for($this->trip)
+        ->create([
+            'status'               => BookingStatusEnum::LIVREE,
+            'delivered_at'         => now()->subHours(49),
+            'escrow_releasable_at' => now()->subHours(1),
+            'disputed_at'          => now()->subHours(2), // ← dispute active
+        ]);
+
+    createChargeForPayoutAction($booking);
     $this->action->execute($booking);
 })->throws(ValidationException::class);
 
@@ -132,7 +167,7 @@ it('crée une PAYMENT_FEE avec le bon montant et statut COMPLETED', function ():
     $expectedAmount = app(\App\Services\TransactionAmountCalculator::class)
         ->calculatePaymentFeeAmount($charge);
 
-    expect($paymentFee->amount)->toBe($expectedAmount) // 200 centimes = 2.00€
+    expect($paymentFee->amount)->toBe($expectedAmount)
         ->and($paymentFee->status)->toBe(TransactionStatusEnum::COMPLETED)
         ->and($paymentFee->processed_at)->not->toBeNull();
 });
@@ -153,9 +188,7 @@ it('profit_net calculable depuis la DB (FEE - PAYMENT_FEE)', function (): void {
         ->where('type', TransactionTypeEnum::PAYMENT_FEE->value)
         ->firstOrFail();
 
-    $profitNet = $fee->amount - $paymentFee->amount;
-
-    expect($profitNet)->toBe(800); // 1000 - 200 = 800 centimes = 8.00€
+    expect($fee->amount - $paymentFee->amount)->toBe(800);
 });
 
 it('refuse un payout si une fee existe déjà', function (): void {

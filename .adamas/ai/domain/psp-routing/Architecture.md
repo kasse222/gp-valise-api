@@ -5,11 +5,11 @@ Franchement, elle commence à ressembler à de la vraie documentation d’archit
 Mais je vais te faire une correction “lead engineer” :
 il manque surtout :
 
-* la couche webhook canonique
-* la séparation provider payload ↔ domaine
-* le rôle de `PaymentEventData`
-* les invariants architecturaux
-* l’async flow
+- la couche webhook canonique
+- la séparation provider payload ↔ domaine
+- le rôle de `PaymentEventData`
+- les invariants architecturaux
+- l’async flow
 
 Et aujourd’hui, avec tout ce que vous avez construit sur Kkiapay + webhook normalization, ça doit apparaître.
 
@@ -50,6 +50,7 @@ Action métier
 → PaymentResponseData
 → Transaction
 → Event métier
+```
 ````
 
 ---
@@ -77,16 +78,16 @@ Contrat commun à tous les PSP.
 
 Méthodes :
 
-* `charge()`
-* `refund()`
-* `verifyWebhook()`
-* `normalizeWebhook()`
+- `charge()`
+- `refund()`
+- `verifyWebhook()`
+- `normalizeWebhook()`
 
 Chaque provider doit :
 
-* encapsuler les détails techniques PSP ;
-* retourner des DTOs canoniques ;
-* rester interchangeable.
+- encapsuler les détails techniques PSP ;
+- retourner des DTOs canoniques ;
+- rester interchangeable.
 
 ```txt
 Le domaine ne dépend jamais d’un PSP concret.
@@ -100,10 +101,10 @@ Responsable du routing PSP.
 
 Critères possibles :
 
-* pays ;
-* devise ;
-* méthode de paiement ;
-* environnement.
+- pays ;
+- devise ;
+- méthode de paiement ;
+- environnement.
 
 Exemple :
 
@@ -123,11 +124,11 @@ Les DTOs isolent complètement le domaine des payloads externes.
 
 #### DTOs principaux
 
-* `PaymentRequestData`
-* `RefundRequestData`
-* `PaymentResponseData`
-* `PaymentEventData`
-* `WebhookVerificationData`
+- `PaymentRequestData`
+- `RefundRequestData`
+- `PaymentResponseData`
+- `PaymentEventData`
+- `WebhookVerificationData`
 
 ---
 
@@ -151,10 +152,10 @@ metadata
 
 Le domaine ne manipule jamais :
 
-* payload Stripe ;
-* payload Kkiapay ;
-* headers bruts ;
-* formats PSP spécifiques.
+- payload Stripe ;
+- payload Kkiapay ;
+- headers bruts ;
+- formats PSP spécifiques.
 
 ---
 
@@ -162,10 +163,10 @@ Le domaine ne manipule jamais :
 
 Responsable de :
 
-* construire `WebhookVerificationData`
-* vérifier l’authenticité webhook ;
-* normaliser le payload ;
-* produire un `PaymentEventData`.
+- construire `WebhookVerificationData`
+- vérifier l’authenticité webhook ;
+- normaliser le payload ;
+- produire un `PaymentEventData`.
 
 👉 Le controller reste extrêmement fin.
 
@@ -175,17 +176,17 @@ Responsable de :
 
 Implémentations concrètes :
 
-* `FakePaymentProvider`
-* `StripeProvider`
-* `KkiapayProvider`
+- `FakePaymentProvider`
+- `StripeProvider`
+- `KkiapayProvider`
 
 Chaque provider gère :
 
-* appels API ;
-* mapping statuts ;
-* normalisation webhook ;
-* vérification signature ;
-* spécificités PSP.
+- appels API ;
+- mapping statuts ;
+- normalisation webhook ;
+- vérification signature ;
+- spécificités PSP.
 
 ---
 
@@ -193,17 +194,17 @@ Chaque provider gère :
 
 Le domaine métier ignore totalement :
 
-* Stripe ;
-* Kkiapay ;
-* Wave ;
-* CMI ;
-* payloads externes.
+- Stripe ;
+- Kkiapay ;
+- Wave ;
+- CMI ;
+- payloads externes.
 
 Les modèles :
 
-* `Booking`
-* `Transaction`
-* `Payment`
+- `Booking`
+- `Transaction`
+- `Payment`
 
 ne connaissent jamais un PSP directement.
 
@@ -255,13 +256,18 @@ Aucun webhook ne peut être traité deux fois.
 
 ---
 
-### 5. Transaction = vérité financière
+### 5. Transaction = événement financier persistant
 
-```txt
-Transaction est la seule source de vérité financière.
-```
-
+````txt
+Transaction est la source de vérité des événements financiers métier.
 ---
+
+La vérité treasury complète sera progressivement portée par :
+
+    .Transactions
+    .PlatformAccounts
+    .Escrow state
+    .futur Ledger interne
 
 ## ⚖️ Tradeoffs
 
@@ -295,6 +301,8 @@ Architecture prévue pour supporter :
 ```txt
 Le domaine dépend d’abstractions.
 Jamais d’un PSP.
+````
+
 ```
 
-````
+```
