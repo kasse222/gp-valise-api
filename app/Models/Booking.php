@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Booking extends Model
@@ -82,10 +83,11 @@ class Booking extends Model
 
     public function markDelivered(): void
     {
+        $now = now();
         $delayHours = config('gpvalise.escrow_delay_hours', 48);
 
-        $this->delivered_at         = now();
-        $this->escrow_releasable_at = now()->addHours($delayHours);
+        $this->delivered_at = $now;
+        $this->escrow_releasable_at = $now->copy()->addHours($delayHours);
         $this->save();
     }
 
@@ -125,7 +127,8 @@ class Booking extends Model
         return $this->hasMany(Transaction::class);
     }
 
-    public function reports(): HasMany
+
+    public function reports(): MorphMany
     {
         return $this->morphMany(Report::class, 'reportable');
     }
@@ -158,7 +161,6 @@ class Booking extends Model
 
         match ($newStatus) {
             BookingStatusEnum::CONFIRMEE => $this->confirmed_at = now(),
-            BookingStatusEnum::LIVREE,
             BookingStatusEnum::TERMINE => $this->completed_at = now(),
             BookingStatusEnum::ANNULE => $this->cancelled_at = now(),
             BookingStatusEnum::EXPIREE => $this->expired_at = now(),

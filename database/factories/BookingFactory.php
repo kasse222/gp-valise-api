@@ -124,4 +124,32 @@ class BookingFactory extends Factory
             'payment_expires_at' => null,
         ]);
     }
+
+    public function livree(): static
+    {
+        return $this->state(fn() => [
+            'status'               => BookingStatusEnum::LIVREE->value,
+            'confirmed_at'         => now()->subDays(2),
+            'completed_at'         => now()->subHour(),
+            'cancelled_at'         => null,
+            'expired_at'           => null,
+            'payment_expires_at'   => null,
+            'delivered_at'         => now()->subHour(),
+            'escrow_releasable_at' => now()->addHours(47), // escrow non encore libérable
+            'disputed_at'          => null,
+        ]);
+    }
+
+    public function enLitige(): static
+    {
+        return $this->state(fn() => [
+            'status'               => BookingStatusEnum::EN_LITIGE->value,
+            'confirmed_at'         => now()->subDays(2),
+            'completed_at'         => null,
+            'cancelled_at'         => null,
+            'expired_at'           => null,
+            'payment_expires_at'   => null,
+            'disputed_at'          => now(),
+        ]);
+    }
 }
