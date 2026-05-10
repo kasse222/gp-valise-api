@@ -13,9 +13,9 @@ final class DisputeStatusChanged
     use Dispatchable;
 
     public function __construct(
-        public readonly Dispute $dispute,
-        public readonly DisputeStatusEnum $oldStatus,
-        public readonly DisputeStatusEnum $newStatus,
-        public readonly ?string $reason = null,
+        public readonly Dispute           $dispute,
+        public readonly ?DisputeStatusEnum $oldStatus, // ← nullable
+        public readonly DisputeStatusEnum  $newStatus,
+        public readonly ?string            $reason = null,
     ) {}
 }

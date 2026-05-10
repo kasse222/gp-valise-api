@@ -37,11 +37,12 @@ final class MarkPayoutCompleted
             // ─────────────────────────────────────────────────────────────────
 
             // Transition booking → TERMINE
+            // Transition booking → TERMINE
             $booking = $payout->booking;
             if ($booking && $booking->status === BookingStatusEnum::LIVREE) {
                 $booking->transitionTo(
                     BookingStatusEnum::TERMINE,
-                    null,
+                    null,                           // ← process automatique, pas d'acteur humain
                     'Payout complété — booking terminé'
                 );
             }

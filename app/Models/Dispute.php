@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\DisputeDecisionEnum;
 use App\Enums\DisputeStatusEnum;
+use App\Events\DisputeStatusChanged;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -90,7 +91,53 @@ final class Dispute extends Model
             'changed_by' => $changedBy,
             'reason'     => $reason,
         ]);
+
+        event(new DisputeStatusChanged(
+            dispute: $this->fresh(),
+            oldStatus: $oldStatus,
+            newStatus: $newStatus,
+            reason: $reason,
+        ));
     }
+
+    public function resolve(
+        DisputeDecisionEnum $decision,
+        string $resolution,
+        int $resolvedBy,
+    ): void {
+        if ($this->isResolved()) {
+            throw ValidationException::withMessages([
+                'dispute' => 'Ce litige est déjà résolu.',
+            ]);
+        }
+
+        $oldStatus = $this->status;
+
+        $this->update([
+            'status'      => DisputeStatusEnum::RESOLVED,
+            'decision'    => $decision,
+            'resolution'  => $resolution,
+            'resolved_by' => $resolvedBy,
+            'resolved_at' => now(),
+        ]);
+
+        DisputeStatusHistory::create([
+            'dispute_id' => $this->id,
+            'old_status' => $oldStatus->value,
+            'new_status' => DisputeStatusEnum::RESOLVED->value,
+            'changed_by' => $resolvedBy,
+            'reason'     => $resolution,
+        ]);
+
+        event(new DisputeStatusChanged(
+            dispute: $this->fresh(),
+            oldStatus: $oldStatus,
+            newStatus: DisputeStatusEnum::RESOLVED,
+            reason: $resolution,
+        ));
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     public function isResolved(): bool
     {
