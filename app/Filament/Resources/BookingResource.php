@@ -2,9 +2,11 @@
 
 namespace App\Filament\Resources;
 
+use App\Actions\Booking\ResolveDispute;
 use App\Enums\BookingStatusEnum;
 use App\Filament\Resources\BookingResource\Pages;
 use App\Models\Booking;
+use Filament\Forms\FormsComponent;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Filters\SelectFilter;
@@ -12,6 +14,8 @@ use Filament\Tables\Table;
 use Filament\Infolists;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
+use Filament\Forms;
 
 class BookingResource extends Resource
 {
@@ -68,16 +72,26 @@ class BookingResource extends Resource
                     ->searchable()
                     ->placeholder('—'),
 
-                Tables\Columns\IconColumn::make('has_dispute')
+                Tables\Columns\IconColumn::make('disputed_at')
                     ->label('Litige')
+                    ->getStateUsing(fn(Booking $record): bool => $record->disputed_at !== null)
                     ->boolean()
-                    ->getStateUsing(fn(Booking $record): bool => $record->disputed_at !== null),
+                    ->trueIcon('heroicon-o-exclamation-triangle')
+                    ->trueColor('danger')
+                    ->falseIcon('heroicon-o-minus')
+                    ->falseColor('gray'),
 
                 Tables\Columns\TextColumn::make('escrow_releasable_at')
                     ->label('Escrow libérable')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->description(fn(Booking $record): string => match (true) {
+                        $record->escrow_releasable_at === null => '',
+                        $record->disputed_at !== null          => '⚠ Litige actif',
+                        $record->escrow_releasable_at <= now() => '✓ Libérable',
+                        default => '⏳ ' . $record->escrow_releasable_at->diffForHumans(),
+                    }),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Créé le')
@@ -103,6 +117,62 @@ class BookingResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
+
+                Tables\Actions\Action::make('resolve_dispute')
+                    ->label('Résoudre le litige')
+                    ->icon('heroicon-o-scale')
+                    ->color('danger')
+                    ->visible(
+                        fn(Booking $record): bool =>
+                        $record->status === BookingStatusEnum::EN_LITIGE
+                            && auth()->user()?->isAdmin()
+                    )
+                    ->form([
+                        Forms\Components\Select::make('decision')
+                            ->label('Décision')
+                            ->options([
+                                ResolveDispute::DECISION_REFUND => '💸 Rembourser l\'expéditeur',
+                                ResolveDispute::DECISION_PAYOUT => '✅ Payer le voyageur',
+                            ])
+                            ->required()
+                            ->native(false),
+
+                        Forms\Components\Textarea::make('reason')
+                            ->label('Raison de la décision')
+                            ->required()
+                            ->minLength(10)
+                            ->rows(3)
+                            ->placeholder('Ex : Colis non reçu confirmé par les deux parties...'),
+                    ])
+                    ->modalHeading('Résoudre le litige')
+                    ->modalDescription('Cette action est irréversible. Elle sera tracée dans les audit logs.')
+                    ->modalSubmitActionLabel('Confirmer la décision')
+                    ->modalIcon('heroicon-o-exclamation-triangle')
+                    ->action(function (Booking $record, array $data): void {
+                        try {
+                            app(ResolveDispute::class)->execute(
+                                booking: $record,
+                                admin: auth()->user(),
+                                decision: $data['decision'],
+                                reason: $data['reason'],
+                            );
+
+                            Notification::make()
+                                ->title('Litige résolu')
+                                ->body(match ($data['decision']) {
+                                    ResolveDispute::DECISION_REFUND => 'Remboursement initié. En attente du webhook PSP.',
+                                    ResolveDispute::DECISION_PAYOUT => 'Payout accordé. Booking terminé.',
+                                })
+                                ->success()
+                                ->send();
+                        } catch (\Illuminate\Validation\ValidationException $e) {
+                            Notification::make()
+                                ->title('Erreur')
+                                ->body(collect($e->errors())->flatten()->first())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
             ])
             ->bulkActions([]);
     }
@@ -151,9 +221,13 @@ class BookingResource extends Resource
                 Infolists\Components\Section::make('Escrow & litige')
                     ->columns(3)
                     ->schema([
-                        Infolists\Components\IconEntry::make('has_dispute')
+                        Infolists\Components\IconEntry::make('disputed_at')
                             ->label('Litige actif')
                             ->boolean()
+                            ->trueIcon('heroicon-o-exclamation-triangle')
+                            ->trueColor('danger')
+                            ->falseIcon('heroicon-o-check-circle')
+                            ->falseColor('success')
                             ->getStateUsing(fn(Booking $record): bool => $record->disputed_at !== null),
 
                         Infolists\Components\TextEntry::make('disputed_at')
@@ -165,6 +239,63 @@ class BookingResource extends Resource
                             ->label('Escrow libérable le')
                             ->dateTime('d/m/Y H:i')
                             ->placeholder('—'),
+                    ])
+                    ->footerActions([
+                        \Filament\Infolists\Components\Actions\Action::make('resolve_dispute_detail')
+                            ->label('Résoudre le litige')
+                            ->icon('heroicon-o-scale')
+                            ->color('danger')
+                            ->visible(
+                                fn(Booking $record): bool =>
+                                $record->status === BookingStatusEnum::EN_LITIGE
+                                    && auth()->user()?->isAdmin()
+                            )
+                            ->form([
+                                Forms\Components\Select::make('decision')
+                                    ->label('Décision')
+                                    ->options([
+                                        ResolveDispute::DECISION_REFUND => '💸 Rembourser l\'expéditeur',
+                                        ResolveDispute::DECISION_PAYOUT => '✅ Payer le voyageur',
+                                    ])
+                                    ->required()
+                                    ->native(false),
+
+                                Forms\Components\Textarea::make('reason')
+                                    ->label('Raison de la décision')
+                                    ->required()
+                                    ->minLength(10)
+                                    ->rows(3)
+                                    ->placeholder('Ex : Colis non reçu confirmé par les deux parties...'),
+                            ])
+                            ->modalHeading('Résoudre le litige')
+                            ->modalDescription('Cette action est irréversible. Elle sera tracée dans les audit logs.')
+                            ->modalSubmitActionLabel('Confirmer la décision')
+                            ->modalIcon('heroicon-o-exclamation-triangle')
+                            ->action(function (Booking $record, array $data): void {
+                                try {
+                                    app(ResolveDispute::class)->execute(
+                                        booking: $record,
+                                        admin: auth()->user(),
+                                        decision: $data['decision'],
+                                        reason: $data['reason'],
+                                    );
+
+                                    Notification::make()
+                                        ->title('Litige résolu')
+                                        ->body(match ($data['decision']) {
+                                            ResolveDispute::DECISION_REFUND => 'Remboursement initié.',
+                                            ResolveDispute::DECISION_PAYOUT => 'Payout accordé. Booking terminé.',
+                                        })
+                                        ->success()
+                                        ->send();
+                                } catch (\Illuminate\Validation\ValidationException $e) {
+                                    Notification::make()
+                                        ->title('Erreur')
+                                        ->body(collect($e->errors())->flatten()->first())
+                                        ->danger()
+                                        ->send();
+                                }
+                            }),
                     ]),
 
                 Infolists\Components\Section::make('Transactions')

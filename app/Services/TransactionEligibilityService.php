@@ -42,6 +42,10 @@ class TransactionEligibilityService
     {
         return $booking->transactions()
             ->where('type', TransactionTypeEnum::PAYOUT)
+            ->whereIn('status', [
+                TransactionStatusEnum::PENDING,
+                TransactionStatusEnum::COMPLETED,
+            ])
             ->exists();
     }
 
