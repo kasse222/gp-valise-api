@@ -91,6 +91,11 @@ class Booking extends Model
         $this->save();
     }
 
+    public function dispute(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Dispute::class);
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
