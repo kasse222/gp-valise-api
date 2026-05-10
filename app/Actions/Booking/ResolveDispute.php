@@ -48,7 +48,20 @@ final class ResolveDispute
                 $this->resolveWithPayout($booking, $admin, $reason);
             }
 
+            // ── Dispute v2 — marquer RESOLVED ────────────────────────────────────
+            // ── Dispute v2 — marquer RESOLVED ─────────────────────────────────
+            $dispute = $booking->dispute;
+            if ($dispute && ! $dispute->isResolved()) {
+                $dispute->resolve(
+                    decision: \App\Enums\DisputeDecisionEnum::from($decision),
+                    resolution: $reason,
+                    resolvedBy: $admin->id,
+                );
+            }
+            // ─────────────────────────────────────────────────────────────────
+            // ─────────────────────────────────────────────────────────────────────
             // ── AuditLog dispute_resolved ─────────────────────────────────────
+
             $auditLog = AuditLog::query()->create([
                 'actor_id'      => $admin->id,
                 'action'        => 'dispute_resolved',

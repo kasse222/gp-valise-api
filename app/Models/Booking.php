@@ -90,6 +90,13 @@ class Booking extends Model
         $this->escrow_releasable_at = $now->copy()->addHours($delayHours);
         $this->save();
     }
+    public function canEnterDispute(): bool
+    {
+        return in_array($this->status, [
+            BookingStatusEnum::CONFIRMEE,
+            BookingStatusEnum::LIVREE,
+        ], true);
+    }
 
     public function dispute(): \Illuminate\Database\Eloquent\Relations\HasOne
     {

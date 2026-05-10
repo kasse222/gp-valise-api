@@ -14,6 +14,8 @@ use App\Models\Trip;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use App\Enums\DisputeStatusEnum;
+use App\Models\Dispute;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
@@ -213,3 +215,45 @@ it('est idempotent — refuse si déjà résolu', function (): void {
 
     $this->action->execute($booking, $this->admin, ResolveDispute::DECISION_REFUND, 'raison');
 })->throws(ValidationException::class);
+
+
+
+it('résolution refund marque le Dispute RESOLVED', function (): void {
+    ['booking' => $booking] = disputedBookingWithPayout($this->expediteur, $this->trip);
+
+    // Créer un dispute en base
+    Dispute::create([
+        'booking_id' => $booking->id,
+        'status'     => DisputeStatusEnum::OPEN,
+        'opened_by'  => $this->expediteur->id,
+        'reason'     => 'Colis non reçu',
+    ]);
+
+    $this->action->execute($booking, $this->admin, ResolveDispute::DECISION_REFUND, 'Remboursement accordé');
+
+    $dispute = Dispute::where('booking_id', $booking->id)->first();
+
+    expect($dispute->status)->toBe(DisputeStatusEnum::RESOLVED)
+        ->and($dispute->resolved_by)->toBe($this->admin->id)
+        ->and($dispute->decision)->toBe(\App\Enums\DisputeDecisionEnum::REFUND)
+        ->and($dispute->resolved_at)->not->toBeNull();
+});
+
+it('résolution payout marque le Dispute RESOLVED', function (): void {
+    ['booking' => $booking] = disputedBookingWithPayout($this->expediteur, $this->trip);
+
+    Dispute::create([
+        'booking_id' => $booking->id,
+        'status'     => DisputeStatusEnum::OPEN,
+        'opened_by'  => $this->expediteur->id,
+        'reason'     => 'Litige non fondé',
+    ]);
+
+    $this->action->execute($booking, $this->admin, ResolveDispute::DECISION_PAYOUT, 'Payout accordé');
+
+    $dispute = Dispute::where('booking_id', $booking->id)->first();
+
+    expect($dispute->status)->toBe(DisputeStatusEnum::RESOLVED)
+        ->and($dispute->decision)->toBe(\App\Enums\DisputeDecisionEnum::PAYOUT)
+        ->and($dispute->resolved_at)->not->toBeNull();
+});
