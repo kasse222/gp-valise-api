@@ -1336,3 +1336,104 @@ Comptes Phase 5 (EUR + XOF) :
 ```txt
 
 ```
+
+## [2026-05] — Dispute system v2 — table disputes dédiée
+
+### Contexte
+
+Le système MVP Phase 4 avait un dispute system binaire :
+
+- `booking.status = EN_LITIGE` ← seul signal
+- `OpenDispute` + `ResolveDispute` ← deux actions
+
+Insuffisant pour la production réelle qui nécessite un workflow
+d'arbitrage avec états intermédiaires, messages, preuves et traçabilité.
+
+### Décision
+
+Table `disputes` dédiée avec son propre cycle de vie, indépendant
+de `BookingStatusEnum`.
+
+```txt
+booking.status = EN_LITIGE    ← signal financier simple (escrow bloqué)
+dispute.status                ← workflow arbitrage complet
+```
+
+Statuts dispute :
+
+```txt
+OPEN → UNDER_REVIEW → WAITING_CUSTOMER → RESOLVED
+                    → WAITING_TRAVELER → RESOLVED
+                    → ESCALATED       → RESOLVED
+     → ESCALATED   → UNDER_REVIEW    → RESOLVED
+```
+
+Contrainte : une seule dispute active par booking (`unique` sur `disputes.booking_id`).
+Multi-dispute historique possible en Phase suivante.
+
+Tables créées :
+
+```txt
+disputes                  status + opened_by + assigned_to + resolved_by
+                          reason + resolution + decision + resolved_at
+dispute_messages          body + attachments json (preuves)
+dispute_status_histories  old_status + new_status + changed_by + reason
+```
+
+### Alternatives considérées
+
+- Étendre `BookingStatusEnum` avec OPEN/UNDER_REVIEW/... ❌
+  BookingStatusEnum mélange statuts booking + statuts dispute.
+  Couplage fort, transitions complexes, enum incontrôlable.
+
+- Event sourcing complet ❌ : sur-ingénierie Phase 6.
+
+- Balance matérialisée dispute_status ❌ : inutile, status en colonne suffit.
+
+### Composants implémentés
+
+```txt
+DisputeStatusEnum     OPEN | UNDER_REVIEW | WAITING_CUSTOMER
+                      | WAITING_TRAVELER | ESCALATED | RESOLVED
+                      + allowedTransitions() + canTransitionTo() + isTerminal()
+
+DisputeDecisionEnum   REFUND | PAYOUT
+
+Dispute model         transitionTo() + resolve() + isResolved() + isActive()
+DisputeMessage        append-only — body + attachments json
+DisputeStatusHistory  append-only — traçabilité complète
+
+Events
+  DisputeStatusChanged(dispute, ?oldStatus, newStatus, reason)
+  DisputeMessageAdded(message)
+
+Actions
+  OpenDispute v2        → crée Dispute(OPEN) atomiquement avec booking
+  ResolveDispute v2     → Dispute::resolve() encapsule décision complète
+  UpdateDisputeStatus   → workflow admin OPEN→UNDER_REVIEW→WAITING→RESOLVED
+  AddDisputeMessage     → messages + preuves (expéditeur/voyageur/admin)
+```
+
+### Fix transversaux
+
+- `AdminRefundTransaction` : `hasPayout` check PENDING/COMPLETED uniquement
+  PAYOUT FAILED ne bloque plus le remboursement
+- `TransactionEligibilityService` : `hasPayout()` même logique
+- `OpenDispute` : guard payout COMPLETED uniquement (PENDING autorisé)
+- `DisputeStatusChanged` : `oldStatus` nullable (création = null → OPEN)
+
+### Conséquences
+
+- `booking.status` reste simple — escrow guard inchangé
+- Workflow dispute indépendant et extensible
+- `Dispute::resolve()` encapsule atomiquement : status + decision
+    - resolution + resolved_by + resolved_at + history + event
+- Auto-assignation admin sur `UNDER_REVIEW`
+- Messages avec pièces jointes prêts pour upload S3 futur
+- 43 nouveaux tests — 415 tests / 985 assertions all green
+
+### Statut
+
+✅ actif — Phase 6 dispute system v2 complété
+⏳ à venir — DisputeResource Filament
+⏳ à venir — API publique lecture (expéditeur/voyageur) Phase 7
