@@ -75,7 +75,14 @@ class AdminRefundTransaction
                 ->lockForUpdate()
                 ->get();
 
-            if ($transactions->contains(fn(Transaction $transaction) => $transaction->type === TransactionTypeEnum::PAYOUT)) {
+            if ($transactions->contains(
+                fn(Transaction $transaction) =>
+                $transaction->type === TransactionTypeEnum::PAYOUT
+                    && in_array($transaction->status, [
+                        TransactionStatusEnum::PENDING,
+                        TransactionStatusEnum::COMPLETED,
+                    ], true)
+            )) {
                 throw ValidationException::withMessages([
                     'booking' => 'Impossible de rembourser après payout.',
                 ]);
