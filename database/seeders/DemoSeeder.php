@@ -98,6 +98,8 @@ class DemoSeeder extends Seeder
         $admin = User::updateOrCreate(
             ['email' => 'admin@gpvalise.demo'],
             [
+                'verified_user'     => true,
+                'email_verified_at' => now(),
                 'first_name'      => 'Lamine',
                 'last_name'       => 'Admin',
                 'phone'           => '+212600000010',
@@ -113,6 +115,8 @@ class DemoSeeder extends Seeder
         $traveler = User::updateOrCreate(
             ['email' => 'voyageur@gpvalise.demo'],
             [
+                'verified_user'     => true,
+                'email_verified_at' => now(),
                 'first_name'      => 'Marie',
                 'last_name'       => 'Dupont',
                 'phone'           => '+212600000011',
@@ -128,6 +132,8 @@ class DemoSeeder extends Seeder
         $sender = User::updateOrCreate(
             ['email' => 'expediteur@gpvalise.demo'],
             [
+                'verified_user'     => true,
+                'email_verified_at' => now(),
                 'first_name'      => 'Karim',
                 'last_name'       => 'Expéditeur',
                 'phone'           => '+212600000012',
@@ -152,11 +158,11 @@ class DemoSeeder extends Seeder
             'departure'     => 'Paris, FR',
             'destination'   => 'Casablanca, MA',
             'date'          => now()->addDays(15),
-            'capacity'      => 30,
+            'capacity'      => 30000,
             'status'        => TripStatusEnum::ACTIVE->value,
             'type_trip'     => TripTypeEnum::STANDARD->value,
             'flight_number' => 'AT201',
-            'price_per_kg'  => 8.50,
+            'price_per_kg'  => 850,
         ]);
 
         $trip->locations()->createMany([
