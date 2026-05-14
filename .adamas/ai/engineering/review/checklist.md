@@ -1,281 +1,234 @@
-Très bon travail. Là on est déjà au-dessus de 90 % des projets juniors.
-Mais je vais faire ce que ferait un **lead exigeant** : renforcer là où ça protège vraiment ton système.
-
----
-
-# 🧠 1. Audit rapide de ta checklist
-
-### 👍 Très solide
-
-- séparation des couches ✔
-- règles Action / Policy / Enum ✔
-- sécurité ✔
-- tests ✔
-- classification gravité ✔
-
----
-
-### ❌ Ce qui manque (critique pour TON projet)
-
-👉 Spécifique GP-Valise (fintech + async + concurrence) :
-
-1. ❌ Idempotence (ABSENT)
-2. ❌ Finance (Transaction rules)
-3. ❌ Observabilité (correlation_id)
-4. ❌ Audit (immutabilité / hash)
-5. ❌ Async / Jobs (retry, webhook)
-6. ❌ Enum obligatoire (anti string)
-7. ❌ Invariants métier (PAYOUT ⊕ REFUND)
-8. ❌ Concurrence réelle (lockForUpdate ciblé)
-
-👉 Là, ta checklist est **bonne**, mais pas encore **système critique safe**.
-
----
-
-# 🔥 2. Version améliorée (niveau senior / production)
-
-👉 Remplace ton fichier par ça :
-
-````md
 # ✅ Review Checklist — GP-Valise
 
----
-
-## 🎯 Objectif
-
-Checklist obligatoire avant :
-
-- PR
-- merge
-- audit IA
+> Checklist obligatoire avant tout **PR · merge · audit IA**.
 
 ---
 
-## 🔁 Couches (séparation)
+## 🔁 Couches — séparation des responsabilités
 
 ### Controller
 
-- [ ] Une seule Action appelée
+- [ ] Une seule Action appelée par endpoint
 - [ ] Aucune logique métier
-- [ ] FormRequest utilisé
-- [ ] Policy appliquée
-- [ ] Exceptions → HTTP correct
-
----
+- [ ] FormRequest utilisé pour la validation
+- [ ] Policy appliquée (`$this->authorize()`)
+- [ ] Exceptions converties en réponses HTTP correctes
 
 ### FormRequest
 
-- [ ] Validation simple uniquement
+- [ ] Validation HTTP simple uniquement
 - [ ] Aucune logique métier
 - [ ] Pas de dépendance DB complexe
-
----
 
 ### Action
 
 - [ ] Un seul use case métier
-- [ ] Signature explicite
-- [ ] Types stricts
-- [ ] Pas de `request()` / `Auth`
-- [ ] Transaction DB si multi-modèles
-- [ ] Exception métier claire
-- [ ] Idempotence si nécessaire
-- [ ] Pas de duplication
-
----
+- [ ] Signature explicite avec types stricts
+- [ ] Pas de `request()` ni `Auth::` directs
+- [ ] `DB::transaction()` si multi-modèles ou opération financière
+- [ ] `lockForUpdate()` si risque de concurrence
+- [ ] Exception métier claire sur violation d'invariant
+- [ ] Idempotence si risque de double exécution
+- [ ] Pas de duplication d'un use case existant
 
 ### Policy
 
-- [ ] Autorisation uniquement
+- [ ] Autorisation uniquement (rôle + ownership)
 - [ ] Aucun effet de bord
 - [ ] Aucune logique métier
-
----
 
 ### Enum
 
 - [ ] Source de vérité des statuts
-- [ ] `canTransitionTo()` utilisé
-- [ ] Aucune string utilisée
+- [ ] `canTransitionTo()` utilisé pour les transitions
+- [ ] Aucune string hardcodée
 - [ ] Aucun accès DB
-
----
 
 ### Model
 
-- [ ] Helpers locaux uniquement
-- [ ] Pas d’orchestration
-- [ ] Pas d’appel Service/Action
-- [ ] Pas de logique financière
-- [ ] Immutabilité respectée si nécessaire (ex: AuditLog)
-
----
+- [ ] Helpers locaux uniquement (sur ses propres données)
+- [ ] Pas d'orchestration multi-modèles
+- [ ] Pas de calcul financier
+- [ ] Immutabilité respectée (AuditLog, LedgerEntry)
 
 ### Service
 
 - [ ] Logique transverse uniquement
-- [ ] N’appelle pas une Action
+- [ ] N'appelle pas une Action
 - [ ] Ne remplace pas un use case
-
----
 
 ### Job
 
 - [ ] Appelle une Action (pas de logique métier)
 - [ ] Retry/backoff configuré
-- [ ] Idempotence respectée
-- [ ] Logging en cas d’échec
-- [ ] Alerting si échec critique
+- [ ] `correlation_id` transmis et conservé
+- [ ] Logging + alerting Slack si échec critique
 
 ---
 
-## 💰 Finance (CRITIQUE)
+## 💰 Finance
 
-- [ ] Aucune logique financière hors Calculator
-- [ ] Transaction = source de vérité
-- [ ] Invariant respecté :
-
-```txt
-PAYOUT ⊕ REFUND
-```
-````
-
-- [ ] Aucun double payout
-- [ ] Aucun double refund
-- [ ] CHARGE obligatoire avant CONFIRMEE
+- [ ] Aucun calcul financier hors `TransactionAmountCalculator`
+- [ ] `Transaction` = source de vérité (pas Booking, pas Payment)
+- [ ] `PAYOUT ⊕ REFUND` respecté
+- [ ] Aucun double payout / double refund / double fee
+- [ ] `CHARGE` obligatoire avant `CONFIRMEE`
 - [ ] `canBeRefunded()` vérifié avant toute création de REFUND
-      (statuts valides : CONFIRMEE, EN_LITIGE — voir bug C3)
+- [ ] Montants en **integer minor units** (float interdit)
+- [ ] Montants persistés à la création — jamais recalculés
+
+---
+
+## 🔒 Escrow
+
+- [ ] Pas de payout immédiat à `LIVREE`
+- [ ] `escrow_releasable_at` calculé à la livraison
+- [ ] Guard `disputed_at IS NULL` vérifié avant release
+- [ ] Guard `escrow_releasable_at <= now()` vérifié
+- [ ] `ReleaseEscrowBatch` — idempotence garantie
+
+---
+
+## 📋 Dispute
+
+- [ ] Séparation `booking.status` / `dispute.status` respectée
+- [ ] Une seule dispute active par booking (unique constraint)
+- [ ] `RESOLVED` est terminal — aucune transition possible
+- [ ] Résolution = décision financière + audit log obligatoire
+- [ ] Accès rôles respecté (expéditeur ≠ résolution)
+
+---
+
+## 🏦 Ledger
+
+- [ ] `SUM(debits) = SUM(credits)` par transaction
+- [ ] Écriture dans la même `DB::transaction()` que la Transaction financière
+- [ ] Aucune `LedgerEntry` modifiée après création
+- [ ] Pas de balance matérialisée sur `ledger_accounts`
+- [ ] Guard `hasExistingEntries` vérifié (idempotence)
+
+---
+
+## 🔌 PSP isolation
+
+- [ ] Payload PSP brut jamais dans le domaine
+- [ ] Webhook normalisé via `WebhookProcessor` → `PaymentEventData`
+- [ ] Provider sélectionné via `PaymentProviderResolver`
+- [ ] Aucun PSP concret hardcodé dans Actions/Controllers/Models
+- [ ] `FakePaymentProvider` absent de la config production
 
 ---
 
 ## 🔁 Idempotence
 
-- [ ] Webhook idempotent (`event_id`)
-- [ ] Payout idempotent
-- [ ] Refund idempotent
-- [ ] Actions critiques protégées
-
----
-
-## 🔒 Concurrence
-
-- [ ] `lockForUpdate()` sur :
-    - réservation
-    - paiement
-    - refund
-    - payout
-
-- [ ] Transaction DB sur opérations critiques
-
----
-
-## 🔐 Sécurité
-
-- [ ] Policy appliquée
-- [ ] Pas de fuite de données
-- [ ] Validation correcte
-- [ ] Aucun bypass
-
----
-
-## 🔍 Observabilité
-
-- [ ] `correlation_id` présent :
-    - HTTP
-    - logs
-    - jobs
-
-- [ ] Logs structurés
-
-- [ ] Pas de données sensibles loggées
+- [ ] Webhook idempotent (`event_id` UNIQUE + `lockForUpdate()`)
+- [ ] Payout idempotent (guards `TransactionEligibilityService`)
+- [ ] Refund idempotent (guards `TransactionEligibilityService`)
+- [ ] Ledger entries idempotentes (`hasExistingEntries`)
 
 ---
 
 ## 🔐 Audit
 
-- [ ] Audit log créé pour actions critiques
-- [ ] Audit immuable
-- [ ] integrity_hash présent
-- [ ] previous_hash chaîné
-- [ ] Pas de modification possible
-- [ ] `seal()` appelé immédiatement après `create()`, dans la même `DB::transaction()`
-- [ ] Aucun `save()` sur AuditLog existant hors de `seal()`
+- [ ] Audit log créé pour toutes les actions admin critiques
+- [ ] `seal()` appelé **immédiatement après `create()`** dans la même `DB::transaction()`
+- [ ] Aucun `save()` sur `AuditLog` existant hors de `seal()`
+- [ ] `integrity_hash` + `previous_hash` présents
+- [ ] Audit log lié à la résolution de dispute
+
+---
+
+## 🔐 Sécurité
+
+- [ ] Policy appliquée sur tous les endpoints sensibles
+- [ ] Pas de fuite de données (filtre utilisateur)
+- [ ] Validation correcte des entrées
+- [ ] Aucun bypass d'autorisation
+
+---
+
+## 🔍 Observabilité
+
+- [ ] `correlation_id` présent : HTTP · logs · jobs · webhooks
+- [ ] Logs structurés avec contexte
+- [ ] Aucune donnée sensible loggée
 
 ---
 
 ## ⚡ Performance
 
-- [ ] Pas de N+1
-- [ ] `with()` utilisé si nécessaire
-- [ ] requêtes optimisées
+- [ ] Pas de N+1 (`with()` utilisé si nécessaire)
+- [ ] Pagination sur les listes
+- [ ] Index DB cohérents avec les filtres
 
 ---
 
 ## 🧪 Testabilité
 
-- [ ] Tests Action complets
-- [ ] Nominal + erreurs + edge cases
+- [ ] Tests Action complets (nominal + erreurs + edge cases)
 - [ ] Idempotence testée
-- [ ] Concurrence testée si critique
-- [ ] Transitions Enum testées (dont statuts sources vers REMBOURSEE)
-- [ ] Aucun debug (`dd`, `dump`)
+- [ ] Guards escrow testés
+- [ ] Guards dispute testés
+- [ ] Transitions Enum testées
+- [ ] `SUM(debits) = SUM(credits)` testé sur les flows ledger
+- [ ] Aucun `dd()` / `dump()` restant
 
-Tests de référence du projet :
+### Tests de référence
 
-| Sujet                                       | Fichier                      |
-| ------------------------------------------- | ---------------------------- |
-| Idempotence webhook                         | `HandlePaymentWebhookTest`   |
-| Alignement `scopeReservable` / `kgReserved` | `CapacitySemanticsTest`      |
-| Chaîne d'intégrité audit                    | `AdminRefundTransactionTest` |
-| Bug C3 — `CONFIRMEE → REMBOURSEE`           | `HandlePaymentWebhookTest`   |
+| Sujet                                          | Fichier                      |
+| ---------------------------------------------- | ---------------------------- |
+| Idempotence webhook                            | `HandlePaymentWebhookTest`   |
+| Alignement `scopeReservable` / `gramsReserved` | `CapacitySemanticsTest`      |
+| Chaîne d'intégrité audit                       | `AdminRefundTransactionTest` |
+| Bug C3 — `CONFIRMEE → REMBOURSEE`              | `HandlePaymentWebhookTest`   |
+| Guards escrow                                  | `ReleaseEscrowBatchTest`     |
+| Invariants dispute                             | `ResolveDisputeTest`         |
 
 ---
 
 ## 🧪 Avant merge
 
-- [ ] Tests passent
-- [ ] Pint OK
-- [ ] PHPStan OK
-- [ ] Pas de régression
-- [ ] Branche propre
-- [ ] Commit clair
+- [ ] Tous les tests passent (`make test`)
+- [ ] Laravel Pint OK
+- [ ] PHPStan / Larastan OK
+- [ ] Pas de régression visible
+- [ ] Branche propre, commits atomiques
+- [ ] `decision-log.md` mis à jour si décision importante
 
 ---
 
-## 🚦 Gravité
+## 🚦 Gravité des problèmes
 
-| Niveau          | Description                     |
-| --------------- | ------------------------------- |
-| 🔴 Critique     | bug métier / finance / sécurité |
-| 🟠 Important    | mauvaise architecture           |
-| 🟡 Amélioration | lisibilité / perf               |
+| Niveau          | Description                                | Action                |
+| --------------- | ------------------------------------------ | --------------------- |
+| 🔴 Critique     | Bug métier / finance / escrow / sécurité   | Bloquer immédiatement |
+| 🟠 Important    | Mauvaise architecture / dette bloquante    | PR refusée            |
+| 🟡 Amélioration | Lisibilité / performance / tests manquants | Commentaire           |
 
 ---
 
 ## 📌 Règle de décision
 
 1. Violation `.adamas` ?
-2. Impact réel ?
-3. Métier ou technique ?
-4. Simplifie ?
+2. Impact réel sur le système ?
+3. Problème métier ou technique ?
+4. La correction simplifie-t-elle ?
 
 ---
 
-## 🚫 Interdits
+## 🚫 Bloquants absolus
 
-- Code sans audit
-- Statuts en string
-- Logique métier mal placée
-- Idempotence ignorée
-- Concurrence ignorée
-- Audit absent sur actions sensibles
+```
+Code sans audit préalable
+Statuts en string (Enum obligatoire)
+Logique métier dans Controller ou Policy
+Idempotence ignorée sur flux financier
+Concurrence ignorée sur opération critique
+Audit absent sur action admin sensible
+Float pour money ou poids
+Payout immédiat à LIVREE
+```
 
 ---
 
-## 🧠 Principe clé
-
-> Si la checklist n’est pas respectée, le code n’est pas prêt.
-
-```
-
-```
+> Si la checklist n'est pas respectée, le code n'est pas prêt.

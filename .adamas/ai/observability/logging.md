@@ -1,87 +1,101 @@
 # 🧾 Logging — GP-Valise
 
-## 🎯 Objectif
-
-Le logging permet de :
-
-- comprendre ce qui se passe dans le système
-- diagnostiquer un incident
-- tracer les actions critiques
-- corréler les événements via `correlation_id`
-
 > Un bon log explique un bug sans debugger.
 
 ---
 
 ## 🧠 Principe fondamental
 
-> Logguer ce qui est utile, pas tout.
-
-Un bon log :
-
-- apporte de la valeur
-- est exploitable
-- est corrélé (`correlation_id`)
-- est structuré
-
----
-
-## 🔁 Types de logs
-
-### 1. Logs métier
-
-Exemples :
-
-- création d’un booking
-- refund déclenché
-- payout généré
-- override admin
-
-```php
-Log::info('Booking confirmed', [
-    'booking_id' => $booking->id,
-    'user_id' => $booking->user_id,
-]);
+```
+Logguer ce qui est utile, pas tout.
 ```
 
-````
+Un bon log est : **structuré · corrélé · exploitable · sans bruit**
 
 ---
 
-### 2. Logs techniques
+## 📊 Niveaux de logs
 
-Exemples :
+| Niveau     | Usage                                   |
+| ---------- | --------------------------------------- |
+| `debug`    | Local uniquement — jamais en production |
+| `info`     | Événement normal attendu                |
+| `warning`  | Anomalie non bloquante                  |
+| `error`    | Erreur métier ou technique              |
+| `critical` | Incident grave (financier, système)     |
 
-- erreur DB
-- exception
-- timeout
-- retry
+---
+
+## 🔁 Événements à logger
+
+### Finance & Transactions
+
+| Événement                       | Niveau     | Données                            |
+| ------------------------------- | ---------- | ---------------------------------- |
+| CHARGE créée                    | `info`     | `booking_id`, `amount`, `provider` |
+| CHARGE COMPLETED                | `info`     | `booking_id`, `transaction_id`     |
+| PAYOUT créé                     | `info`     | `booking_id`, `amount`             |
+| PAYOUT COMPLETED                | `info`     | `booking_id`, `transaction_id`     |
+| REFUND créé                     | `info`     | `booking_id`, `amount`, `reason`   |
+| REFUND COMPLETED                | `info`     | `booking_id`, `transaction_id`     |
+| Incohérence financière détectée | `critical` | Tous les champs                    |
+
+### Escrow
+
+| Événement                      | Niveau    | Données                              |
+| ------------------------------ | --------- | ------------------------------------ |
+| Booking LIVREE (escrow start)  | `info`    | `booking_id`, `escrow_releasable_at` |
+| Escrow release déclenché       | `info`    | `booking_id`, `delay_hours`          |
+| Escrow bloqué (dispute active) | `warning` | `booking_id`, `disputed_at`          |
+| Escrow release échoué          | `error`   | `booking_id`, erreur                 |
+
+### Dispute
+
+| Événement             | Niveau | Données                                  |
+| --------------------- | ------ | ---------------------------------------- |
+| Dispute ouverte       | `info` | `dispute_id`, `booking_id`, `reason`     |
+| Statut dispute changé | `info` | `dispute_id`, `old_status`, `new_status` |
+| Dispute résolue       | `info` | `dispute_id`, `decision`, `resolved_by`  |
+
+### Webhooks
+
+| Événement             | Niveau     | Données                      |
+| --------------------- | ---------- | ---------------------------- |
+| Reçu                  | `info`     | `event_id`, `event_type`     |
+| Traité                | `info`     | `event_id`, `transaction_id` |
+| Ignoré                | `info`     | `event_id`, raison           |
+| Échoué                | `error`    | `event_id`, erreur           |
+| Échoué définitivement | `critical` | `event_id`, tentatives       |
+
+### Admin actions
+
+| Événement             | Niveau    | Données                              |
+| --------------------- | --------- | ------------------------------------ |
+| Refund admin override | `warning` | `booking_id`, `admin_id`, `reason`   |
+| Résolution dispute    | `warning` | `dispute_id`, `decision`, `admin_id` |
+
+---
+
+## 🧱 Structure recommandée
 
 ```php
-Log::error('Transaction introuvable', [
-    'provider_transaction_id' => $providerId,
+// ✅ Correct — structuré avec contexte
+Log::info('Refund processed', [
+    'booking_id'     => $booking->id,
+    'transaction_id' => $transaction->id,
+    'amount'         => $transaction->amount,
+    'correlation_id' => $correlationId,
 ]);
-```
 
----
-
-### 3. Logs critiques
-
-Exemples :
-
-- webhook échoué définitivement
-- incohérence financière
-- violation d’invariant
-
-```php
-Log::critical('WEBHOOK DEFINITIVEMENT ECHOUE', [...]);
+// ❌ Mauvais — inutilisable
+Log::info("Refund OK");
 ```
 
 ---
 
 ## 🔗 Correlation ID
 
-Tous les logs doivent contenir :
+**Tous les logs doivent contenir le `correlation_id` via :**
 
 ```php
 Log::withContext([
@@ -89,118 +103,35 @@ Log::withContext([
 ]);
 ```
 
-Objectif :
-
-```txt
-reconstruire un flux complet
-```
-
----
-
-## 🧱 Structure recommandée
-
-Toujours utiliser un format structuré :
-
-```php
-Log::info('Refund processed', [
-    'booking_id' => $booking->id,
-    'transaction_id' => $transaction->id,
-    'amount' => $transaction->amount,
-]);
-```
-
-❌ Mauvais :
-
-```php
-Log::info("Refund OK");
-```
-
----
-
-## 📊 Niveaux de logs
-
-| Niveau     | Usage                                |
-| ---------- | ------------------------------------ |
-| `debug`    | local uniquement                     |
-| `info`     | événement normal                     |
-| `warning`  | anomalie non bloquante               |
-| `error`    | erreur métier / technique            |
-| `critical` | incident grave (financier / système) |
+Permet de reconstruire un flux complet depuis les logs.
 
 ---
 
 ## 🚫 Interdits
 
-- logger des données sensibles :
-    - email
-    - téléphone
-    - KYC
-    - token
-    - carte bancaire
+**Ne jamais logger :**
 
-- logger sans contexte
+```
+email · téléphone · données KYC
+token d'authentification · numéro de carte bancaire
+secret webhook / clé API
+```
 
-- logger du bruit inutile
+**Ne jamais faire :**
 
-- logger dans les boucles intensives
-
----
-
-## ⚠️ Cas critiques à logger
-
-### Finance
-
-- création transaction
-- refund
-- payout
-- erreur webhook
-
----
-
-### Webhook
-
-- received
-- processed
-- ignored
-- failed
-
----
-
-### Admin actions
-
-- refund override
-- modification critique
-
----
-
-## 🧪 Tests attendus
-
-- logs présents sur erreurs critiques
-- correlation_id présent
-- logs cohérents avec le flow métier
+```
+Log::debug() en production
+Logger sans contexte sur flux critique
+Logger dans des boucles intensives
+Logs de bruit (chaque requête HTTP standard)
+```
 
 ---
 
 ## 🧠 Résumé
 
-```txt
-Logs = trace explicable du système
 ```
-
-Sans logs :
-
-→ système aveugle
-
-Avec mauvais logs :
-
-→ système bruyant
-
-Avec bons logs :
-
-→ système compréhensible
-
+Sans logs    →  système aveugle
+Mauvais logs →  système bruyant
+Bons logs    →  incident diagnostiquable en production à 3h du matin
 ```
-
-
-```
-````

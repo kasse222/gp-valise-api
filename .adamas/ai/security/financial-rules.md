@@ -1,344 +1,255 @@
 # 💰 Financial Rules — GP-Valise
 
-## 🎯 Objectif
-
-Définir les règles financières strictes du système afin de garantir :
-
-- cohérence comptable
-- sécurité des flux d’argent
-- traçabilité complète
-- protection contre les erreurs et la fraude
-
 > Toute règle financière violée = bug critique 🔴
 
 ---
 
 ## 🧠 Principe fondamental
 
-```txt
+```
 Transaction = source de vérité financière
+Ledger      = vérité comptable double-entry
 ```
 
-- `Payment` = workflow utilisateur
-- `Transaction` = réalité comptable
+| Objet         | Rôle                              |
+| ------------- | --------------------------------- |
+| `Payment`     | Vue métier / workflow utilisateur |
+| `Transaction` | Réalité comptable atomique        |
+| `LedgerEntry` | Écriture comptable double-entry   |
 
-👉 Aucune décision financière ne doit dépendre uniquement du `Booking`.
+**Aucune décision financière ne doit dépendre uniquement du `Booking`.**
+
+---
+
+## 💱 Représentation monétaire
+
+| ✅ Obligatoire                  | ❌ Interdit         |
+| ------------------------------- | ------------------- |
+| Integer minor units (centimes)  | float               |
+| `1500 = 15.00€`                 | decimal métier      |
+| Arithmetic entière déterministe | Calcul approximatif |
 
 ---
 
 ## 🧩 Types de transactions
 
-| Type          | Description                      |
-| ------------- | -------------------------------- |
-| `CHARGE`      | paiement expéditeur → plateforme |
-| `PAYOUT`      | plateforme → voyageur            |
-| `REFUND`      | plateforme → expéditeur          |
-| `FEE`         | commission GP-Valise             |
-| `PAYMENT_FEE` | frais PSP / bancaire             |
+| Type          | Sens métier             | Moment de création                 |
+| ------------- | ----------------------- | ---------------------------------- |
+| `CHARGE`      | Expéditeur → Plateforme | Paiement PSP                       |
+| `PAYOUT`      | Plateforme → Voyageur   | Escrow release (après 48h)         |
+| `FEE`         | Commission GP-Valise    | Avec le PAYOUT                     |
+| `REFUND`      | Plateforme → Expéditeur | Webhook refund.completed           |
+| `PAYMENT_FEE` | Frais PSP/bancaires     | Avec la CHARGE (estimé config MVP) |
+
+> ⚠️ **La FEE est créée au moment du PAYOUT, pas à la CONFIRMEE ni à la LIVREE.**
 
 ---
 
-## 🔒 Invariants critiques
+## 🔒 Invariants financiers critiques
 
 ### 1. Conservation de valeur
 
-```txt
+```
 PAYOUT + FEE + REFUND ≤ CHARGE
 ```
 
-👉 Jamais plus d’argent distribué que reçu
-
----
-
 ### 2. Exclusivité financière
 
-```txt
+```
 PAYOUT ⊕ REFUND
 ```
 
-👉 Un booking ne peut jamais avoir :
-
-- un payout
-- ET un refund
-
----
+Un booking ne peut jamais avoir simultanément un payout ET un refund.
 
 ### 3. Unicité des transactions
 
-Pour un booking :
-
-- une seule `CHARGE`
-- un seul `PAYOUT`
-- un seul `REFUND`
-- une seule `FEE`
-
-👉 Toute duplication = bug critique
-
----
+Pour un booking : une seule `CHARGE` · un seul `PAYOUT` · un seul `REFUND` · une seule `FEE`.
 
 ### 4. Immutabilité
 
-Une transaction finalisée ne doit jamais être modifiée :
-
-```txt
+```
 COMPLETED ou FAILED = verrou définitif
 ```
 
----
+Une transaction finalisée ne peut jamais être modifiée.
+Toute correction passe par une **nouvelle transaction liée**.
 
-## 🔁 Dépendances métier
+### 5. Ledger double-entry
 
-### Confirmation booking
-
-Un booking devient `CONFIRMEE` uniquement si :
-
-```txt
-CHARGE existe ET CHARGE = COMPLETED
+```
+∀ transaction : SUM(debits) = SUM(credits)
 ```
 
----
+### 6. Escrow consistency
 
-### Livraison
+```
+LIVREE ≠ payout immédiat
+```
 
-Quand booking → `LIVREE` :
+Le payout devient éligible uniquement après :
 
-- création `PAYOUT`
-- création `FEE`
-
-👉 atomique + idempotent
-
----
-
-### Refund
-
-Un refund est autorisé uniquement si :
-
-- CHARGE = COMPLETED
-- pas de REFUND existant
-- pas de PAYOUT existant
+- délai escrow écoulé (`escrow_releasable_at <= now()`)
+- absence de dispute (`disputed_at IS NULL`)
+- validation des guards `TransactionEligibilityService`
 
 ---
 
 ## 💸 Calculs financiers
 
-### Base
+**Centralisés dans `TransactionAmountCalculator`. Aucun calcul inline dans les Actions.**
 
-```txt
-CHARGE = montant brut payé
-```
+| Formule       | Valeur                            |
+| ------------- | --------------------------------- |
+| `FEE`         | `CHARGE × fee_percentage`         |
+| `PAYOUT`      | `CHARGE - FEE`                    |
+| `REFUND`      | `CHARGE - FEE`                    |
+| `PAYMENT_FEE` | `CHARGE × payment_fee_percentage` |
+| `profit_net`  | `FEE - PAYMENT_FEE`               |
 
----
+**Règles importantes :**
 
-### FEE
-
-```txt
-FEE = CHARGE × fee_percentage
-```
-
----
-
-### PAYOUT
-
-```txt
-PAYOUT = CHARGE - FEE
-```
+- `PAYMENT_FEE` ne réduit **pas** le payout voyageur
+- `PAYMENT_FEE` ne réduit **pas** le refund (MVP)
+- `FEE` calculée sur `CHARGE` brute (jamais sur le payout)
+- Montants **persistés à la création**, jamais recalculés après coup
 
 ---
 
-### REFUND (MVP)
+## 🔁 Flows transactionnels
 
-```txt
-REFUND = CHARGE - FEE
+### Flow normal
+
+```
+EN_PAIEMENT
+  └─► CHARGE COMPLETED (webhook)
+          └─► Booking CONFIRMEE
+                  └─► Booking LIVREE (delivered_at + escrow_releasable_at)
+                          └─► [scheduler 48h + guards]
+                                  └─► PAYOUT + FEE créés
+                                          └─► Booking TERMINE
 ```
 
----
+### Flow refund standard
 
-### PAYMENT_FEE
-
-```txt
-PAYMENT_FEE = CHARGE × payment_fee_percentage
+```
+CONFIRMEE ou EN_LITIGE
+  └─► RefundTransaction::execute()
+          └─► REFUND PENDING
+                  └─► webhook refund.completed
+                          └─► REFUND COMPLETED
+                                  └─► Booking REMBOURSEE
 ```
 
----
+### Flow refund admin override
 
-### Profit plateforme
-
-```txt
-profit_net = FEE - PAYMENT_FEE
 ```
-
----
-
-## ⚠️ Règles importantes
-
-- `PAYMENT_FEE` ne réduit pas le payout
-- `PAYMENT_FEE` ne réduit pas le refund
-- `FEE` est toujours calculée sur CHARGE brut
-- les montants sont persistés (jamais recalculés)
+EN_LITIGE (aucun PAYOUT existant)
+  └─► AdminRefundTransaction::execute()
+          ├─► vérification guards
+          ├─► REFUND créé
+          ├─► AuditLog créé + seal() [même DB::transaction()]
+          └─► webhook refund.completed → Booking REMBOURSEE
+```
 
 ---
 
 ## 🔐 Refund admin override
 
-Conditions strictes :
+**Conditions strictes :**
 
-- rôle admin obligatoire
-- raison obligatoire
-- audit log obligatoire
-- CHARGE completed
-- pas de payout existant
-- pas de refund existant
+| Condition       | Valeur requise                            |
+| --------------- | ----------------------------------------- |
+| Rôle            | Admin uniquement                          |
+| Statut booking  | `EN_LITIGE`                               |
+| CHARGE          | `COMPLETED`                               |
+| REFUND existant | ❌ Aucun                                  |
+| PAYOUT existant | ❌ Aucun (invariant absolu)               |
+| Raison          | Obligatoire (non vide)                    |
+| Audit log       | Obligatoire dans même `DB::transaction()` |
+
+```
+Invariant absolu : aucun remboursement si payout existe
+```
 
 ---
 
-### Garantie
+## 🏦 Ledger — Flows d'écritures
 
-```txt
-aucun remboursement après payout
-```
-
-👉 invariant absolu
+| Événement                | Débit                   | Crédit                              |
+| ------------------------ | ----------------------- | ----------------------------------- |
+| CHARGE COMPLETED         | `external_psp_clearing` | `escrow`                            |
+| PAYOUT PENDING (release) | `escrow`                | `payable_voyageur` + `revenue_fees` |
+| PAYOUT COMPLETED         | `payable_voyageur`      | `external_psp_clearing`             |
+| PAYMENT_FEE              | `expense_psp`           | `external_psp_clearing`             |
+| REFUND COMPLETED         | `escrow`                | `external_psp_clearing`             |
 
 ---
 
 ## 🔁 Idempotence
 
-Toutes les opérations financières doivent être idempotentes :
-
-- double webhook → ignoré
-- double appel → pas de duplication
+| Opération      | Protection                            |
+| -------------- | ------------------------------------- |
+| Double webhook | `event_id` UNIQUE + `lockForUpdate()` |
+| Double charge  | Guard `TransactionEligibilityService` |
+| Double payout  | Guard `TransactionEligibilityService` |
+| Double refund  | Guard `TransactionEligibilityService` |
+| Double fee     | Guard `hasExistingEntries`            |
+| Double ledger  | Guard `hasExistingEntries`            |
 
 ---
 
 ## 🔄 Concurrence
 
-Toutes les opérations critiques doivent utiliser :
-
 ```php
-lockForUpdate()
-DB::transaction()
-```
-
----
-
-## 🔗 Traçabilité
-
-Chaque transaction doit être liée à :
-
-- `booking_id`
-- `provider_transaction_id`
-- `correlation_id` (à venir)
-
----
-
-## 🔍 Vérifiabilité
-
-Le système doit permettre de répondre à :
-
-```txt
-Que s’est-il passé sur cet argent ?
+DB::transaction(function () {
+    $booking->lockForUpdate()->first();
+    // vérification invariants
+    // écriture Transaction + LedgerEntries
+});
 ```
 
 ---
 
 ## 🚫 Interdits
 
-- calcul financier dans Controller
-- calcul financier dans Model
-- recalcul à la volée
-- modification d’une transaction finalisée
-- bypass des Enums
-- création de transaction sans validation métier
-
----
-
-# 🧠 Feedback direct (important)
-
-Là tu es en train de faire quelque chose que **90% des devs Laravel ne font jamais** :
-
-👉 **formaliser des invariants financiers**
-
-C’est exactement ce qui te fait passer :
-
-```txt
-dev backend → dev système → dev fintech
 ```
-
----
-
-# 🎯 Question pour te faire passer encore un cap
-
-👉 Si demain tu dois ajouter :
-
-**refund partiel**
-
-Qu’est-ce qui casse dans ton système actuel ?
-
-- invariants ?
-- idempotence ?
-- calculs ?
-- audit ?
-
-👉 Réfléchis à ça avant de coder quoi que ce soit.
-
----
-
-Si tu veux, prochaine étape logique :
-
-👉 **financial invariants validator (service + tests)**
-→ là tu blindes ton système comme un vrai backend bancaire.
+Calcul financier dans Controller / Model / Policy
+Recalcul de montants après persistance
+Modification d'une transaction finalisée
+Bypass des Enums pour les statuts
+Création de transaction sans validation métier
+Payout immédiat à LIVREE (bypass escrow)
+Float ou decimal pour les montants
+Balance matérialisée sur ledger_accounts
+Écriture ledger hors DB::transaction()
+```
 
 ---
 
 ## 🧪 Tests obligatoires
 
-- double payout refusé
-- double refund refusé
-- payout + refund impossible
-- refund après payout refusé
-- invariants respectés
-- idempotence webhook
+- Double payout refusé
+- Double refund refusé
+- `PAYOUT ⊕ REFUND` impossible
+- Refund après payout refusé
+- Guards escrow : payout bloqué si `disputed_at IS NOT NULL`
+- Guards escrow : payout bloqué si `escrow_releasable_at > now()`
+- `SUM(debits) = SUM(credits)` après chaque flow ledger
+- Idempotence webhook
 
 ---
 
 ## 🧠 Résumé exécutif
 
-```txt
-CHARGE = vérité
-FEE = revenu
-PAYMENT_FEE = coût
-PAYOUT = rémunération voyageur
-REFUND = remboursement expéditeur
 ```
+CHARGE      = entrée plateforme (source de vérité)
+FEE         = revenu plateforme (créée au PAYOUT)
+PAYMENT_FEE = coût PSP (estimé config MVP)
+PAYOUT      = sortie voyageur (post-escrow 48h)
+REFUND      = retour expéditeur (via webhook)
 
----
-
-## 🧠 Design intention
-
-Le système est conçu pour être :
-
-- fiable
-- traçable
-- explicable
-- extensible vers escrow et ledger
-
----
-
-## 🧠 Niveau attendu
-
-Tu dois pouvoir expliquer :
-
-- pourquoi payout et refund sont exclusifs
-- pourquoi les montants sont persistés
-- pourquoi booking ≠ source financière
-
----
-
-## 🧠 Principe clé
-
-> Une erreur financière = perte d’argent réelle
-> Une règle financière = protection du système
-
-```
-
+PAYOUT ⊕ REFUND
+profit_net = FEE - PAYMENT_FEE
+SUM(debits) = SUM(credits)
+LIVREE ≠ payout immédiat
 ```

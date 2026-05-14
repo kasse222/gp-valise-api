@@ -1,280 +1,195 @@
 # 🧠 Method Rules — GP-Valise
 
-## 🎯 Objectif
-
-Définir où placer les méthodes et la logique dans le projet GP-Valise.
-
-Ce fichier répond à une question simple :
-
-> Cette méthode doit-elle être dans un Model, une Action, un Service, un Enum ou ailleurs ?
+> Une méthode doit vivre dans la couche qui porte sa **responsabilité réelle**.
 
 ---
 
-## 🧱 Principe fondamental
+## 🔥 Règle de décision rapide
 
-> Une méthode doit vivre dans la couche qui porte sa responsabilité réelle.
-
-Le placement d’une méthode doit préserver :
-
-- la lisibilité ;
-- la testabilité ;
-- la séparation des responsabilités ;
-- la cohérence métier ;
-- la sécurité des flux critiques.
+| Question                                            | Réponse                     |
+| --------------------------------------------------- | --------------------------- |
+| La méthode lit uniquement l'état local d'un objet ? | **Model** ou **Enum**       |
+| La méthode change l'état du système ?               | **Action**                  |
+| La méthode est utilisée par plusieurs Actions ?     | **Service**                 |
+| La méthode décide si un user a le droit ?           | **Policy**                  |
+| La méthode transforme une réponse API ?             | **Resource**                |
+| La méthode traite de l'async ?                      | **Job → Action**            |
+| La méthode normalise un webhook PSP ?               | **WebhookProcessor**        |
+| La méthode route vers un PSP ?                      | **PaymentProviderResolver** |
+| La méthode crée des écritures comptables ?          | **LedgerWriter**            |
+| La méthode calcule une balance ?                    | **LedgerReader**            |
 
 ---
 
 ## ✅ Model
 
-Un Model peut contenir des méthodes locales, simples et liées à ses propres données.
+**Autorisé :**
 
-### Autorisé
+- Getters métier simples sur ses propres données
+- Scopes, relations
+- Helpers locaux (`isFinal()`, `isAwaitingPayment()`, `isEscrowReleasable()`)
 
-- getters métier simples ;
-- scopes ;
-- relations ;
-- helpers locaux ;
-- vérifications sur ses propres attributs.
+**Interdit :**
 
-Exemples :
+- Orchestrer plusieurs modèles
+- Déclencher un workflow
+- Calcul financier critique
+- Appel Action / Service
 
 ```php
+// ✅ Correct
 $booking->isFinal();
-$booking->isAwaitingPayment();
+$booking->isEscrowReleasable();
 $transaction->isSucceeded();
-$trip->isPast();
+
+// ❌ Interdit
+$booking->processRefund();        // use case → Action
+$booking->calculateFee();         // finance → Calculator
 ```
-
-### Interdit
-
-- orchestrer plusieurs modèles ;
-- déclencher un workflow complet ;
-- appeler une Action ;
-- appeler un Service externe ;
-- effectuer un calcul financier critique ;
-- prendre une décision métier globale.
-
-### Règle
-
-Si la méthode a besoin de plusieurs agrégats ou produit un effet métier important, elle ne doit pas être dans le Model.
 
 ---
 
 ## ✅ Enum
 
-Un Enum peut contenir les règles liées aux statuts et transitions.
+**Autorisé :**
 
-### Autorisé
+- `canTransitionTo()`, `isFinal()`, `label()`, `color()`
+- Règles pures basées sur la valeur
 
-- `label()` ;
-- `color()` ;
-- `isFinal()` ;
-- `canTransitionTo()` ;
-- règles pures basées sur la valeur de l’Enum.
+**Interdit :**
 
-Exemples :
+- Accès DB
+- Appel Model, Service, Action
+- Logique multi-entités
 
 ```php
-BookingStatusEnum::EN_PAIEMENT->canTransitionTo(BookingStatusEnum::CONFIRMEE);
-TransactionStatusEnum::COMPLETED->isFinal();
+// ✅ Correct
+BookingStatusEnum::CONFIRMEE->canTransitionTo(BookingStatusEnum::LIVREE);
+DisputeStatusEnum::RESOLVED->isFinal(); // true — terminal
+
+// ❌ Interdit
+BookingStatusEnum::CONFIRMEE->getRelatedTransactions(); // DB → non
 ```
-
-### Interdit
-
-- accès DB ;
-- appel à Model ;
-- appel à Service ;
-- logique multi-entités ;
-- logique dépendant d’un utilisateur ou d’un contexte externe.
 
 ---
 
 ## ✅ Action
 
-Une Action porte un use case métier complet.
+**Autorisé :**
 
-### Autorisé
+- Orchestration métier complète d'un use case
+- `DB::transaction()` + `lockForUpdate()`
+- Appel Service transverse
+- Dispatch Event / Job
+- Levée exception métier
 
-- orchestration métier ;
-- transaction DB ;
-- verrouillage `lockForUpdate()` ;
-- appel à Service transverse ;
-- dispatch Event ;
-- création/modification de plusieurs modèles ;
-- levée d’exception métier.
+**Interdit :**
 
-Exemples :
+- `request()` ou `Auth` directs
+- Calcul financier inline
+- Plusieurs use cases
 
 ```php
-ReserveBooking
-ConfirmBooking
-CreatePayoutTransaction
-AdminRefundTransaction
-HandlePaymentWebhook
+// Actions existantes
+ReserveBooking · ConfirmBooking · CompleteBooking
+CreatePayoutTransaction · RefundTransaction · AdminRefundTransaction
+HandlePaymentWebhook · OpenDispute · ResolveDispute
+ReleaseEscrowBatch
 ```
-
-### Règle
-
-Si une méthode modifie l’état du système ou représente un use case, elle doit probablement être une Action.
 
 ---
 
 ## ✅ Service
 
-Un Service porte une logique transverse, réutilisable et non spécifique à un seul endpoint.
+**Autorisé :**
 
-### Autorisé
+- Logique transverse réutilisable par plusieurs Actions
+- Calcul financier centralisé
+- Intégration externe (adaptée)
+- Observabilité, audit integrity
 
-- calcul financier transversal ;
-- intégration externe ;
-- observabilité ;
-- audit integrity ;
-- notification ;
-- health monitoring.
+**Interdit :**
 
-Exemples :
+- Remplacer une Action
+- Contenir un use case complet
+- Appeler une Action
 
 ```php
-TransactionAmountCalculator
-TransactionEligibilityService
-AuditLogIntegrityService
-QueueHealthService
-SlackNotifier
+// Services existants
+TransactionAmountCalculator    // calculs financiers
+TransactionEligibilityService  // guards payout/refund/escrow
+AuditLogIntegrityService       // seal() + verifyChain()
+LedgerWriter                   // écritures double-entry
+LedgerReader                   // calcul balances
+QueueHealthService             // monitoring
+SlackNotifier                  // alerting
 ```
 
-### Interdit
+---
 
-- remplacer une Action ;
-- contenir un use case métier complet ;
-- appeler une Action ;
-- devenir un fourre-tout.
+## ✅ WebhookProcessor _(Phase 2+)_
 
-### Règle
+**Responsabilités :**
 
-Un Service répond à “comment calculer / vérifier / intégrer”.
-Une Action répond à “quoi faire dans ce use case”.
+- `verifyWebhook()` → authentification PSP-specific
+- `normalizeWebhook()` → `PaymentEventData` canonique
+- Isoler le Controller des payloads PSP bruts
+
+**Interdit :**
+
+- Logique métier
+- Modification domaine
+
+---
+
+## ✅ PaymentProviderResolver _(Phase 2+)_
+
+**Responsabilités :**
+
+- Résoudre le provider PSP au runtime (pays + devise + méthode)
+- Retourner une instance implémentant `PaymentProvider`
+
+**Interdit :**
+
+- Logique métier dans le resolver
+- Hardcoding provider dans Actions
+
+---
+
+## ✅ LedgerWriter / LedgerReader _(Phase 5+)_
+
+| Composant      | Responsabilité                                           | Interdit             |
+| -------------- | -------------------------------------------------------- | -------------------- |
+| `LedgerWriter` | Crée les écritures double-entry dans `DB::transaction()` | Calcul financier     |
+| `LedgerReader` | Calcule balances via `SUM(ledger_entries)`               | Modifier des entries |
 
 ---
 
 ## ✅ Policy
 
-Une Policy décide uniquement si un utilisateur a le droit d’accéder à une action.
-
-### Autorisé
-
-- rôle ;
-- ownership simple ;
-- permissions simples.
-
-### Interdit
-
-- transition métier ;
-- calcul financier ;
-- modification de données ;
-- appel à Action ou Service métier.
+**Autorisé :** Rôle, ownership simple, permissions simples.
+**Interdit :** Transition métier, calcul financier, modification de données.
 
 ---
 
 ## ✅ FormRequest
 
-Un FormRequest valide la forme de l’entrée HTTP.
-
-### Autorisé
-
-- required ;
-- string ;
-- integer ;
-- exists ;
-- enum ;
-- taille ;
-- format.
-
-### Interdit
-
-- vérifier une capacité métier ;
-- vérifier un payout/refund existant ;
-- contrôler une transition complexe ;
-- faire une orchestration.
+**Autorisé :** `required`, format, taille, types simples.
+**Interdit :** Capacité métier, statut, transitions complexes.
 
 ---
 
 ## ✅ Job
 
-Un Job transporte et exécute un traitement asynchrone.
-
-### Autorisé
-
-- appeler une Action ;
-- porter un `correlation_id` ;
-- gérer retry/backoff ;
-- logger les erreurs ;
-- dispatcher une alerte.
-
-### Interdit
-
-- contenir une logique métier complexe ;
-- contourner une Action ;
-- dépendre directement de `request()`.
+**Autorisé :** Appeler une Action, porter `correlation_id`, gérer retry/backoff/alerting.
+**Interdit :** Logique métier complexe, dépendre de `request()`.
 
 ---
 
 ## ✅ Resource
 
-Une Resource transforme les données pour l’API.
-
-### Autorisé
-
-- formatage de sortie ;
-- regroupement de champs ;
-- exposition contrôlée ;
-- `whenLoaded`.
-
-### Interdit
-
-- requêtes DB cachées ;
-- logique métier ;
-- calcul financier ;
-- décisions d’autorisation.
-
----
-
-## 🔥 Règles de décision rapide
-
-### Question 1
-
-La méthode ne lit que l’état local d’un objet ?
-
-→ Model ou Enum.
-
-### Question 2
-
-La méthode change l’état du système ?
-
-→ Action.
-
-### Question 3
-
-La méthode est utilisée par plusieurs Actions ?
-
-→ Service.
-
-### Question 4
-
-La méthode décide si un user a le droit ?
-
-→ Policy.
-
-### Question 5
-
-La méthode transforme une réponse API ?
-
-→ Resource.
-
-### Question 6
-
-La méthode traite de l’async ?
-
-→ Job + Action.
+**Autorisé :** Formatage sortie, `whenLoaded`, exposition contrôlée.
+**Interdit :** Requêtes DB, logique métier, calcul financier.
 
 ---
 
@@ -282,52 +197,75 @@ La méthode traite de l’async ?
 
 ### Booking
 
-- `isFinal()` → Model
-- `canTransitionTo()` → Enum
-- `confirm booking` → Action
-- `expire booking` → Action
-- `calculate available capacity` → Action ou query dédiée si multi-modèles
+| Question               | Réponse                       |
+| ---------------------- | ----------------------------- |
+| `isFinal()`            | Model                         |
+| `isEscrowReleasable()` | Model                         |
+| `canTransitionTo()`    | Enum                          |
+| `canBeRefunded()`      | Enum                          |
+| Confirmer booking      | Action (`ConfirmBooking`)     |
+| Livrer booking         | Action (`CompleteBooking`)    |
+| Libérer escrow         | Action (`ReleaseEscrowBatch`) |
+| Ouvrir litige          | Action (`OpenDispute`)        |
 
 ### Transaction
 
-- `isSucceeded()` → Model
-- `canCreatePayout()` → Service d’éligibilité
-- `calculateRefundAmount()` → Calculator
-- `create refund` → Action
+| Question                  | Réponse                            |
+| ------------------------- | ---------------------------------- |
+| `isSucceeded()`           | Model                              |
+| Éligibilité payout/refund | `TransactionEligibilityService`    |
+| Calculer montants         | `TransactionAmountCalculator`      |
+| Créer CHARGE              | Action (`CreateTransaction`)       |
+| Créer PAYOUT              | Action (`CreatePayoutTransaction`) |
+
+### Dispute
+
+| Question             | Réponse                              |
+| -------------------- | ------------------------------------ |
+| `isFinal()`          | Enum (`DisputeStatusEnum::RESOLVED`) |
+| Ouvrir               | Action (`OpenDispute`)               |
+| Mettre à jour statut | Action (`UpdateDisputeStatus`)       |
+| Résoudre             | Action (`ResolveDispute`)            |
+| Ajouter message      | Action (`AddDisputeMessage`)         |
 
 ### Audit
 
-- `verifyLog()` → Service
-- `seal()` → Service
-- `create audit log` → Action ou dans l’Action critique concernée
+| Question            | Réponse                                           |
+| ------------------- | ------------------------------------------------- |
+| `seal()`            | `AuditLogIntegrityService`                        |
+| `verifyLog()`       | `AuditLogIntegrityService`                        |
+| `verifyChainFrom()` | `AuditLogIntegrityService`                        |
+| Créer audit log     | Dans l'Action critique (même `DB::transaction()`) |
 
-### Observability
+### Observabilité
 
-- `correlation_id` HTTP → Middleware
-- `correlation_id` Job → propriété du Job
-- `correlation_id` DB → propagé explicitement depuis Action/Job
+| Question                 | Réponse                    |
+| ------------------------ | -------------------------- |
+| Générer `correlation_id` | Middleware HTTP            |
+| Porter `correlation_id`  | Propriété du Job           |
+| Propager en DB           | Action / Job explicitement |
 
 ---
 
 ## 🚫 Anti-patterns interdits
 
-- Model obèse ;
-- Service fourre-tout ;
-- Action qui fait tout sans découpage ;
-- Policy qui décide du métier ;
-- FormRequest qui interroge trop le domaine ;
-- Resource qui calcule ;
-- Job qui remplace une Action ;
-- Enum qui accède à la DB.
+```
+Model obèse (orchestration dans le Model)
+Service fourre-tout (use case dans un Service)
+Action qui fait tout sans découpage
+Policy qui décide du métier
+FormRequest qui interroge le domaine
+Resource qui calcule ou requête
+Job qui remplace une Action
+Enum qui accède à la DB
+LedgerWriter avec calcul financier
+PaymentProviderResolver avec logique métier
+```
 
 ---
 
 ## 🧠 Principe clé
 
-> Le bon emplacement d’une méthode se déduit de sa responsabilité, pas de sa facilité d’accès.
-
-Si le placement d’une méthode rend les tests difficiles, c’est souvent qu’elle est au mauvais endroit.
-
-```
-
-```
+> Le bon emplacement d'une méthode se déduit de sa **responsabilité**, pas de sa facilité d'accès.
+>
+> Si le placement rend les tests difficiles → la méthode est au mauvais endroit.
