@@ -1,173 +1,102 @@
 # 🔐 Access Control — GP-Valise
 
-## 🎯 Objectif
-
-Définir les règles de contrôle d’accès du système afin de garantir :
-
-- sécurité des données
-- isolation des utilisateurs
-- protection des opérations sensibles (finance, admin)
-- conformité des actions métier
-
-> Toute action doit être autorisée explicitement, jamais implicitement.
+> Toute action doit être autorisée **explicitement**. Jamais implicitement.
 
 ---
 
 ## 🧠 Principe fondamental
 
-```txt
+```
 DENY BY DEFAULT
 ```
 
-Si une action n’est pas explicitement autorisée → elle est interdite.
+Si une action n'est pas explicitement autorisée → elle est **interdite**.
 
 ---
 
 ## 👥 Rôles
 
-### User (expéditeur / voyageur)
-
-Peut :
-
-- accéder à ses propres données
-- créer et gérer ses bookings
-- consulter ses transactions
-
-Ne peut jamais :
-
-- accéder aux données d’un autre utilisateur
-- effectuer des actions admin
-- modifier des transactions finalisées
-
----
-
-### Admin
-
-Peut :
-
-- accéder à toutes les données
-- consulter les audit logs
-- déclencher des actions critiques (refund override)
-
-Contraintes :
-
-- toute action sensible doit être auditée
-- aucune action silencieuse autorisée
+| Rôle                    | Peut                                                          | Ne peut jamais                            |
+| ----------------------- | ------------------------------------------------------------- | ----------------------------------------- |
+| **Expéditeur** (SENDER) | Ses bookings, ses bagages, ses transactions, ouvrir un litige | Données d'autrui, actions admin           |
+| **Voyageur** (TRAVELER) | Ses trips, bookings de ses trips, répondre à un litige        | Données d'autrui, résoudre un litige      |
+| **Admin**               | Tout lire, audit logs, actions critiques, résoudre litiges    | Actions sans audit, actions sans raison   |
+| **Super Admin**         | Tout (comme Admin + privilèges système)                       | Actions sans audit                        |
+| **Modérateur**          | Lecture limitée                                               | Écriture, résolution, actions financières |
 
 ---
 
 ## 🧱 Niveaux de contrôle
 
-### 1. HTTP Layer (Controller)
-
-Responsable de :
-
-```php
-$this->authorize('view', $booking);
+```
+HTTP Layer   →  Controller : $this->authorize('action', $model)
+Policy Layer →  vérifie rôle + ownership
+Action Layer →  vérifie invariants métier (final, escrow, dispute)
 ```
 
-→ Toujours présent sur endpoints sensibles
+> `Policy ≠ sécurité métier`
+> La Policy dit **qui peut accéder**. L'Action dit **ce qui est permis**.
+
+### Séparation des responsabilités
+
+| Couche     | Rôle                                |
+| ---------- | ----------------------------------- |
+| Controller | Déclenche `authorize()`             |
+| Policy     | Vérifie rôle et ownership           |
+| Action     | Vérifie règles métier et invariants |
 
 ---
 
-### 2. Policy Layer
+## 🔒 Règles par domaine
 
-Responsable de :
+### Booking
 
-- vérifier l’accès à une ressource
-- vérifier le rôle utilisateur
-- vérifier la propriété (ownership)
+| Opération        | Expéditeur           | Voyageur          | Admin |
+| ---------------- | -------------------- | ----------------- | ----- |
+| Lire son booking | ✅                   | ✅ (de ses trips) | ✅    |
+| Créer            | ✅                   | ❌                | ✅    |
+| Annuler          | ✅ (si non confirmé) | ❌                | ✅    |
+| Marquer livré    | ❌                   | ✅                | ✅    |
 
-Exemple :
+### Transaction / Finance
 
-```php
-public function view(User $user, Booking $booking): bool
-{
-    return $user->id === $booking->user_id;
-}
-```
+| Opération             | User                 | Admin                  |
+| --------------------- | -------------------- | ---------------------- |
+| Lire ses transactions | ✅                   | ✅                     |
+| Créer CHARGE          | ✅ (son booking)     | ✅                     |
+| Refund standard       | ✅ (conditions)      | ✅                     |
+| Refund admin override | ❌                   | ✅ + audit obligatoire |
+| Payout                | Automatique (escrow) | ✅                     |
 
----
+### Dispute _(Phase 6)_
 
-### 3. Action Layer (sécurité métier)
+| Acteur      | Ouvrir | Écrire message | Changer statut | Résoudre |
+| ----------- | ------ | -------------- | -------------- | -------- |
+| Expéditeur  | ✅     | ✅             | ❌             | ❌       |
+| Voyageur    | ❌     | ✅             | ❌             | ❌       |
+| Admin       | ✅     | ✅             | ✅             | ✅       |
+| Super Admin | ✅     | ✅             | ✅             | ✅       |
+| Modérateur  | ❌     | ❌             | ❌             | ❌       |
 
-Responsable de :
+**Règles critiques dispute :**
 
-- vérifier les règles métier critiques
-- bloquer les opérations interdites même si Policy OK
+- `RESOLVED` est terminal — aucune modification possible
+- Résolution = décision financière + audit log obligatoire
+- Un seul litige actif par booking (contrainte DB UNIQUE)
 
-Exemple :
+### Audit Logs
 
-```php
-if ($booking->isFinal()) {
-    throw new DomainException('Booking finalisé');
-}
-```
+| Opération | User                        | Admin          |
+| --------- | --------------------------- | -------------- |
+| Lire      | ❌                          | ✅             |
+| Créer     | ❌ (via Actions uniquement) | Via Actions    |
+| Modifier  | ❌                          | ❌ (immutable) |
+| Supprimer | ❌                          | ❌ (immutable) |
 
-👉 Important :
+### Filament Admin Dashboard _(Phase 6)_
 
-```txt
-Policy ≠ sécurité métier
-```
-
----
-
-## 🔁 Séparation des responsabilités
-
-| Couche     | Rôle                      |
-| ---------- | ------------------------- |
-| Controller | déclenche authorize()     |
-| Policy     | vérifie accès utilisateur |
-| Action     | vérifie règles métier     |
-
----
-
-## 🔒 Règles critiques
-
-### Ownership
-
-Un utilisateur ne peut accéder qu’à :
-
-```txt
-ses propres données
-```
-
----
-
-### Isolation
-
-Jamais de fuite de données :
-
-- pas d’accès indirect via relations
-- pas de filtrage oublié
-- pas de query globale non sécurisée
-
----
-
-### Finance
-
-Opérations protégées :
-
-- refund
-- payout
-- charge
-
-Conditions :
-
-- ownership vérifié
-- statut valide
-- invariants respectés
-
----
-
-### Admin override
-
-Conditions obligatoires :
-
-- rôle admin
-- raison obligatoire
-- audit log obligatoire
-- invariants financiers respectés
+Accès restreint aux rôles `ADMIN` et `SUPER_ADMIN` uniquement.
+Middleware Horizon (`/horizon`) : même restriction.
 
 ---
 
@@ -175,135 +104,88 @@ Conditions obligatoires :
 
 ### Refund
 
-- interdit si payout existe
-- interdit si déjà refund
-- interdit si utilisateur non propriétaire
+```
+❌ Si payout existe
+❌ Si refund déjà existant
+❌ Si utilisateur non propriétaire du booking
+```
 
----
+### Payout (escrow release)
 
-### Payout
-
-- interdit si refund existe
-- interdit si déjà payout
-
----
+```
+❌ Si refund existe
+❌ Si payout déjà existant
+❌ Si disputed_at IS NOT NULL
+❌ Si escrow_releasable_at > now()
+```
 
 ### Booking
 
-- interdit si finalisé
-- interdit si capacité dépassée
+```
+❌ Si statut final (TERMINE, REMBOURSEE, ANNULE, EXPIREE)
+❌ Si capacité dépassée
+```
 
----
+### Dispute
 
-## 🚫 Interdits
-
-- logique métier dans Policy
-- absence de `$this->authorize()` sur endpoint sensible
-- accès direct Model sans filtre utilisateur
-- bypass des Enums
-- utilisation de `isAdmin()` sans Policy
-- exposer des IDs sans contrôle
+```
+❌ Ouvrir si booking non CONFIRMEE / LIVREE
+❌ Écrire message si RESOLVED
+❌ Résoudre si rôle insuffisant
+```
 
 ---
 
 ## 🔐 Middleware
 
-Utilisés pour :
-
-- auth (`auth:sanctum`)
-- KYC (`kyc`)
-- user verified (`verified_user`)
-
-Exemple :
-
 ```php
 Route::middleware(['auth:sanctum', 'kyc'])->group(...)
 ```
 
----
-
-## 🔍 Tests attendus
-
-### Obligatoires
-
-- accès autorisé (cas nominal)
-- accès interdit (autre user)
-- accès admin vs user
-- accès non authentifié
+| Middleware      | Rôle                      |
+| --------------- | ------------------------- |
+| `auth:sanctum`  | Authentification token    |
+| `kyc`           | Vérification KYC complète |
+| `verified_user` | Email vérifié             |
 
 ---
 
-### Exemple
+## 🚫 Interdits
 
-```php
-it('forbids access to another user booking', function () {
-    $userA = User::factory()->create();
-    $userB = User::factory()->create();
-
-    $booking = Booking::factory()->create([
-        'user_id' => $userA->id,
-    ]);
-
-    Sanctum::actingAs($userB);
-
-    $this->getJson("/api/bookings/{$booking->id}")
-        ->assertForbidden();
-});
+```
+Logique métier dans Policy
+Absence de authorize() sur endpoint sensible
+Accès direct Model sans filtre utilisateur
+Bypass des Enums pour les transitions
+Utilisation de isAdmin() sans Policy
+Exposer des IDs internes sans contrôle
+Action admin sans audit log
 ```
 
 ---
 
-## 🔗 Lien avec audit
+## 🧪 Tests obligatoires
 
-Toute action sensible doit être traçable :
-
-- admin refund
-- override
-- accès critique
-
-```txt
-access control + audit = confiance système
-```
-
----
-
-## 🧠 Résumé exécutif
-
-```txt
-Policy = qui peut accéder
-Action = ce qui est autorisé métier
-```
-
-Les deux sont nécessaires.
-
----
-
-## 🧠 Design intention
-
-Le système doit être :
-
-- sécurisé par défaut
-- explicite
-- testable
-- sans ambiguïté
-
----
-
-## 🔥 Niveau attendu (senior)
-
-Tu dois être capable de répondre :
-
-👉 “Est-ce qu’un user peut casser ton système en appelant ton API ?”
-
-Si oui → bug critique
-Si non → bon design
+| Scénario                              | Résultat attendu |
+| ------------------------------------- | ---------------- |
+| Accès autorisé (cas nominal)          | 200              |
+| Accès interdit (autre user)           | 403              |
+| Accès admin vs user standard          | Différencié      |
+| Accès non authentifié                 | 401              |
+| Voyageur ouvre un litige              | 403              |
+| Expéditeur résout un litige           | 403              |
+| Admin sans raison sur refund override | 422              |
 
 ---
 
 ## 🧠 Principe clé
 
-> Une faille d’accès est plus grave qu’un bug fonctionnel.
+```
+Policy  = qui peut accéder
+Action  = ce qui est autorisé métier
+Audit   = preuve de ce qui a été fait
 
+access control + audit = confiance système
 ```
 
-```
+> Une faille d'accès est plus grave qu'un bug fonctionnel.

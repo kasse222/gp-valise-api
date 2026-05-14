@@ -1,45 +1,29 @@
-Voici une version propre pour :
-
-```txt
-.adamas/ai/observability/correlation-id.md
-```
-
-````md
 # 🔍 Correlation ID — GP-Valise
 
-## 🎯 Objectif
-
-Le `correlation_id` permet de suivre une opération de bout en bout dans GP-Valise.
-
-Il sert à relier :
-
-- requête HTTP ;
-- réponse API ;
-- logs Laravel ;
-- jobs async ;
-- webhooks ;
-- transactions ;
-- audit logs ;
-- erreurs et retries.
-
-Objectif principal :
-
-```txt
-retrouver l’histoire complète d’une opération sensible
-```
-````
+> Le `correlation_id` est le **fil conducteur** d'un flux métier de bout en bout.
 
 ---
 
-## 🧠 Principe fondamental
+## 🎯 Objectif
 
-> Le `correlation_id` est le fil conducteur d’un flux métier.
+Relier tous les événements d'une même opération :
 
-Sans `correlation_id`, les logs et événements restent isolés.
-Avec lui, on peut reconstruire un scénario complet :
+```
+HTTP request
+  → Controller
+  → Job async
+  → Action
+  → Transaction
+  → LedgerEntry
+  → WebhookLog
+  → AuditLog
+  → Logs Laravel
+```
 
-```txt
-API → Controller → Job → Action → Transaction → WebhookLog → AuditLog
+**Objectif principal :**
+
+```
+Retrouver l'histoire complète d'une opération sensible
 ```
 
 ---
@@ -48,37 +32,20 @@ API → Controller → Job → Action → Transaction → WebhookLog → AuditLo
 
 ### 1. Requête entrante
 
-Le middleware lit :
-
-```txt
-X-Correlation-ID
 ```
-
-Si le header existe, il est conservé.
-Sinon, un UUID est généré.
-
----
+Header X-Correlation-ID présent  →  conservé
+Header absent                    →  UUID v4 généré par le middleware
+```
 
 ### 2. Réponse HTTP
 
-Chaque réponse API doit contenir :
+`X-Correlation-ID` présent **dans toutes les réponses**, y compris les erreurs :
 
-```txt
-X-Correlation-ID: <uuid>
+```
+200 · 201 · 401 · 403 · 422 · 500
 ```
 
-Même en cas d’erreur :
-
-- 401 ;
-- 403 ;
-- 422 ;
--   500.
-
----
-
 ### 3. Logs Laravel
-
-Le middleware ajoute le contexte global :
 
 ```php
 Log::withContext([
@@ -86,13 +53,11 @@ Log::withContext([
 ]);
 ```
 
-Tout log produit durant la requête doit être corrélé.
-
----
+Tous les logs produits durant la requête sont automatiquement corrélés.
 
 ### 4. Jobs async
 
-Le `correlation_id` doit être transmis explicitement au Job :
+Transmis **explicitement** au constructeur du Job :
 
 ```php
 ProcessPaymentWebhook::dispatch(
@@ -101,7 +66,7 @@ ProcessPaymentWebhook::dispatch(
 );
 ```
 
-Le Job doit réinjecter le contexte :
+Le Job réinjecte le contexte au démarrage :
 
 ```php
 Log::withContext([
@@ -109,158 +74,112 @@ Log::withContext([
 ]);
 ```
 
----
+**Conservé pendant les retries.**
 
 ### 5. Base de données
 
-Le `correlation_id` doit être propagé dans les tables critiques :
+Propagé dans les tables critiques :
 
-- `webhook_logs` ;
-- `transactions` ;
-- `audit_logs`.
+| Table          | Colonne          |
+| -------------- | ---------------- |
+| `webhook_logs` | `correlation_id` |
+| `transactions` | `correlation_id` |
+| `audit_logs`   | `correlation_id` |
 
-Objectif :
+---
 
-```txt
-logs applicatifs ↔ données métier ↔ audit
+## 🧱 Responsabilités par composant
+
+| Composant        | Responsabilité                                                          |
+| ---------------- | ----------------------------------------------------------------------- |
+| Middleware       | Lire/générer · ajouter dans request · response · contexte logs          |
+| Job              | Recevoir au constructeur · conserver pendant retry · injecter dans logs |
+| Action           | Recevoir explicitement si écriture DB · ne jamais générer un nouveau    |
+| WebhookProcessor | Transmettre le correlation_id au Job dispatché                          |
+
+---
+
+## ✅ Cas d'usage — debugging production
+
+**Scénario :** Un utilisateur signale que son remboursement n'a jamais abouti.
+
+Avec le `correlation_id`, on reconstitue :
+
+```
+1. Requête API initiale (logs + response header)
+2. Webhook refund.completed reçu (webhook_logs)
+3. Job ProcessPaymentWebhook dispatché (Horizon)
+4. Action HandlePaymentWebhook exécutée (logs)
+5. Transaction REFUND mise à jour (transactions)
+6. Booking → REMBOURSEE (logs + booking_status_histories)
+7. AuditLog si admin impliqué (audit_logs)
 ```
 
----
+**Scénario Phase 6 — dispute :**
 
-## 🧱 Règles d’implémentation
-
-### Middleware
-
-Responsabilités :
-
-- lire ou générer le correlation_id ;
-- l’ajouter dans la request ;
-- l’ajouter dans la response ;
-- l’ajouter au contexte de logs.
-
----
-
-### Job
-
-Responsabilités :
-
-- recevoir le correlation_id au constructeur ;
-- le conserver pendant les retries ;
-- l’injecter dans les logs ;
-- le transmettre aux Actions si nécessaire.
-
----
-
-### Action
-
-Responsabilités :
-
-- ne jamais lire directement `request()` ;
-- recevoir le correlation_id explicitement si elle doit écrire en DB ;
-- ne pas générer de nouveau correlation_id.
+```
+1. OpenDispute (logs + dispute_status_histories)
+2. ResolveDispute → décision financière (audit_logs + transactions)
+3. webhook refund.completed → Booking REMBOURSEE (webhook_logs)
+```
 
 ---
 
 ## 🚫 Interdits
 
-- générer un nouveau correlation_id dans une Action ;
-- lire `request()` dans une Action ;
-- perdre le correlation_id dans un Job ;
-- logger sans contexte sur un flux critique ;
-- stocker un correlation_id différent entre webhook_log, transaction et audit_log ;
-- utiliser le correlation_id comme clé métier ou clé d’idempotence.
+```
+Générer un nouveau correlation_id dans une Action
+Lire request() dans une Action
+Perdre le correlation_id entre Job et retries
+Logger sans contexte sur un flux critique
+Stocker des correlation_ids différents entre webhook_log, transaction et audit_log
+Utiliser le correlation_id comme clé d'idempotence ou clé métier
+```
 
 ---
 
-## ⚠️ Clarification importante
+## ⚠️ Ce que le correlation_id N'EST PAS
 
-Le `correlation_id` n’est pas :
-
-- une clé d’idempotence ;
-- une preuve d’intégrité ;
-- une clé métier ;
-- un identifiant public de transaction.
-
-Il sert uniquement à la traçabilité.
+| Confusion          | Réalité                                    |
+| ------------------ | ------------------------------------------ |
+| Clé d'idempotence  | Non — c'est `event_id`                     |
+| Preuve d'intégrité | Non — c'est `integrity_hash`               |
+| Clé métier         | Non — c'est `booking_id`, `transaction_id` |
+| Identifiant public | Non — usage interne uniquement             |
 
 ---
 
 ## 🔐 Sécurité
 
-Le `correlation_id` ne doit jamais contenir de données sensibles.
-
-Accepté :
-
-```txt
-UUID v4
-```
-
-À éviter :
-
-```txt
-email utilisateur
-id transaction externe
-token
-numéro de téléphone
-```
-
----
-
-## 🔍 Cas d’usage principal
-
-Un utilisateur dit :
-
-```txt
-Mon refund n’a jamais été traité.
-```
-
-Avec le `correlation_id`, on doit pouvoir retrouver :
-
-1. la requête API initiale ;
-2. le webhook reçu ;
-3. le job dispatché ;
-4. la transaction impactée ;
-5. l’audit log éventuel ;
-6. les logs d’erreur ou retry.
+| ✅ Accepté | ❌ À éviter            |
+| ---------- | ---------------------- |
+| UUID v4    | Email utilisateur      |
+|            | ID transaction externe |
+|            | Token                  |
+|            | Numéro de téléphone    |
 
 ---
 
 ## 🧪 Tests attendus
 
-Doit être testé :
-
-- header généré si absent ;
-- header conservé si fourni ;
-- header présent même sur 401 ;
-- propagation HTTP → Job ;
-- conservation pendant retry ;
-- future propagation DB.
+| Scénario       | Résultat attendu          |
+| -------------- | ------------------------- |
+| Header absent  | UUID généré               |
+| Header présent | Conservé tel quel         |
+| Réponse 401    | Header présent quand même |
+| Réponse 500    | Header présent quand même |
+| Job dispatché  | correlation_id transmis   |
+| Retry Job      | correlation_id conservé   |
 
 ---
 
 ## 🧠 Résumé exécutif
 
-```txt
-correlation_id = GPS d’un flux métier
 ```
+correlation_id = GPS d'un flux métier
 
 Il ne protège pas la donnée.
-Il permet de la retrouver, l’expliquer et la diagnostiquer.
-
----
-
-## 🧠 Design intention
-
-L’objectif n’est pas d’ajouter un header décoratif.
-
-L’objectif est de construire une base d’observabilité utilisable en production, notamment sur les flux financiers async :
-
-```txt
-refund → webhook → job → transaction → audit
+Il permet de la retrouver, l'expliquer et la diagnostiquer.
 ```
 
-> Sans corrélation, un système async devient vite opaque.
-
-```
-
-```
+> Sans corrélation, un système async devient opaque en production.

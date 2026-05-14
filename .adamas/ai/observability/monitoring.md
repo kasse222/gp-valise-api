@@ -1,253 +1,166 @@
 # 📊 Monitoring — GP-Valise
 
-## 🎯 Objectif
-
-Le monitoring permet de :
-
-- détecter les incidents en temps réel
-- surveiller la santé du système
-- prévenir les erreurs avant qu’elles impactent les utilisateurs
-- analyser la performance
+> Logging = expliquer après · Monitoring = détecter avant
 
 ---
 
-## 🧠 Principe fondamental
+## 🎯 Objectif
 
-> Logging = expliquer après  
-> Monitoring = détecter avant
+- Détecter les incidents **avant** qu'ils impactent les utilisateurs
+- Surveiller la santé des composants critiques
+- Alerter sur les anomalies financières et opérationnelles
 
 ---
 
 ## 🔁 Composants surveillés
 
-### 1. Queues (Redis / Horizon)
+### Queues (Redis / Horizon)
 
-Surveiller :
+| Signal               | Seuil                    | Niveau     |
+| -------------------- | ------------------------ | ---------- |
+| Backlog queue `high` | > seuil config           | `warning`  |
+| Job trop ancien      | > seuil âge              | `warning`  |
+| Failed jobs récents  | > seuil config           | `critical` |
+| Retry storm          | Même job retry en boucle | `critical` |
 
-- taille des queues
-- jobs en attente
-- jobs échoués
-- retry storms
+### Webhooks
 
----
+| Signal                      | Niveau     |
+| --------------------------- | ---------- |
+| Taux d'échec élevé          | `warning`  |
+| Jobs webhook en `failed`    | `critical` |
+| Retry storm webhook         | `critical` |
+| Délai de traitement anormal | `warning`  |
 
-### 2. Webhooks
+### Finance & Transactions
 
-Surveiller :
+| Signal                                   | Niveau     |
+| ---------------------------------------- | ---------- |
+| Refund en erreur définitive              | `critical` |
+| Payout non traité après escrow           | `critical` |
+| Incohérence `SUM(debits) ≠ SUM(credits)` | `critical` |
 
-- taux d’échec
-- retry
-- events ignorés
-- délai de traitement
+### Escrow
 
----
+| Signal                                                          | Niveau     |
+| --------------------------------------------------------------- | ---------- |
+| Bookings LIVREE avec `escrow_releasable_at` dépassé non traités | `warning`  |
+| `ReleaseEscrowBatch` en échec                                   | `critical` |
+| Escrow bloqué par dispute non assignée depuis > X heures        | `warning`  |
 
-### 3. Transactions
+### Dispute
 
-Surveiller :
-
-- refunds en erreur
-- payout non traités
-- incohérences financières
+| Signal                                     | Niveau     |
+| ------------------------------------------ | ---------- |
+| Dispute OPEN non assignée depuis > SLA     | `warning`  |
+| Dispute ESCALATED sans réponse admin       | `critical` |
+| Résolution échouée (admin refund / payout) | `critical` |
 
 ---
 
 ## 🧱 Commandes internes
 
-### Queue health
-
 ```bash
+# Santé des queues
 php artisan monitor:queue-health
-```
 
-Détecte :
-
-- backlog élevé
-- jobs trop anciens
-- retry storm
-
----
-
-### Webhook health
-
-```bash
+# Santé des webhooks
 php artisan monitor:webhook-health
-```
 
-Détecte :
-
-- trop d’échecs
-- jobs failed
-- retry storm
-
----
-
-### Simulation
-
-```bash
+# Simulation charge / retry storm (test uniquement)
 php artisan simulate:load
 php artisan simulate:retry-storm
 ```
-
-Permet de tester le système en conditions dégradées.
-
----
-
-## 🚨 Alerting
-
-### Cas critiques
-
-- backlog queue élevé
-- webhook failed en masse
-- retry storm
-- job échoué définitivement
-
----
-
-### Exemple
-
-```php
-Log::critical('Retry storm détecté', [
-    'queue' => 'high',
-]);
-```
-
--
-
-```php
-SendSlackAlert::dispatch(...)
-```
-
----
-
-## 🔥 Retry storm
-
-Un retry storm = trop de retries sur un même job.
-
-Danger :
-
-- surcharge Redis
-- saturation CPU
-- cascade d’échecs
-
-Détection :
-
-- même job retry plusieurs fois
-- backlog qui explose
 
 ---
 
 ## 📈 États système
 
-| État              | Description                |
-| ----------------- | -------------------------- |
-| healthy           | tout OK                    |
-| traffic_spike     | hausse trafic              |
-| slow_processing   | traitement lent            |
-| capacity_pressure | backlog élevé              |
-| retry_storm       | boucle de retry dangereuse |
+| État                | Description                | Action                    |
+| ------------------- | -------------------------- | ------------------------- |
+| `healthy`           | Tout nominal               | Aucune                    |
+| `traffic_spike`     | Hausse de trafic           | Surveiller                |
+| `slow_processing`   | Traitement lent            | Investiguer               |
+| `capacity_pressure` | Backlog élevé              | Scaler                    |
+| `retry_storm`       | Boucle de retry dangereuse | **Alerter immédiatement** |
 
 ---
 
-## 🔗 Lien avec correlation_id
+## 🚨 Alerting
 
-Le monitoring détecte :
-
-```txt
-incident
+```php
+// Slack alert sur incident critique
+Log::critical('Retry storm détecté', ['queue' => 'high']);
+SendSlackAlert::dispatch([...]);
 ```
 
-Le correlation_id permet de :
+**Cas déclencheurs obligatoires :**
 
-```txt
-expliquer cet incident
+- Backlog queue `high` > seuil
+- Webhook failed en masse
+- Retry storm détecté
+- Job échoué définitivement
+- Escrow non libéré après délai
+- Incohérence ledger détectée
+
+---
+
+## 🔥 Retry storm
+
+**Définition :** Même job retenté de nombreuses fois en boucle.
+
+**Danger :**
+
+- Surcharge Redis
+- Saturation CPU / workers
+- Cascade d'échecs
+
+**Détection :** Même job type avec attempts > seuil + backlog qui explose.
+
+**Règle :** Simuler avant prod avec `php artisan simulate:retry-storm`.
+
+---
+
+## 🔗 Lien avec observabilité
+
+```
+Monitoring  →  détecte l'incident
+correlation_id  →  explique et trace l'incident
+audit_logs  →  prouve ce qui s'est passé
 ```
 
 ---
 
 ## ⚠️ Interdits
 
-- ignorer les alertes
-- monitorer uniquement les logs
-- ne pas tester les cas extrêmes
-- dépendre uniquement d’Horizon UI
+```
+Ignorer les alertes
+Monitorer uniquement les logs
+Ne pas tester les cas extrêmes (retry storm, backlog)
+Dépendre uniquement de l'UI Horizon
+```
 
 ---
 
 ## 🧪 Tests attendus
 
-- simulation retry storm
-- simulation backlog
-- vérification alertes
-- cohérence avec logs
+| Scénario                   | Résultat attendu  |
+| -------------------------- | ----------------- |
+| Simulation retry storm     | Alerte déclenchée |
+| Simulation backlog élevé   | Alerte déclenchée |
+| Escrow non libéré          | Warning détecté   |
+| Dispute non assignée > SLA | Warning détecté   |
 
 ---
 
 ## 🧠 Résumé
 
-```txt
+```
 Monitoring = système nerveux
-Logging = mémoire
+Logging    = mémoire
+Audit      = preuve
+
+Sans monitoring  →  incident invisible
+Sans logging     →  incident incompréhensible
+Sans audit       →  incident indéfendable
 ```
-
-Sans monitoring :
-
-→ incident invisible
-
-Sans logging :
-
-→ incident incompréhensible
-
-Avec les deux :
-
-→ système maîtrisé
-
-````
-
----
-
-# 🧠 Mini rétro (important)
-
-### ✅ Ce que tu fais très bien
-- Tu touches à **observability + fintech → ultra rare à ton niveau**
-- Tu construis un **système traçable + auditable → niveau senior**
-- Tu comprends que **la confiance = logs + audit + monitoring**
-
-### ⚠️ Ce que tu dois verrouiller
-- Toujours relier :
-```txt
-correlation_id + logs + DB + jobs
-````
-
-- Ne pas faire de logging “cosmétique”
-- Toujours penser :
-
-```txt
-"comment je debug ça en prod à 3h du matin ?"
-```
-
----
-
-# 🎯 Question pour te faire passer senior
-
-👉 Si un recruteur te dit :
-
-> “Un refund a échoué en production, comment tu enquêtes ?”
-
-Tu dois répondre avec :
-
-- correlation_id
-- webhook_logs
-- queue jobs
-- transactions DB
-- audit logs
-
-👉 Si tu bloques là-dessus → tu n’es pas encore senior
-👉 Si tu maîtrises → tu passes au niveau supérieur
-
----
-
-Si tu veux, prochaine étape :
-
-👉 **propagation du correlation_id en DB (transactions + audit_logs)**
-→ là tu passes clairement en **niveau Stripe-like réel**

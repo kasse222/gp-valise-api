@@ -1,398 +1,313 @@
-# 🧠 .adamas — GP-Valise Architecture System
+# 🧠 Architecture Rules — GP-Valise
 
-## 🎯 Objectif
-
-`.adamas` est le système de gouvernance technique du projet **GP-Valise**.
-
-Il centralise :
-
-- les règles métier
-- les règles d'architecture
-- les standards de code
-- les décisions techniques
-- les principes de sécurité
-- les pratiques d'observabilité
-
-> Ce dossier transforme le projet en système structuré, auditable et scalable.
+> Définit les responsabilités de chaque couche du système pour garantir cohérence, testabilité et évolutivité fintech.
 
 ---
 
-## 🚀 Projet : GP-Valise
+## 🔁 Vue d'ensemble — Flux global
 
-Backend SaaS logistique permettant :
+```
+HTTP Request
+  └─► Controller ──► FormRequest (validation)
+          │
+          ▼
+       Policy (autorisation)
+          │
+          ▼
+       Action (use case métier)
+       ├─► Model / Enum
+       ├─► Service (calcul, audit, PSP)
+       ├─► DB::transaction() + lockForUpdate()
+       ├─► LedgerWriter (double-entry)
+       └─► Event / Job
 
-- à un expéditeur d'envoyer un objet
-- via un voyageur tiers
-- avec un système sécurisé (paiement, escrow, ledger, litige)
-
-Stack :
-
-- Laravel 12
-- PHP 8.2
-- PostgreSQL 16 Alpine
-- Redis (queues + Horizon + monitoring)
-- Pest (415 tests / 985 assertions)
-- Docker + Docker Compose
-- Filament 3.3 (admin panel)
-
-Architecture :
-
-- Action-driven
-- Domain-driven (light)
-- Enums comme source de vérité métier
-- Async (webhooks + queues Horizon)
-- Integer minor units (centimes, grammes)
-
----
-
-## 🧠 Philosophie
-
-```txt
-Clarté > magie
-Règles explicites > implicites
-Traçabilité > simplicité naïve
-Sécurité > rapidité
+Webhook HTTP
+  └─► WebhookProcessor
+       ├─► verifyWebhook() → 403 si invalide
+       ├─► normalizeWebhook() → PaymentEventData
+       └─► Job async
+              └─► Action
+                    └─► Transaction + Booking + LedgerEntry
 ```
 
 ---
 
-## 🧱 Structure
+## 🧱 Responsabilités des couches
 
-```txt
-.adamas/
-├── ai/
-│   ├── core/            → règles IA
-│   ├── domain/          → logique métier
-│   ├── engineering/     → règles code / architecture
-│   ├── governance/      → audit / décisions
-│   ├── observability/   → logs / monitoring / tracing
-│   └── security/        → règles critiques (finance, accès, webhook)
-└── domain/
-    ├── booking.md
-    ├── dispute-strategy.md
-    ├── escrow-lifecycle.md
-    ├── ledger-strategy.md
-    └── psp-routing/
+### Controller
+
+| ✅ Autorisé               | ❌ Interdit                 |
+| ------------------------- | --------------------------- |
+| Appel d'une seule Action  | Logique métier              |
+| Application de Policy     | Manipulation de statuts     |
+| Retour de Resource        | Conditions métier complexes |
+| Conversion erreurs → HTTP | Accès Model pour décision   |
+
+---
+
+### FormRequest
+
+| ✅ Autorisé                  | ❌ Interdit                          |
+| ---------------------------- | ------------------------------------ |
+| required / nullable / format | Validation métier (capacité, statut) |
+| Types simples (email, uuid)  | Accès DB complexe                    |
+
+> Toute validation dépendant du domaine métier → **Action**.
+
+---
+
+### Policy
+
+| ✅ Autorisé               | ❌ Interdit             |
+| ------------------------- | ----------------------- |
+| Vérifier rôle             | Logique métier          |
+| Vérifier ownership simple | Modification de données |
+|                           | Transitions complexes   |
+
+```
+Policy = QUI peut accéder
+Action = CE QUI est autorisé métier
 ```
 
 ---
 
-## 📚 Modules
+### Action ⭐ Cœur du système
 
-### 🧠 Domain
+| ✅ Autorisé                    | ❌ Interdit                    |
+| ------------------------------ | ------------------------------ |
+| Orchestration métier complète  | `request()` / `Auth` directs   |
+| DB::transaction()              | Calcul financier inline        |
+| lockForUpdate() si concurrence | Logique dans plusieurs couches |
+| Appel Service transverse       | Duplication use case           |
+| Dispatch Event / Job           |                                |
+| Levée exception métier         |                                |
 
-- `booking.md` — cycle de vie booking, transitions, guards
-- `dispute-strategy.md` — workflow dispute, acteurs, résolution
-- `escrow-lifecycle.md` — escrow 48h, release, blocage dispute
-- `ledger-strategy.md` — double-entry, flows, comptes EUR/XOF
-- `transaction.md` — source de vérité financière
+**Règles critiques :**
 
-👉 définit la logique métier pure
-
----
-
-### ⚙️ Engineering
-
-- `architecture.md`
-- `method-rules.md`
-- `standards.md`
-- `git-workflow.md`
-
-👉 définit comment coder correctement
+- Une Action = **un seul use case** métier
+- Idempotence obligatoire si risque de double exécution
+- `lockForUpdate()` obligatoire si concurrence possible
 
 ---
 
-### 🛡️ Security
+### Enum
 
-- `access-control.md`
-- `financial-rules.md`
-- `webhook-security.md`
-
-👉 protège le système contre :
-
-- fraude
-- erreurs financières
-- accès non autorisé
+| ✅ Autorisé                       | ❌ Interdit           |
+| --------------------------------- | --------------------- |
+| `canTransitionTo()`               | Accès DB              |
+| `isFinal()`, `label()`, `color()` | Dépendances externes  |
+| Règles basées sur la valeur       | Logique multi-modèles |
 
 ---
 
-### 🔍 Observability
+### Model
 
-- `correlation-id.md`
-- `logging.md`
-- `monitoring.md`
-
-👉 permet :
-
-- debug production
-- traçabilité
-- investigation incidents
+| ✅ Autorisé                            | ❌ Interdit                 |
+| -------------------------------------- | --------------------------- |
+| Getters métier simples                 | Orchestration multi-entités |
+| Scopes, relations                      | Calcul financier            |
+| Helpers locaux sur ses propres données | Appel Action / Service      |
+|                                        | Effets de bord              |
 
 ---
 
-### 🧠 Governance
+### Service
 
-- `audit.md`
-- `decision-log.md`
-- `checklist.md`
+| ✅ Autorisé                        | ❌ Interdit                  |
+| ---------------------------------- | ---------------------------- |
+| Logique transverse réutilisable    | Remplacer une Action         |
+| Intégration externe (PSP adapters) | Contenir un use case complet |
+| Calcul financier centralisé        | Appeler une Action           |
+| Observabilité, audit integrity     | Devenir un fourre-tout       |
 
-👉 impose :
-
-- audit avant code
-- décisions documentées
-- qualité constante
+**Exemples :**
+`TransactionAmountCalculator` · `TransactionEligibilityService` · `AuditLogIntegrityService` · `LedgerWriter` · `LedgerReader` · `QueueHealthService` · `SlackNotifier`
 
 ---
 
-## 🔒 Règles critiques
+### WebhookProcessor _(Phase 2+)_
 
-### 1. Finance
+| ✅ Autorisé                               | ❌ Interdit                 |
+| ----------------------------------------- | --------------------------- |
+| Construire `WebhookVerificationData`      | Logique métier              |
+| `verifyWebhook()` → reject si invalide    | Modification domaine        |
+| `normalizeWebhook()` → `PaymentEventData` | Connaissance statut Booking |
+| Isoler Controller des payloads PSP        |                             |
 
-```txt
-Transaction = source de vérité
-Ledger = vérité comptable double-entry
 ```
-
-- pas de double payout
-- pas de refund après payout COMPLETED
-- montants persistés en integer minor units (centimes)
-- `SUM(debits) = SUM(credits)` garanti à tout moment
-- guards idempotence sur tous les flows ledger
-
----
-
-### 2. Escrow
-
-```txt
-LIVREE ≠ payout immédiat
-LIVREE = début période escrow (48h par défaut)
-```
-
-- `escrow_releasable_at = delivered_at + GPVALISE_ESCROW_DELAY_HOURS`
-- `disputed_at !== null` → escrow bloqué indéfiniment
-- scheduler hourly → `ReleaseEscrowBatch`
-- payout jamais immédiat après livraison
-
----
-
-### 3. Dispute
-
-```txt
-booking.status = EN_LITIGE    ← signal financier
-dispute.status                ← workflow arbitrage
-```
-
-- une seule dispute active par booking (contrainte DB unique)
-- RESOLVED est terminal — immuable
-- résolution = décision financière (refund | payout)
-- audit log obligatoire sur résolution
-
----
-
-### 4. Sécurité
-
-```txt
-DENY BY DEFAULT
-```
-
-- Policy obligatoire sur toutes les routes
-- Action valide les règles métier
-- Admin uniquement pour actions financières critiques
-
----
-
-### 5. Webhooks
-
-```txt
-NEVER TRUST EXTERNAL INPUT
-```
-
-- signature HMAC obligatoire
-- idempotence via `event_id` unique
-- normalisation avant dispatch (WebhookProcessor)
-- lock DB sur traitement
-
----
-
-### 6. Observabilité
-
-```txt
-correlation_id = traçabilité totale
-```
-
-- généré à chaque requête HTTP
-- propagé dans logs, jobs, webhooks, audit_logs
-- `X-Correlation-ID` header en réponse
-
----
-
-## 🧪 Qualité
-
-Le projet impose :
-
-- tests Pest complets (415 tests / 985 assertions)
-- idempotence sur toutes les actions financières
-- gestion concurrence (`lockForUpdate` systématique)
-- audit log immuable + chain hash (`AuditLogIntegrityService`)
-- monitoring queues et webhooks
-- guards idempotence ledger (`hasExistingEntries`)
-
----
-
-## 📈 Roadmap phases
-
-```txt
-Phase 1 — MVP                         ✅
-Phase 2 — PSP routing Kkiapay/Stripe  ✅
-Phase 3 — platform_accounts + PostgreSQL + integer units  ✅
-Phase 4 — Escrow 48h + OpenDispute    ✅
-Phase 5 — Ledger double-entry         ✅
-Phase 6 — Dispute system v2           ✅ (en cours merge)
-  Filament Admin Dashboard            ✅
-  DisputeResource Filament            ⏳
-Phase 7 — API publique dispute        ⏳
-  Notifications email/websocket       ⏳
-  Upload pièces jointes S3            ⏳
-  Multi-dispute historique            ⏳
+Webhook brut
+  → verifyWebhook()   → 403 si signature invalide
+  → normalizeWebhook()
+  → PaymentEventData (canonique)
+  → Job async
 ```
 
 ---
 
-## 🧠 Utilisation avec IA
+### PaymentProviderResolver _(Phase 2+)_
 
-Toute interaction IA doit respecter :
-
-1. Audit avant code
-2. Respect `.adamas`
-3. Justification des choix
-4. Pas de génération aveugle
-
----
-
-## 🚫 Interdits
-
-- logique métier hors Action
-- accès DB dans Enum
-- bypass Policy
-- calcul financier non centralisé
-- code sans test
-- modification sans audit
-- balance matérialisée sur ledger_accounts
-- écriture ledger hors `DB::transaction()`
-- modifier une `LedgerEntry` existante
-
----
-
-## 🧠 Principe clé
-
-> `.adamas` n'est pas de la documentation.
-> C'est le **système de contrôle du projet**.
-
----
-
-## ⚙️ Execution Rules
-
-### Webhooks
-
-- vérification signature obligatoire (HMAC / provider)
-- rejet immédiat si signature invalide
-- stockage `event_id` avec contrainte UNIQUE
-- idempotence stricte (1 event → 1 effet)
-- traitement dans transaction DB avec lock
-- normalisation payload avant dispatch (WebhookProcessor)
-
----
-
-### Transactions financières
-
-- aucune modification directe de balance
-- toute mutation passe par Transaction + LedgerEntry
-- audit obligatoire pour actions critiques admin
-- aucun calcul financier inline dans Controller
-- `FEE` créée au moment du PAYOUT, pas à la CHARGE
-
----
-
-### Ledger
-
-- `writeCharge` → au moment PSP (webhook transaction.success)
-- `writePayoutRelease` → au moment escrow release
-- `writePayoutPaid` → au moment MarkPayoutCompleted
-- `writeRefund` → au moment webhook refund.completed
-- `writePaymentFee` → avec writePayoutRelease
-- tous les flows sont idempotents
-
----
-
-### Sécurité
-
-- toute route protégée par Policy
-- aucune action sans validation métier
-- aucun fallback implicite permissif
-- `FakePaymentProvider` interdit en production (double guard)
-
----
-
-### Observabilité
-
-- `correlation_id` généré à chaque requête
-- propagé dans logs, jobs, webhooks, audit_logs
-- utilisé pour debug cross-system
-- `AuditLogIntegrityService` : seal() dans même DB::transaction
-
----
-
-## 🔁 External Systems Rule
-
-Tout système externe (PSP, webhook, API) est considéré comme :
-
-- non fiable
-- duplicable
-- lent
-- incohérent
-
-Le système interne doit rester cohérent même si :
-
-- un webhook est envoyé 3 fois
-- un provider répond partiellement
-- une requête timeout
-- un job échoue et est retenté
+| ✅ Autorisé                         | ❌ Interdit                    |
+| ----------------------------------- | ------------------------------ |
+| Sélectionner le provider au runtime | Hardcoding dans Actions/Models |
+| Routing par pays / devise / méthode | Logique métier                 |
+| Résolution via container Laravel    | Couplage domaine ↔ PSP         |
 
 ```
-## Operational Philosophy
-
-GP-Valise est conçu comme un système opérable.
-
-Chaque flow critique doit être :
-- observable ;
-- rejouable ;
-- auditable ;
-- idempotent ;
-- recoverable.
-
-Les workflows critiques ne doivent jamais dépendre
-d’un état implicite ou d’un provider externe.
----
+SN + MOBILE_MONEY  →  KkiapayProvider
+FR + CARD          →  StripeProvider
+fallback            →  FakePaymentProvider (dev/test uniquement)
 ```
 
-## Pourquoi `.adamas` existe
+---
 
-Le projet GP-Valise dépasse le cadre d’un simple CRUD Laravel.
+### PaymentEventData _(DTO canonique — Phase 2+)_
 
-La multiplication des workflows :
+Objet unifié produit après normalisation. Tous les PSP produisent le même format :
 
-- paiements async ;
-- escrow ;
-- ledger ;
-- disputes ;
-- auditabilité ;
-- admin ops ;
+```
+eventId · eventType · providerTransactionId
+providerStatus · amount · currency · metadata
+```
 
-nécessite une gouvernance explicite.
+> Le domaine ne manipule **jamais** de payload PSP brut.
 
-`.adamas` agit comme :
+---
 
-- source de vérité architecture ;
-- système de contrôle ;
-- garde-fou technique ;
-- référentiel de décisions.
+### LedgerWriter / LedgerReader _(Phase 5+)_
+
+| Composant      | Responsabilité                                           |
+| -------------- | -------------------------------------------------------- |
+| `LedgerWriter` | Crée les écritures double-entry dans `DB::transaction()` |
+| `LedgerReader` | Calcule les balances via `SUM(ledger_entries)`           |
+
+**Invariant absolu :**
+
+```
+∀ transaction : SUM(debits) = SUM(credits)
+```
+
+**Flux ledger par événement :**
+
+| Événement         | Flow déclenché       |
+| ----------------- | -------------------- |
+| CHARGE COMPLETED  | `writeCharge`        |
+| PAYOUT PENDING    | `writePayoutRelease` |
+| PAYOUT COMPLETED  | `writePayoutPaid`    |
+| PAYMENT_FEE créée | `writePaymentFee`    |
+| REFUND COMPLETED  | `writeRefund`        |
+
+---
+
+### Job (Async)
+
+| ✅ Autorisé                     | ❌ Interdit                     |
+| ------------------------------- | ------------------------------- |
+| Déléguer à une Action           | Logique métier complexe         |
+| Porter `correlation_id`         | Modifier le domaine directement |
+| Gérer retry / backoff / timeout | Dépendre de `request()`         |
+| Logger erreurs + alerter        |                                 |
+
+---
+
+### Event / Listener
+
+| ✅ Autorisé                      | ❌ Interdit                 |
+| -------------------------------- | --------------------------- |
+| Notifications, analytics, logs   | Logique métier critique     |
+| Effets secondaires non critiques | Modification d'état central |
+
+---
+
+## 🔒 Règles financières
+
+```
+Transaction = source de vérité financière
+Ledger      = vérité comptable double-entry (SUM debits = SUM credits)
+
+PAYOUT ⊕ REFUND     (mutuellement exclusifs)
+PAYOUT + FEE + REFUND ≤ CHARGE
+LIVREE ≠ payout immédiat  (escrow 48h)
+
+Montants : integer minor units (centimes) — float INTERDIT
+```
+
+---
+
+## 🔄 Concurrence
+
+Toutes les opérations critiques doivent :
+
+- utiliser `DB::transaction()`
+- utiliser `lockForUpdate()` avant écriture
+- être idempotentes
+- vérifier les invariants avant écriture
+
+**Cas critiques :**
+réservation capacité · confirmation booking · payout (escrow release) · refund · webhook · ouverture/résolution dispute
+
+---
+
+## 🔍 Observabilité
+
+```
+correlation_id = fil conducteur
+
+HTTP → logs Laravel → Job → webhook_logs → transactions → audit_logs
+```
+
+---
+
+## ❌ Interdictions globales
+
+```
+Logique métier dans Controller ou Policy
+Accès DB dans Enum
+Duplication Action / Service
+Statuts hardcodés (string)
+Service appelant une Action
+Calcul financier hors Calculator
+Absence d'idempotence sur flux critique
+Modification d'une transaction finalisée
+Payload PSP brut dans le domaine
+Appel PSP concret hors infrastructure adapter
+Provider hardcodé dans Actions / Controllers / Models
+Balance matérialisée sur ledger_accounts
+Écriture ledger hors DB::transaction()
+Modification d'une LedgerEntry existante
+Float / decimal pour money ou poids
+Payout immédiat à LIVREE (bypass escrow)
+Dispute ignorée lors de l'escrow release
+```
+
+---
+
+## 📌 Règles fondamentales
+
+```
+Une Action     = un use case
+Un Service     = logique transverse
+Un Model       ≠ orchestrateur
+Un Controller  ≠ logique métier
+
+Webhook  → WebhookProcessor → PaymentEventData → Job → Action
+PSP      → PaymentProviderResolver → PaymentProvider → DTOs
+Ledger   → LedgerWriter (DB::transaction()) → LedgerReader (balances)
+Escrow   → scheduler horaire → ReleaseEscrowBatch → guards invariants
+```
+
+---
+
+## 🗂️ Références
+
+| Domaine          | Fichier                                      |
+| ---------------- | -------------------------------------------- |
+| Booking / Escrow | `.adamas/domain/booking.md`                  |
+| Dispute workflow | `.adamas/domain/dispute-strategy.md`         |
+| Escrow lifecycle | `.adamas/domain/escrow-lifecycle.md`         |
+| Ledger strategy  | `.adamas/domain/ledger-strategy.md`          |
+| PSP Architecture | `.adamas/domain/psp-routing/Architecture.md` |
+| PSP Invariants   | `.adamas/domain/psp-routing/Invariants.md`   |
+| PSP Routing      | `.adamas/domain/psp-routing/Routing.md`      |
+| Méthodes         | `.adamas/ai/engineering/method-rules.md`     |
+| Standards code   | `.adamas/ai/engineering/standards.md`        |
+| Checklist review | `.adamas/ai/governance/checklist.md`         |

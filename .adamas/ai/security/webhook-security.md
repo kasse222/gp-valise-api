@@ -1,67 +1,62 @@
 # 🔐 Webhook Security — GP-Valise
 
-## 🎯 Objectif
-
-Sécuriser le traitement des webhooks provenant des providers de paiement.
-
-Garantir :
-
-- authenticité des requêtes
-- intégrité des données
-- idempotence
-- protection contre les attaques
-- cohérence financière
-
 > Un webhook compromis = perte financière directe 🔴
 
 ---
 
 ## 🧠 Principe fondamental
 
-```txt
+```
 NEVER TRUST EXTERNAL INPUT
 ```
 
-Un webhook est une **entrée externe non fiable**.
-
-Chaque payload doit être :
-
-1. authentifié
-2. validé
-3. contrôlé
-4. traité de manière idempotente
+Un webhook est une **entrée externe non fiable** : elle peut être falsifiée, rejouée, dupliquée ou tronquée.
 
 ---
 
-## 🔁 Flow sécurisé
+## 🔁 Flow sécurisé complet
 
-```txt
-Provider
-  ↓
+```
+Provider (Kkiapay / Stripe / Fake)
+  │
+  ▼
 WebhookController
-  ↓ (verify signature)
-Reject ❌ / Accept ✅
-  ↓
-Dispatch Job
-  ↓
-HandlePaymentWebhook
-  ↓
-Transaction + Booking update
-  ↓
-WebhookLog
+  │
+  ▼
+WebhookProcessor
+  ├─► verifyWebhook()
+  │     └─► Signature invalide → HTTP 403 (immédiat)
+  │
+  └─► normalizeWebhook()
+        └─► PaymentEventData (canonique)
+              │
+              ▼
+        Dispatch Job async
+              │
+              ▼
+        ProcessPaymentWebhook
+              │
+              ▼
+        HandlePaymentWebhook (Action)
+              ├─► Idempotence (event_id UNIQUE + lockForUpdate)
+              ├─► Vérification métier (Transaction existe, statut valide)
+              ├─► Transaction update
+              ├─► Booking transition
+              └─► WebhookLog (received / processed / ignored / failed)
 ```
 
+> Le Controller reste **extrêmement fin** — il délègue tout à `WebhookProcessor`.
+> Le domaine ne reçoit **jamais** un payload PSP brut.
+
 ---
 
-## 🔒 Étape 1 — Signature HMAC
+## 🔒 Étape 1 — Vérification signature
 
 ### Objectif
 
-Vérifier que le webhook vient bien du provider.
+Authentifier que le webhook provient bien du provider.
 
----
-
-### Implémentation
+### Implémentation générique
 
 ```php
 $expected = hash_hmac('sha256', $payloadJson, $secret);
@@ -71,49 +66,55 @@ if (! hash_equals($expected, $signature)) {
 }
 ```
 
----
-
 ### Règles
 
-- utiliser `hash_equals()` (protection timing attack)
-- secret stocké en `.env`
-- jamais logger le secret
+| Règle                       | Raison                          |
+| --------------------------- | ------------------------------- |
+| `hash_equals()` obligatoire | Protection contre timing attack |
+| Secret stocké en `.env`     | Jamais en dur dans le code      |
+| Jamais logger le secret     | Sécurité                        |
+| Rejet immédiat si invalide  | Pas de fallback silencieux      |
+
+### Multi-PSP
+
+Chaque provider a sa propre logique de vérification.
+`verifyWebhook()` **appartient au provider** — la logique est encapsulée dans `KkiapayProvider`, `StripeProvider`, etc.
+
+| Provider | Mécanisme                                  |
+| -------- | ------------------------------------------ |
+| Stripe   | HMAC-SHA256 sur `X-Stripe-Signature`       |
+| Kkiapay  | Hash secret + possibilité API verification |
+| Fake     | Toujours valide (test/dev uniquement)      |
 
 ---
 
-### Header attendu
+## 🔁 Étape 2 — Normalisation → PaymentEventData
 
-```txt
-X-Signature
+### Problème
+
+Chaque PSP a son propre vocabulaire :
+
+| Provider | Champ événement | Statut succès |
+| -------- | --------------- | ------------- |
+| Stripe   | `type`          | `succeeded`   |
+| Kkiapay  | `event`         | `success`     |
+| Fake     | `event`         | `completed`   |
+
+### Solution
+
+`WebhookProcessor::normalizeWebhook()` produit un `PaymentEventData` canonique :
+
+```
+eventId               → clé d'idempotence
+eventType             → type d'événement normalisé
+providerTransactionId → identifiant PSP
+providerStatus        → statut brut conservé (debug)
+amount                → montant (integer minor units)
+currency              → devise
+metadata              → données complémentaires
 ```
 
----
-
-## 🚫 Interdits
-
-- comparer avec `===`
-- accepter sans signature
-- fallback silencieux
-
----
-
-## 🔁 Étape 2 — Validation payload
-
-### Champs obligatoires
-
-```txt
-event_id
-event
-provider_transaction_id
-```
-
----
-
-### Règles
-
-- payload incomplet → ignoré
-- payload invalide → rejeté
-- aucun traitement si champs manquants
+> Le domaine ne dépend **jamais** du format d'un PSP spécifique.
 
 ---
 
@@ -123,19 +124,11 @@ provider_transaction_id
 
 Le provider peut envoyer plusieurs fois le même event.
 
----
-
 ### Solution
 
-Table :
-
-```txt
-webhook_logs.event_id UNIQUE
 ```
-
----
-
-### Implémentation
+webhook_logs.event_id UNIQUE (contrainte DB)
+```
 
 ```php
 $existing = WebhookLog::where('event_id', $eventId)
@@ -143,52 +136,39 @@ $existing = WebhookLog::where('event_id', $eventId)
     ->first();
 
 if ($existing) {
-    return;
+    return; // ignoré silencieusement
 }
 ```
 
----
-
-### Garantie
-
-```txt
-UN EVENT = UN TRAITEMENT
-```
+**Garantie :** `UN EVENT = UN TRAITEMENT`
 
 ---
 
-## 🔒 Étape 4 — Lock transaction
-
-### Objectif
-
-Éviter :
-
-- double refund
-- incohérence financière
-
----
-
-### Implémentation
+## 🔒 Étape 4 — Lock + transaction DB
 
 ```php
 DB::transaction(function () {
-    Transaction::lockForUpdate()->first();
+    $transaction = Transaction::where(...)->lockForUpdate()->first();
+    // vérification métier + mise à jour
 });
 ```
+
+**Protège contre :**
+
+- Race condition (double traitement concurrent)
+- Double refund / double payout
 
 ---
 
 ## 🔁 Étape 5 — Vérification métier
 
-Avant toute action :
+Avant toute action financière :
 
-- transaction existe
-- type correct (`REFUND`)
-- statut non finalisé
-
----
-
-### Exemple
+```
+transaction existe            → sinon RetryableWebhookException
+type correct (REFUND, CHARGE) → sinon ignored
+statut non finalisé           → sinon ignored
+```
 
 ```php
 if ($transaction->isSucceeded() || $transaction->isFailed()) {
@@ -199,203 +179,112 @@ if ($transaction->isSucceeded() || $transaction->isFailed()) {
 
 ---
 
-## 🔁 Étape 6 — Traitement contrôlé
+## 🔁 Étape 6 — Events supportés
 
-### Events supportés
-
-| Event              | Action                              |
-| ------------------ | ----------------------------------- |
-| `refund.completed` | REFUND → COMPLETED + booking update |
-| `refund.failed`    | REFUND → FAILED                     |
-
----
-
-### Events inconnus
-
-```txt
-IGNORED
-```
+| Event                 | Action                                    |
+| --------------------- | ----------------------------------------- |
+| `transaction.success` | CHARGE → COMPLETED · Booking → CONFIRMEE  |
+| `transaction.failed`  | CHARGE → FAILED                           |
+| `refund.completed`    | REFUND → COMPLETED · Booking → REMBOURSEE |
+| `refund.failed`       | REFUND → FAILED · Booking inchangé        |
+| Autres                | `IGNORED`                                 |
 
 ---
 
 ## 🔁 Étape 7 — Logging
 
-Chaque webhook doit être tracé :
+| Statut      | Condition                         |
+| ----------- | --------------------------------- |
+| `received`  | Webhook reçu et authentifié       |
+| `processed` | Traitement réussi                 |
+| `ignored`   | Event déjà traité ou non supporté |
+| `failed`    | Erreur de traitement              |
 
-```txt
-received
-processed
-ignored
-failed
-```
+### Structure WebhookLog
 
----
-
-## 🔗 Structure WebhookLog
-
-| Champ                   | Description          |
-| ----------------------- | -------------------- |
-| event_id                | id unique            |
-| event                   | type                 |
-| provider_transaction_id | lien PSP             |
-| status                  | état traitement      |
-| payload                 | JSON brut            |
-| error_message           | erreur éventuelle    |
-| processed_at            | timestamp            |
-| correlation_id (future) | traçabilité complète |
+| Champ                     | Description                |
+| ------------------------- | -------------------------- |
+| `event_id`                | Clé d'idempotence (UNIQUE) |
+| `event`                   | Type d'événement           |
+| `provider_transaction_id` | Lien PSP                   |
+| `status`                  | État du traitement         |
+| `payload`                 | JSON brut (debug)          |
+| `error_message`           | Erreur éventuelle          |
+| `processed_at`            | Timestamp                  |
+| `correlation_id`          | Traçabilité bout en bout   |
 
 ---
 
 ## ⚠️ Cas critiques
 
-### Transaction introuvable
-
-```php
-throw new RetryableWebhookException();
-```
-
-👉 permet retry
-
----
-
-### Payload incomplet
-
-```txt
-IGNORED (pas de log)
-```
-
----
-
-### Signature invalide
-
-```txt
-403 immédiat
-```
+| Cas                        | Comportement                        |
+| -------------------------- | ----------------------------------- |
+| Signature invalide         | HTTP 403 immédiat                   |
+| Payload incomplet          | Ignoré sans log                     |
+| Transaction introuvable    | `RetryableWebhookException` → retry |
+| Transaction déjà finalisée | Ignoré avec log                     |
+| Event non supporté         | Ignoré avec log                     |
+| `event_id` déjà traité     | Ignoré (idempotence)                |
 
 ---
 
 ## 🔁 Retry & robustesse
 
-### Retryable exception
-
-- relance le job
-- limite les pertes de données async
-
----
-
-### Retry limit
-
-- éviter boucle infinie
-- log après seuil
-
----
-
-### Exemple
-
 ```php
 if ($this->attempts() < 3) {
-    throw $e;
+    throw $e; // retry
 }
+// seuil atteint → log critical + Slack alert
 ```
 
----
+**Protections contre les attaques :**
 
-## 🚨 Attaques possibles
-
-### Fake webhook
-
-→ bloqué par signature
-
----
-
-### Replay attack
-
-→ bloqué par `event_id`
-
----
-
-### Race condition
-
-→ bloqué par `lockForUpdate()`
-
----
-
-### Flood webhook
-
-→ détecté via monitoring
-
----
-
-## 🔐 Bonnes pratiques
-
-- toujours traiter via Job async
-- jamais traiter directement en Controller
-- toujours logguer
-- toujours être idempotent
+| Attaque        | Protection            |
+| -------------- | --------------------- |
+| Fake webhook   | Signature HMAC        |
+| Replay attack  | `event_id` UNIQUE     |
+| Race condition | `lockForUpdate()`     |
+| Flood webhook  | Monitoring + alerting |
 
 ---
 
 ## 🚫 Interdits absolus
 
-- modifier Booking sans vérifier Transaction
-- traiter sans signature
-- créer une transaction depuis webhook sans validation
-- ignorer idempotence
-- mélanger logique métier et controller
+```
+Modifier Booking sans vérifier Transaction
+Traiter sans vérification signature
+Créer une transaction depuis webhook sans validation métier
+Ignorer l'idempotence
+Utiliser un payload PSP brut dans le domaine
+Logique métier dans WebhookController
+```
 
 ---
 
 ## 🧪 Tests obligatoires
 
-- signature valide → OK
-- signature invalide → 403
-- double event → ignoré
-- transaction inexistante → retry
-- event non supporté → ignored
-- transaction déjà finalisée → ignored
+| Scénario                   | Résultat attendu     |
+| -------------------------- | -------------------- |
+| Signature valide           | Traitement OK        |
+| Signature invalide         | HTTP 403             |
+| Double event_id            | Ignoré (idempotence) |
+| Transaction introuvable    | Retry                |
+| Event non supporté         | Ignored              |
+| Transaction déjà finalisée | Ignored              |
+| Payload incomplet          | Ignoré sans log      |
 
 ---
 
 ## 🧠 Résumé exécutif
 
-```txt
-Signature → Authentifier
-Validation → Vérifier
-Idempotence → Protéger
-Lock → Synchroniser
-Logs → Tracer
 ```
-
----
-
-## 🧠 Design intention
-
-Le webhook est un point d’entrée critique.
-
-Le système doit être :
-
-- robuste
-- idempotent
-- sécurisé
-- explicable
-
----
-
-## 🧠 Niveau attendu
-
-Tu dois pouvoir répondre :
-
-👉 “Que se passe-t-il si Stripe envoie 5 fois le même event ?”
-
-👉 “Que se passe-t-il si quelqu’un falsifie un webhook ?”
-
----
-
-## 🧠 Principe clé
+1. Signature    → Authentifier (WebhookProcessor)
+2. Normalise    → PaymentEventData (WebhookProcessor)
+3. Idempotence  → event_id UNIQUE (HandlePaymentWebhook)
+4. Lock         → lockForUpdate() (HandlePaymentWebhook)
+5. Vérification → invariants métier (HandlePaymentWebhook)
+6. Logs         → WebhookLog (toujours)
+```
 
 > Le webhook est une frontière de sécurité.
-> Tout ce qui entre doit être contrôlé strictement.
-
-```
-
-```
+> Tout ce qui entre doit être contrôlé, normalisé et idempotent.
