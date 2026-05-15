@@ -9,10 +9,11 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class ListTrips
 {
-    public function execute(int $perPage = 10): LengthAwarePaginator
+    public function execute(int $perPage = 15): LengthAwarePaginator
     {
         return Trip::query()
-            ->with(['user'])
+            ->with(['user', 'locations'])
+            ->reservable()
             ->latest()
             ->paginate($perPage);
     }

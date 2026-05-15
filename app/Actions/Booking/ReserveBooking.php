@@ -71,10 +71,12 @@ class ReserveBooking
                 }
 
                 $booking->bookingItems()->create([
-                    'trip_id' => $trip->id,
-                    'luggage_id' => $luggage->id,
+                    'trip_id'     => $trip->id,
+                    'luggage_id'  => $luggage->id,
                     'kg_reserved' => $itemData['kg_reserved'],
-                    'price' => $itemData['price'],
+                    'price'       => $itemData['price'] ?? (int) round(
+                        ($itemData['kg_reserved'] / 1000) * $trip->price_per_kg
+                    ),
                 ]);
 
                 $luggage->update([
