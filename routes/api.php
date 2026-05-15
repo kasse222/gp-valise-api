@@ -27,6 +27,9 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
     Route::post('/register', [AuthController::class, 'register'])->name('auth.register');
     Route::post('/login', [AuthController::class, 'login'])->name('auth.login');
 
+    Route::get('/trips', [TripController::class, 'index'])->name('trips.index');
+    Route::get('/trips/{trip}', [TripController::class, 'show'])->name('trips.show');
+
     Route::post('/webhooks/{providerKey}', WebhookController::class)
         ->middleware(['throttle:webhooks'])
         ->name('webhooks.payment');
@@ -60,8 +63,6 @@ Route::prefix('v1')
             Route::post('/{user}/upgrade-plan', [UserController::class, 'upgradePlan'])->name('upgrade_plan');
         });
 
-        Route::get('/trips', [TripController::class, 'index'])->name('trips.index');
-        Route::get('/trips/{trip}', [TripController::class, 'show'])->name('trips.show');
 
         Route::middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)->group(function (): void {
             Route::post('/trips', [TripController::class, 'store'])->name('trips.store');
@@ -91,6 +92,10 @@ Route::prefix('v1')
 
         Route::get('/bookings', [BookingController::class, 'index'])->name('bookings.index');
         Route::get('/bookings/{booking}', [BookingController::class, 'show'])->name('bookings.show');
+
+        Route::post('/bookings/{booking}/pay', [BookingController::class, 'pay'])
+            ->middleware(EnsureRole::class . ':' . UserRoleEnum::SENDER->value)
+            ->name('bookings.pay');
 
         Route::middleware(EnsureRole::class . ':' . UserRoleEnum::SENDER->value)->group(function (): void {
             Route::post('/bookings', [BookingController::class, 'store'])->name('bookings.store');

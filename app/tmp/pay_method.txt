@@ -1,0 +1,22 @@
+
+    public function pay(Request $request, Booking $booking, CreateTransaction $action)
+    {
+        $this->authorize('view', $booking);
+
+        $transaction = $action->execute($request->user(), [
+            'booking_id'     => $booking->id,
+            'amount'         => $booking->total_amount / 100,
+            'currency'       => 'EUR',
+            'method'         => 'card',
+            'country'        => $request->user()->country ?? 'FR',
+            'correlation_id' => $request->header('X-Correlation-ID'),
+        ]);
+
+        return response()->json([
+            'transaction_id' => $transaction->id,
+            'booking_id'     => $booking->id,
+            'amount'         => $transaction->amount,
+            'status'         => $transaction->status,
+            'payment_url'    => null,
+        ], 201);
+    }

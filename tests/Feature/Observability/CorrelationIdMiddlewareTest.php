@@ -10,7 +10,7 @@ uses(Tests\TestCase::class, RefreshDatabase::class);
 it('adds a correlation id header when missing', function (): void {
     $response = $this->getJson('/api/v1/trips');
 
-    $response->assertUnauthorized();
+    $response->assertOk();
 
     $correlationId = $response->headers->get('X-Correlation-ID');
 
@@ -25,13 +25,13 @@ it('keeps the provided correlation id header', function (): void {
     $response = $this->withHeader('X-Correlation-ID', $correlationId)
         ->getJson('/api/v1/trips');
 
-    $response->assertUnauthorized();
+    $response->assertOk();
 
     expect($response->headers->get('X-Correlation-ID'))->toBe($correlationId);
 });
 
 it('adds correlation id even on unauthenticated responses', function (): void {
-    $response = $this->getJson('/api/v1/trips');
+    $response = $this->getJson('/api/v1/bookings');
 
     $response->assertUnauthorized()
         ->assertHeader('X-Correlation-ID');

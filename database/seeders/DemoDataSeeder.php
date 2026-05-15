@@ -19,13 +19,9 @@ class DemoDataSeeder extends Seeder
     public function run(): void
     {
         // ── Users ─────────────────────────────────────────────────────────────
-
-
         $sender = User::firstOrCreate(
             ['email' => 'sender@gpvalise.com'],
             [
-                'verified_user'     => true,
-                'email_verified_at' => now(),
                 'first_name'        => 'Expéditeur',
                 'last_name'         => 'Test',
                 'password'          => Hash::make('password'),
@@ -39,8 +35,6 @@ class DemoDataSeeder extends Seeder
         $traveler = User::firstOrCreate(
             ['email' => 'traveler@gpvalise.com'],
             [
-                'verified_user'     => true,
-                'email_verified_at' => now(),
                 'first_name'        => 'Voyageur',
                 'last_name'         => 'Test',
                 'password'          => Hash::make('password'),
@@ -51,11 +45,9 @@ class DemoDataSeeder extends Seeder
             ]
         );
 
-        $admin = User::firstOrCreate(
+        User::firstOrCreate(
             ['email' => 'admin@gpvalise.com'],
             [
-                'verified_user'     => true,
-                'email_verified_at' => now(),
                 'first_name'        => 'Admin',
                 'last_name'         => 'GPValise',
                 'password'          => Hash::make('password'),
@@ -68,94 +60,43 @@ class DemoDataSeeder extends Seeder
 
         // ── Trips ─────────────────────────────────────────────────────────────
         $tripCasaParis = Trip::factory()->create([
-            'user_id'     => $traveler->id,
-            'departure'   => 'Casablanca',
-            'destination' => 'Paris',
-            'capacity'    => 20000,
+            'user_id'      => $traveler->id,
+            'departure'    => 'Casablanca',
+            'destination'  => 'Paris',
+            'capacity'     => 20000,
             'price_per_kg' => 800,
+            'date'         => now()->addDays(30),
         ]);
 
         $tripDakarAbidjan = Trip::factory()->create([
-            'user_id'     => $traveler->id,
-            'departure'   => 'Dakar',
-            'destination' => 'Abidjan',
-            'capacity'    => 15000,
+            'user_id'      => $traveler->id,
+            'departure'    => 'Dakar',
+            'destination'  => 'Abidjan',
+            'capacity'     => 15000,
             'price_per_kg' => 600,
+            'date'         => now()->addDays(20),
         ]);
 
-        // ── Bookings sender ───────────────────────────────────────────────────
-        Booking::factory()->for($sender)->for($tripCasaParis)->create([
-            'status'       => BookingStatusEnum::EN_PAIEMENT,
-            'payment_expires_at' => now()->addMinutes(30),
-        ]);
-        $luggage = Luggage::factory()->for($sender)->create([
-            'status'       => LuggageStatusEnum::RESERVEE,
-            'pickup_city'  => 'Casablanca',
-            'delivery_city' => 'Paris',
-        ]);
-        Booking::factory()->for($sender)->for($tripCasaParis)->create([
-            'status'       => BookingStatusEnum::CONFIRMEE,
-            'confirmed_at' => now()->subDays(2),
-        ]);
-        $luggage = Luggage::factory()->for($sender)->create([
-            'status'       => LuggageStatusEnum::RESERVEE,
-            'pickup_city'  => 'Casablanca',
-            'delivery_city' => 'Paris',
-        ]);
+        // ── Helper ────────────────────────────────────────────────────────────
+        $makeLuggage = function (User $user, Trip $trip, LuggageStatusEnum $status) {
+            return Luggage::factory()->create([
+                'user_id'             => $user->id,
+                'trip_id'             => $trip->id,
+                'status'              => $status,
+                'pickup_city'         => $trip->departure,
+                'delivery_city'       => $trip->destination,
+                'pickup_date'         => $trip->date,
+                'delivery_date'       => $trip->date->copy()->addDay(),
+            ]);
+        };
 
-        Booking::factory()->for($sender)->for($tripCasaParis)->create([
-            'status'       => BookingStatusEnum::LIVREE,
-            'confirmed_at' => now()->subDays(5),
-            'completed_at' => now()->subDays(1),
-        ]);
-        $luggage = Luggage::factory()->for($sender)->create([
-            'status'       => LuggageStatusEnum::RESERVEE,
-            'pickup_city'  => 'Casablanca',
-            'delivery_city' => 'Paris',
-        ]);
-        Booking::factory()->for($sender)->for($tripDakarAbidjan)->create([
-            'status'      => BookingStatusEnum::EN_LITIGE,
-            'disputed_at' => now()->subHours(3),
-            'confirmed_at' => now()->subDays(4),
-        ]);
-        $luggage = Luggage::factory()->for($sender)->create([
-            'status'       => LuggageStatusEnum::RESERVEE,
-            'pickup_city'  => 'Casablanca',
-            'delivery_city' => 'Paris',
-        ]);
-        Booking::factory()->for($sender)->for($tripDakarAbidjan)->create([
-            'status'      => BookingStatusEnum::TERMINE,
-            'confirmed_at' => now()->subDays(10),
-            'completed_at' => now()->subDays(7),
-        ]);
-        $luggage = Luggage::factory()->for($sender)->create([
-            'status'       => LuggageStatusEnum::RESERVEE,
-            'pickup_city'  => 'Casablanca',
-            'delivery_city' => 'Paris',
-        ]);
-
-        Booking::factory()->for($sender)->for($tripCasaParis)->create([
-            'status'   => BookingStatusEnum::REMBOURSEE,
-            'confirmed_at' => now()->subDays(8),
-        ]);
-
-        $luggage = Luggage::factory()->for($sender)->create([
-            'status'       => LuggageStatusEnum::RESERVEE,
-            'pickup_city'  => 'Casablanca',
-            'delivery_city' => 'Paris',
-        ]);
-        // ── Bookings sender ───────────────────────────────────────────────────
-
+        // ── Bookings ──────────────────────────────────────────────────────────
         $bookingEnPaiement = Booking::factory()->for($sender)->for($tripCasaParis)->create([
             'status'             => BookingStatusEnum::EN_PAIEMENT,
             'payment_expires_at' => now()->addMinutes(30),
         ]);
         $bookingEnPaiement->bookingItems()->create([
-            'luggage_id'  => Luggage::factory()->for($sender)->create([
-                'status' => LuggageStatusEnum::RESERVEE,
-                'pickup_city' => 'Casablanca',
-                'delivery_city' => 'Paris',
-            ])->id,
+            'luggage_id'  => $makeLuggage($sender, $tripCasaParis, LuggageStatusEnum::RESERVEE)->id,
             'trip_id'     => $tripCasaParis->id,
             'kg_reserved' => 5000,
             'price'       => 4000,
@@ -166,11 +107,7 @@ class DemoDataSeeder extends Seeder
             'confirmed_at' => now()->subDays(2),
         ]);
         $bookingConfirmee->bookingItems()->create([
-            'luggage_id'  => Luggage::factory()->for($sender)->create([
-                'status' => LuggageStatusEnum::RESERVEE,
-                'pickup_city' => 'Casablanca',
-                'delivery_city' => 'Paris',
-            ])->id,
+            'luggage_id'  => $makeLuggage($sender, $tripCasaParis, LuggageStatusEnum::RESERVEE)->id,
             'trip_id'     => $tripCasaParis->id,
             'kg_reserved' => 8000,
             'price'       => 6400,
@@ -182,11 +119,7 @@ class DemoDataSeeder extends Seeder
             'completed_at' => now()->subDays(1),
         ]);
         $bookingLivree->bookingItems()->create([
-            'luggage_id'  => Luggage::factory()->for($sender)->create([
-                'status' => LuggageStatusEnum::LIVREE,
-                'pickup_city' => 'Casablanca',
-                'delivery_city' => 'Paris',
-            ])->id,
+            'luggage_id'  => $makeLuggage($sender, $tripCasaParis, LuggageStatusEnum::LIVREE)->id,
             'trip_id'     => $tripCasaParis->id,
             'kg_reserved' => 10000,
             'price'       => 8000,
@@ -198,11 +131,7 @@ class DemoDataSeeder extends Seeder
             'confirmed_at' => now()->subDays(4),
         ]);
         $bookingLitige->bookingItems()->create([
-            'luggage_id'  => Luggage::factory()->for($sender)->create([
-                'status' => LuggageStatusEnum::RESERVEE,
-                'pickup_city' => 'Dakar',
-                'delivery_city' => 'Abidjan',
-            ])->id,
+            'luggage_id'  => $makeLuggage($sender, $tripDakarAbidjan, LuggageStatusEnum::RESERVEE)->id,
             'trip_id'     => $tripDakarAbidjan->id,
             'kg_reserved' => 7000,
             'price'       => 4200,
@@ -214,11 +143,7 @@ class DemoDataSeeder extends Seeder
             'completed_at' => now()->subDays(7),
         ]);
         $bookingTermine->bookingItems()->create([
-            'luggage_id'  => Luggage::factory()->for($sender)->create([
-                'status' => LuggageStatusEnum::LIVREE,
-                'pickup_city' => 'Dakar',
-                'delivery_city' => 'Abidjan',
-            ])->id,
+            'luggage_id'  => $makeLuggage($sender, $tripDakarAbidjan, LuggageStatusEnum::LIVREE)->id,
             'trip_id'     => $tripDakarAbidjan->id,
             'kg_reserved' => 12000,
             'price'       => 7200,
@@ -229,19 +154,15 @@ class DemoDataSeeder extends Seeder
             'confirmed_at' => now()->subDays(8),
         ]);
         $bookingRemboursee->bookingItems()->create([
-            'luggage_id'  => Luggage::factory()->for($sender)->create([
-                'status' => LuggageStatusEnum::ANNULEE,
-                'pickup_city' => 'Casablanca',
-                'delivery_city' => 'Paris',
-            ])->id,
+            'luggage_id'  => $makeLuggage($sender, $tripCasaParis, LuggageStatusEnum::ANNULEE)->id,
             'trip_id'     => $tripCasaParis->id,
             'kg_reserved' => 6000,
             'price'       => 4800,
         ]);
 
         $this->command->info('✅ DemoDataSeeder — users + trips + bookings créés');
-        $this->command->info("   sender@gpvalise.com   / password");
-        $this->command->info("   traveler@gpvalise.com / password");
-        $this->command->info("   admin@gpvalise.com    / password");
+        $this->command->info('   sender@gpvalise.com   / password');
+        $this->command->info('   traveler@gpvalise.com / password');
+        $this->command->info('   admin@gpvalise.com    / password');
     }
 }

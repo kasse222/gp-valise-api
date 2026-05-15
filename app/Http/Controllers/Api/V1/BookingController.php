@@ -9,6 +9,7 @@ use App\Actions\Booking\DeleteBooking;
 use App\Actions\Booking\GetBookingDetails;
 use App\Actions\Booking\GetUserBookings;
 use App\Actions\Booking\ReserveBooking;
+use App\Actions\Transaction\CreateTransaction;
 use App\Http\Requests\Booking\StoreBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
@@ -97,5 +98,45 @@ class BookingController extends Controller
             'message' => 'Réservation livrée avec succès.',
             'booking' => new BookingResource($booking->load('bookingItems.luggage')),
         ]);
+    }
+
+    public function pay(Request $request, Booking $booking, CreateTransaction $action)
+    {
+        $this->authorize('view', $booking);
+
+        $booking->loadMissing('bookingItems');
+
+        $totalCentimes = $booking->bookingItems->sum('price');
+
+        if ($totalCentimes <= 0) {
+            return response()->json([
+                'message' => 'Aucun montant à payer pour cette réservation.',
+            ], 422);
+        }
+
+        $transaction = $action->execute($request->user(), [
+            'booking_id'     => $booking->id,
+            'amount'         => $totalCentimes / 100,
+            'currency'       => 'EUR',
+            'method'         => 'card',
+            'country'        => $request->user()->country ?? 'FR',
+            'correlation_id' => $request->header('X-Correlation-ID'),
+        ]);
+
+        // Si FakeProvider → COMPLETED immédiat → confirmer le booking
+        if ($transaction->status === \App\Enums\TransactionStatusEnum::COMPLETED) {
+            $bookingFresh = $booking->fresh(['trip']);
+            $traveler = $bookingFresh->trip->user;
+            app(\App\Actions\Booking\ConfirmBooking::class)
+                ->execute($bookingFresh, $traveler);
+        }
+
+        return response()->json([
+            'transaction_id' => $transaction->id,
+            'booking_id'     => $booking->id,
+            'amount'         => $transaction->amount,
+            'status'         => $transaction->status,
+            'payment_url'    => null,
+        ], 201);
     }
 }
