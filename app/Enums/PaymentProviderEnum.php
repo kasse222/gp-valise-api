@@ -9,6 +9,7 @@ enum PaymentProviderEnum: string
     case FAKE = 'fake';
     case KKIAPAY = 'kkiapay';
     case STRIPE = 'stripe';
+    case PAYDUNYA = 'paydunya';
 
     public static function values(): array
     {
@@ -21,6 +22,7 @@ enum PaymentProviderEnum: string
             self::FAKE => 'Fake Provider',
             self::KKIAPAY => 'Kkiapay',
             self::STRIPE => 'Stripe',
+            self::PAYDUNYA => 'paydunya'
         };
     }
 
@@ -35,6 +37,7 @@ enum PaymentProviderEnum: string
 
         return match ($this) {
             self::KKIAPAY => in_array($country, ['SN', 'CI', 'TG', 'BJ'], true),
+            self::PAYDUNYA => in_array($country, ['SN', 'CI', 'BJ', 'TG'], true),
             self::STRIPE => in_array($country, ['FR', 'BE', 'DE', 'ES', 'MA'], true),
             self::FAKE => true,
         };
