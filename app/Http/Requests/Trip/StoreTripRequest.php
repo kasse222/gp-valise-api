@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules\Enum;
 use App\Enums\TripStatusEnum;
 use App\Enums\TripTypeEnum;
+use Illuminate\Validation\Rule;
 
 class StoreTripRequest extends FormRequest
 {
@@ -20,7 +21,14 @@ class StoreTripRequest extends FormRequest
         return [
             'departure'      => ['required', 'string', 'max:255'],
             'destination'    => ['required', 'string', 'max:255'],
-            'date'           => ['required', 'date', 'after_or_equal:today'],
+            'date' => [
+                Rule::requiredIf(
+                    fn() => $this->input('type_trip') !== TripTypeEnum::SUR_DEVIS->value
+                ),
+                'nullable',
+                'date',
+                'after_or_equal:today',
+            ],
             'flight_number'  => ['nullable', 'string', 'max:255'],
             'capacity'       => ['required', 'integer', 'min:1'],
             'price_per_kg'   => ['required', 'numeric', 'min:0'],
