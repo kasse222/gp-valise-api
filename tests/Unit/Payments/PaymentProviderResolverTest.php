@@ -7,13 +7,13 @@ use App\Enums\CurrencyEnum;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\PaymentOperatorEnum;
 use App\Services\Payments\FakePaymentProvider;
-use App\Services\Payments\KkiapayProvider;
+use App\Services\Payments\PayDunyaProvider;
 use App\Services\Payments\PaymentProviderResolver;
 use App\Services\Payments\StripeProvider;
 
 uses(Tests\TestCase::class);
 
-it('resolves kkiapay for Senegal mobile money', function () {
+it('resolves paydunya for Senegal mobile money', function () {
     $request = new PaymentRequestData(
         country: 'SN',
         currency: CurrencyEnum::XOF,
@@ -24,10 +24,13 @@ it('resolves kkiapay for Senegal mobile money', function () {
     );
 
     expect(app(PaymentProviderResolver::class)->resolve($request))
-        ->toBeInstanceOf(KkiapayProvider::class);
+        ->toBeInstanceOf(PayDunyaProvider::class);
 });
 
 it('resolves stripe for Morocco card payment', function () {
+    config()->set('payment_providers.routing.MA.card', 'stripe');
+    config()->set('payment_providers.providers.stripe', StripeProvider::class);
+
     $request = new PaymentRequestData(
         country: 'MA',
         currency: CurrencyEnum::MAD,
@@ -64,11 +67,11 @@ it('resolves country code case-insensitively', function () {
     );
 
     expect(app(PaymentProviderResolver::class)->resolve($request))
-        ->toBeInstanceOf(KkiapayProvider::class);
+        ->toBeInstanceOf(PayDunyaProvider::class);
 });
 
 it('throws when routed provider class is missing', function () {
-    config()->set('payment_providers.providers.kkiapay', 'App\\Missing\\MissingProvider');
+    config()->set('payment_providers.providers.paydunya', 'App\\Missing\\MissingProvider');
 
     $request = new PaymentRequestData(
         country: 'SN',
@@ -80,10 +83,10 @@ it('throws when routed provider class is missing', function () {
     );
 
     app(PaymentProviderResolver::class)->resolve($request);
-})->throws(RuntimeException::class, 'Payment provider [kkiapay] is not configured.');
+})->throws(RuntimeException::class, 'Payment provider [paydunya] is not configured.');
 
 it('throws when configured provider does not implement contract', function () {
-    config()->set('payment_providers.providers.kkiapay', stdClass::class);
+    config()->set('payment_providers.providers.paydunya', stdClass::class);
 
     $request = new PaymentRequestData(
         country: 'SN',
@@ -95,4 +98,4 @@ it('throws when configured provider does not implement contract', function () {
     );
 
     app(PaymentProviderResolver::class)->resolve($request);
-})->throws(RuntimeException::class, 'Payment provider [kkiapay] must implement PaymentProvider.');
+})->throws(RuntimeException::class, 'Payment provider [paydunya] must implement PaymentProvider.');
