@@ -94,9 +94,14 @@ class CreateTransaction
                     idempotencyKey: 'charge-' . $booking->id,
                     operator: $operator,
                     metadata: [
-                        'booking_id' => $booking->id,
-                        'user_id' => $user->id,
-                        'correlation_id' => $data['correlation_id'] ?? null,
+                        'booking_id'         => $booking->id,
+                        'user_id'            => $user->id,
+                        'customer_phone'     => $data['phone'] ?? null,
+                        'customer_email'     => $user->email,
+                        'customer_firstname' => $user->name ?? '',
+                        'customer_lastname'  => '',
+                        'callback_url'       => config('app.url') . '/api/v1/webhooks/kkiapay',
+                        'correlation_id'     => $data['correlation_id'] ?? null,
                     ],
                 )
             );

@@ -10,6 +10,7 @@ use App\Actions\Booking\GetBookingDetails;
 use App\Actions\Booking\GetUserBookings;
 use App\Actions\Booking\ReserveBooking;
 use App\Actions\Transaction\CreateTransaction;
+use App\Http\Requests\Booking\PayBookingRequest;
 use App\Http\Requests\Booking\StoreBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
@@ -100,35 +101,36 @@ class BookingController extends Controller
         ]);
     }
 
-    public function pay(Request $request, Booking $booking, CreateTransaction $action)
+
+    public function pay(PayBookingRequest $request, Booking $booking, CreateTransaction $action)
     {
         $this->authorize('view', $booking);
 
         $booking->loadMissing('bookingItems');
-
         $totalCentimes = $booking->bookingItems->sum('price');
 
         if ($totalCentimes <= 0) {
-            return response()->json([
-                'message' => 'Aucun montant à payer pour cette réservation.',
-            ], 422);
+            return response()->json(['message' => 'Aucun montant à payer.'], 422);
         }
+
+        $country = strtoupper($request->input('country') ?? $request->user()->country ?? 'FR');
+        $method  = $request->input('method', 'card');
+        $phone   = $request->input('phone');
 
         $transaction = $action->execute($request->user(), [
             'booking_id'     => $booking->id,
             'amount'         => $totalCentimes / 100,
             'currency'       => 'EUR',
-            'method'         => 'card',
-            'country'        => $request->user()->country ?? 'FR',
+            'method'         => $method,
+            'country'        => $country,
+            'phone'          => $phone,
             'correlation_id' => $request->header('X-Correlation-ID'),
         ]);
 
-        // Si FakeProvider → COMPLETED immédiat → confirmer le booking
         if ($transaction->status === \App\Enums\TransactionStatusEnum::COMPLETED) {
             $bookingFresh = $booking->fresh(['trip']);
-            $traveler = $bookingFresh->trip->user;
             app(\App\Actions\Booking\ConfirmBooking::class)
-                ->execute($bookingFresh, $traveler);
+                ->execute($bookingFresh, $bookingFresh->trip->user);
         }
 
         return response()->json([
