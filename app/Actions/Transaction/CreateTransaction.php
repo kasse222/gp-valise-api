@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\Transaction;
 
-use App\Contracts\Payments\PaymentProvider;
+use App\Contracts\Payments\PaymentProviderResolverContract;
 use App\Data\Payments\PaymentRequestData;
 use App\Enums\BookingStatusEnum;
 use App\Enums\CurrencyEnum;
@@ -23,7 +23,7 @@ use InvalidArgumentException;
 class CreateTransaction
 {
     public function __construct(
-        private readonly PaymentProvider $paymentProvider,
+        private readonly PaymentProviderResolverContract $resolver,
     ) {}
 
     public function execute(User $user, array $data): Transaction
@@ -85,26 +85,26 @@ class CreateTransaction
                     : PaymentOperatorEnum::from((string) $data['operator']))
                 : null;
 
-            $providerResult = $this->paymentProvider->charge(
-                new PaymentRequestData(
-                    country: (string) ($data['country'] ?? 'FR'),
-                    currency: $currency,
-                    method: $method,
-                    amount: (int) round((float) $data['amount'] * 100),
-                    idempotencyKey: 'charge-' . $booking->id,
-                    operator: $operator,
-                    metadata: [
-                        'booking_id'         => $booking->id,
-                        'user_id'            => $user->id,
-                        'customer_phone'     => $data['phone'] ?? null,
-                        'customer_email'     => $user->email,
-                        'customer_firstname' => $user->name ?? '',
-                        'customer_lastname'  => '',
-                        'callback_url'       => config('app.url') . '/api/v1/webhooks/kkiapay',
-                        'correlation_id'     => $data['correlation_id'] ?? null,
-                    ],
-                )
+            $paymentRequest = new PaymentRequestData(
+                country: (string) ($data['country'] ?? 'FR'),
+                currency: $currency,
+                method: $method,
+                amount: (int) round((float) $data['amount'] * 100),
+                idempotencyKey: 'charge-' . $booking->id,
+                operator: $operator,
+                metadata: [
+                    'booking_id'         => $booking->id,
+                    'user_id'            => $user->id,
+                    'customer_phone'     => $data['phone'] ?? null,
+                    'customer_email'     => $user->email,
+                    'customer_firstname' => $user->name ?? '',
+                    'customer_lastname'  => '',
+                    'callback_url'       => config('app.url') . '/api/v1/webhooks/paydunya',
+                    'correlation_id'     => $data['correlation_id'] ?? null,
+                ],
             );
+
+            $providerResult = $this->resolver->resolve($paymentRequest)->charge($paymentRequest);
 
             $status = match ($providerResult->providerStatus) {
                 'completed' => TransactionStatusEnum::COMPLETED,

@@ -6,6 +6,7 @@ use App\Enums\PaymentMethodEnum;
 use App\Enums\PaymentProviderEnum;
 use App\Services\Payments\FakePaymentProvider;
 use App\Services\Payments\KkiapayProvider;
+use App\Services\Payments\PayDunyaProvider;
 use App\Services\Payments\StripeProvider;
 
 return [
@@ -14,22 +15,24 @@ return [
     'providers' => [
         PaymentProviderEnum::FAKE->value => FakePaymentProvider::class,
         PaymentProviderEnum::KKIAPAY->value => KkiapayProvider::class,
+        PaymentProviderEnum::PAYDUNYA->value => PayDunyaProvider::class,
         PaymentProviderEnum::STRIPE->value => StripeProvider::class,
     ],
 
     'routing' => [
         'SN' => [
+            PaymentMethodEnum::MOBILE_MONEY->value => PaymentProviderEnum::PAYDUNYA->value,
+            PaymentMethodEnum::CARD->value         => PaymentProviderEnum::PAYDUNYA->value,
+        ],
+        'BJ' => [
             PaymentMethodEnum::MOBILE_MONEY->value => PaymentProviderEnum::KKIAPAY->value,
-            PaymentMethodEnum::CARD->value => PaymentProviderEnum::KKIAPAY->value,
+            PaymentMethodEnum::CARD->value         => PaymentProviderEnum::KKIAPAY->value,
+        ],
+        'CI' => [
+            PaymentMethodEnum::MOBILE_MONEY->value => PaymentProviderEnum::KKIAPAY->value,
+            PaymentMethodEnum::CARD->value         => PaymentProviderEnum::KKIAPAY->value,
         ],
 
-        'MA' => [
-            PaymentMethodEnum::CARD->value => PaymentProviderEnum::STRIPE->value,
-        ],
-
-        'FR' => [
-            PaymentMethodEnum::CARD->value => PaymentProviderEnum::STRIPE->value,
-        ],
     ],
 
     'stripe' => [
@@ -45,5 +48,16 @@ return [
         'secret'         => env('KKIAPAY_SECRET'),
         'webhook_secret' => env('KKIAPAY_WEBHOOK_SECRET'),
         'sandbox'        => env('KKIAPAY_SANDBOX', true),
+    ],
+
+    'paydunya' => [
+        'env'        => env('PAYDUNYA_ENV', 'sandbox'),
+        'master_key' => env('PAYDUNYA_MASTER_KEY'),
+        'private_key' => env('PAYDUNYA_PRIVATE_KEY'),
+        'token'      => env('PAYDUNYA_TOKEN'),
+        'sandbox'    => env('PAYDUNYA_SANDBOX', true),  // ← ajouter
+        'success_url' => env('PAYDUNYA_SUCCESS_URL'),
+        'cancel_url' => env('PAYDUNYA_CANCEL_URL'),
+        'callback_url' => env('PAYDUNYA_CALLBACK_URL'),
     ],
 ];

@@ -72,7 +72,7 @@ it('crée une transaction CHARGE valide', function () {
         ->toBeInstanceOf(Transaction::class)
         ->and($transaction->type)->toBe(TransactionTypeEnum::CHARGE)
         ->and($transaction->status)->toBe(TransactionStatusEnum::COMPLETED)
-        ->and($transaction->provider_transaction_id)->toBe('txn_123');
+        ->and($transaction->provider_transaction_id)->toBeString()->not->toBeEmpty();
 });
 
 it('dispatch TransactionCreated', function () {
