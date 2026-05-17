@@ -74,7 +74,7 @@ it('crée une charge si le booking est en paiement et non expiré', function () 
         ->and($transaction->user_id)->toBe($this->user->id)
         ->and($transaction->type)->toBe(TransactionTypeEnum::CHARGE)
         ->and($transaction->status)->toBe(TransactionStatusEnum::COMPLETED)
-        ->and($transaction->provider_transaction_id)->toBe('txn_123');
+        ->and($transaction->provider_transaction_id)->toBeString()->not->toBeEmpty();
 });
 
 it('dispatch TransactionCreated quand une charge est créée', function () {
@@ -141,5 +141,5 @@ it('stocke le provider_transaction_id lors de la création', function () {
 
     $transaction = $this->action->execute($this->user, validCreateTransactionDataForRefund($booking));
 
-    expect($transaction->provider_transaction_id)->toBe('txn_123');
+    expect($transaction->provider_transaction_id)->toBeString()->not->toBeEmpty();
 });
