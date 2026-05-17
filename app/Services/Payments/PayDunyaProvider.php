@@ -61,6 +61,7 @@ final class PayDunyaProvider implements PaymentProvider
             ? "https://app.paydunya.com/sandbox/checkout/invoice/{$token}"
             : "https://app.paydunya.com/checkout/invoice/{$token}";
 
+        \Illuminate\Support\Facades\Log::debug('PayDunya response', $body);
         return new PaymentResponseData(
             provider: PaymentProviderEnum::PAYDUNYA,
             providerTransactionId: $token,
