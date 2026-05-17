@@ -120,7 +120,6 @@ it('crée une transaction charge via endpoint store', function () {
         'user_id' => $this->sender->id,
         'type' => TransactionTypeEnum::CHARGE->value,
         'status' => TransactionStatusEnum::COMPLETED->value,
-        'provider_transaction_id' => 'txn_123',
     ]);
 });
 
@@ -175,7 +174,6 @@ it('rembourse une charge via endpoint refund', function () {
         'type' => TransactionTypeEnum::REFUND->value,
         'status' => TransactionStatusEnum::COMPLETED->value,
         'amount' => 90,
-        'provider_transaction_id' => 'admin_refund_123',
     ]);
 });
 
