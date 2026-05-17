@@ -51,10 +51,11 @@ return [
     ],
 
     'paydunya' => [
-        'env' => env('PAYDUNYA_ENV', 'sandbox'),
+        'env'        => env('PAYDUNYA_ENV', 'sandbox'),
         'master_key' => env('PAYDUNYA_MASTER_KEY'),
         'private_key' => env('PAYDUNYA_PRIVATE_KEY'),
-        'token' => env('PAYDUNYA_TOKEN'),
+        'token'      => env('PAYDUNYA_TOKEN'),
+        'sandbox'    => env('PAYDUNYA_SANDBOX', true),  // ← ajouter
         'success_url' => env('PAYDUNYA_SUCCESS_URL'),
         'cancel_url' => env('PAYDUNYA_CANCEL_URL'),
         'callback_url' => env('PAYDUNYA_CALLBACK_URL'),
