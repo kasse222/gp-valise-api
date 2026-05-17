@@ -30,8 +30,10 @@ final class PayDunyaProvider implements PaymentProvider
                 'name' => 'Safe Move',
             ],
             'actions' => [
-                'cancel_url'  => config('payment_providers.paydunya.cancel_url'),
-                'return_url'  => config('payment_providers.paydunya.success_url'),
+                'cancel_url'   => config('payment_providers.paydunya.cancel_url')
+                    . '?booking_id=' . ($meta['booking_id'] ?? ''),
+                'return_url'   => config('payment_providers.paydunya.success_url')
+                    . '?booking_id=' . ($meta['booking_id'] ?? ''),
                 'callback_url' => config('payment_providers.paydunya.callback_url'),
             ],
             'custom_data' => [
@@ -61,7 +63,7 @@ final class PayDunyaProvider implements PaymentProvider
             ? "https://app.paydunya.com/sandbox/checkout/invoice/{$token}"
             : "https://app.paydunya.com/checkout/invoice/{$token}";
 
-        \Illuminate\Support\Facades\Log::debug('PayDunya response', $body);
+
         return new PaymentResponseData(
             provider: PaymentProviderEnum::PAYDUNYA,
             providerTransactionId: $token,
