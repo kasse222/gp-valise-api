@@ -8,7 +8,7 @@ GP-Valise modélise un système SaaS réel avec réservation de capacité, paiem
 
 [![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)](https://github.com/kasse222/gp-valise-api/actions)
 [![Tests](https://img.shields.io/badge/tests-415%20passing-brightgreen)](#tests)
-[![Laravel](https://img.shields.io/badge/Laravel-8.2-red.svg)](https://laravel.com)
+[![Laravel](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com)
 [![PHP](https://img.shields.io/badge/PHP-8.2-blue.svg)](https://php.net)
 
 ---
@@ -27,7 +27,7 @@ Le projet vise un backend SaaS crédible, traçable et testable, avec une archit
 
 ## Stack technique
 
-- Laravel 8.2 / PHP 8.2+
+- Laravel 12 / PHP 8.2+
 - PostgreSQL 16 Alpine
 - Redis / Horizon
 - Docker / Docker Compose
@@ -296,7 +296,7 @@ make test
 ```
 
 ```
-Tests:    415 passed (985 assertions)
+Tests:    415 passed (988 assertions)
 Duration: ~5.5s
 ```
 
@@ -369,9 +369,9 @@ Horizon    : http://localhost:8000/horizon
 Credentials démo :
 
 ```
-admin@gpvalise.demo      / Demo1234!  (ADMIN)
-voyageur@gpvalise.demo   / Demo1234!  (TRAVELER)
-expediteur@gpvalise.demo / Demo1234!  (SENDER)
+sender@gpvalise.com   / password  (SENDER)
+traveler@gpvalise.com / password  (TRAVELER)
+admin@gpvalise.com    / password  (ADMIN)
 ```
 
 ---
