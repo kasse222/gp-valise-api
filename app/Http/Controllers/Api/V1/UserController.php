@@ -7,6 +7,7 @@ use App\Actions\User\VerifyUserEmail;
 use Illuminate\Routing\Controller;
 use App\Http\Requests\Plan\UpgradePlanRequest;
 use App\Http\Requests\User\ChangePasswordRequest;
+use App\Http\Requests\User\UpdateUserRequest;
 use App\Http\Requests\User\VerifyPhoneRequest;
 use App\Http\Requests\User\VerifyEmailRequest;
 use App\Http\Resources\UserResource;
@@ -25,7 +26,7 @@ class UserController extends Controller
         return new UserResource($user);
     }
 
-    public function update(UpgradePlanRequest $request, User $user)
+    public function update(UpdateUserRequest $request, User $user)
     {
         $this->authorize('update', $user);
         $user->update($request->validated());
