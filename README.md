@@ -267,7 +267,7 @@ Dominant job: App\Jobs\SimulateRetryStormJob (10 occurrences)
 ## Admin Dashboard (Filament)
 
 ```
-http://localhost:8000/admin
+https://admin.safemove.tech/admin
 ```
 
 Ressources :
@@ -411,6 +411,22 @@ Phase 7 — API publique dispute             ⏳
            Notifications email/websocket   ⏳
            Upload pièces jointes S3        ⏳
            PSP réel (Kkiapay sandbox)      ⏳
+```
+
+## 🚀 Démo live
+
+| Service        | URL                                                                    |
+| -------------- | ---------------------------------------------------------------------- |
+| Frontend       | [https://safemove.tech](https://safemove.tech)                         |
+| Admin Filament | [https://admin.safemove.tech/admin](https://admin.safemove.tech/admin) |
+| API            | `https://safemove.tech/api/v1`                                         |
+
+Credentials démo :
+
+```
+sender@gpvalise.com   / password
+traveler@gpvalise.com / password
+admin@gpvalise.com    / password
 ```
 
 ---
