@@ -138,7 +138,7 @@ class BookingController extends Controller
             'booking_id'     => $booking->id,
             'amount'         => $transaction->amount,
             'status'         => $transaction->status,
-            'payment_url'    => null,
+            'payment_url'    => $transaction->checkout_url ?? null,
         ], 201);
     }
 }

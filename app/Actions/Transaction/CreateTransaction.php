@@ -119,7 +119,7 @@ class CreateTransaction
                 ]);
             }
 
-            return $user->transactions()->create([
+            $transaction = $user->transactions()->create([
                 ...$data,
                 'booking_id' => $booking->id,
                 'type' => TransactionTypeEnum::CHARGE,
@@ -129,6 +129,8 @@ class CreateTransaction
                 'provider_transaction_id' => $providerResult->providerTransactionId,
                 'processed_at' => $status === TransactionStatusEnum::COMPLETED ? now() : null,
             ])->fresh();
+            $transaction->checkout_url = $providerResult->checkoutUrl;
+            return $transaction;
         });
 
         event(new TransactionCreated($transaction));
