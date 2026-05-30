@@ -38,7 +38,7 @@ class LocationFactory extends Factory
     {
         return $this->state(fn() => [
             'position' => LocationPositionEnum::ETAPE,
-            'type' => fake()->randomElement([LocationTypeEnum::HUB, LocationTypeEnum::DOUANE]),
+            'type' => $this->faker->randomElement([LocationTypeEnum::HUB, LocationTypeEnum::DOUANE]),
             'order_index' => $i,
         ]);
     }

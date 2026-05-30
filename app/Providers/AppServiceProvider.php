@@ -35,6 +35,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if (app()->environment('production')) {
+            \Illuminate\Support\Facades\URL::forceScheme('https');
+        }
         RateLimiter::for('webhooks', function (Request $request) {
             return Limit::perMinute(60);
         });

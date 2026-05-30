@@ -13,7 +13,7 @@ class UserFactory extends Factory
 
     public function definition(): array
     {
-        $faker = fake();
+        $faker = \Faker\Factory::create();
 
         return [
             'first_name'      => $faker->firstName,
