@@ -7,6 +7,9 @@ use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Filament\Resources\TransactionResource\Pages;
 use App\Models\Transaction;
+use Filament\Infolists\Components\Section;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Filters\SelectFilter;
@@ -24,6 +27,76 @@ class TransactionResource extends Resource
     protected static ?string $modelLabel = 'Transaction';
 
     protected static ?string $pluralModelLabel = 'Transactions';
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Section::make('Transaction')
+                    ->columns(3)
+                    ->schema([
+                        TextEntry::make('type')
+                            ->label('Type')
+                            ->badge()
+                            ->formatStateUsing(fn(TransactionTypeEnum $state) => $state->label())
+                            ->color(fn(TransactionTypeEnum $state) => match ($state) {
+                                TransactionTypeEnum::CHARGE      => 'info',
+                                TransactionTypeEnum::PAYOUT      => 'success',
+                                TransactionTypeEnum::REFUND      => 'warning',
+                                TransactionTypeEnum::FEE         => 'primary',
+                                TransactionTypeEnum::PAYMENT_FEE => 'gray',
+                            }),
+
+                        TextEntry::make('status')
+                            ->label('Statut')
+                            ->badge()
+                            ->formatStateUsing(fn(TransactionStatusEnum $state) => $state->label())
+                            ->color(fn(TransactionStatusEnum $state) => $state->color()),
+
+                        TextEntry::make('amount')
+                            ->label('Montant')
+                            ->size(TextEntry\TextEntrySize::Large)
+                            ->weight(\Filament\Support\Enums\FontWeight::Bold)
+                            ->getStateUsing(
+                                fn(Transaction $record) =>
+                                number_format($record->amount / 100, 2, ',', ' ') . ' ' . $record->currency->value
+                            ),
+                    ]),
+
+                Section::make('Références')
+                    ->columns(3)
+                    ->schema([
+                        TextEntry::make('booking_id')
+                            ->label('Booking #')
+                            ->url(fn(Transaction $record) => route('filament.admin.resources.bookings.view', [
+                                'record' => $record->booking_id,
+                            ])),
+
+                        TextEntry::make('user.email')
+                            ->label('Utilisateur'),
+
+                        TextEntry::make('provider_transaction_id')
+                            ->label('Provider Tx ID')
+                            ->copyable(),
+                    ]),
+
+                Section::make('Traçabilité')
+                    ->columns(2)
+                    ->schema([
+                        TextEntry::make('correlation_id')
+                            ->label('Correlation ID')
+                            ->copyable(),
+
+                        TextEntry::make('processed_at')
+                            ->label('Traité le')
+                            ->dateTime('d/m/Y H:i'),
+
+                        TextEntry::make('created_at')
+                            ->label('Créée le')
+                            ->dateTime('d/m/Y H:i'),
+                    ]),
+            ]);
+    }
 
     public static function table(Table $table): Table
     {
