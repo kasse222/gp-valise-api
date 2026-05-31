@@ -7,6 +7,10 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\LedgerAccountResource\Pages;
 use App\Models\LedgerAccount;
 use App\Services\LedgerReader;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\Section;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Filters\SelectFilter;
@@ -110,6 +114,85 @@ final class LedgerAccountResource extends Resource
                 Tables\Actions\ViewAction::make(),
             ])
             ->bulkActions([]);
+    }
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Section::make('Compte')
+                    ->columns(4)
+                    ->schema([
+                        TextEntry::make('slug')
+                            ->label('Slug')
+                            ->badge(),
+
+                        TextEntry::make('name')
+                            ->label('Nom'),
+
+                        TextEntry::make('type')
+                            ->label('Type')
+                            ->badge()
+                            ->formatStateUsing(fn($state) => $state?->label() ?? '-'),
+
+                        TextEntry::make('currency')
+                            ->label('Devise')
+                            ->badge()
+                            ->formatStateUsing(fn($state) => $state instanceof \BackedEnum ? $state->value : (string) $state),
+                    ]),
+
+                Section::make('Balance')
+                    ->schema([
+                        TextEntry::make('balance_display')
+                            ->label('Balance actuelle')
+                            ->size(TextEntry\TextEntrySize::Large)
+                            ->weight(\Filament\Support\Enums\FontWeight::Bold)
+                            ->getStateUsing(function (LedgerAccount $record): string {
+                                $reader   = app(\App\Services\LedgerReader::class);
+                                $balance  = $reader->balanceFor($record->slug);
+                                $currency = $record->currency instanceof \BackedEnum
+                                    ? $record->currency->value
+                                    : (string) $record->currency;
+                                return number_format($balance / 100, 2, ',', ' ') . ' ' . $currency;
+                            }),
+                    ]),
+
+                Section::make('Entrées comptables')
+                    ->schema([
+                        RepeatableEntry::make('entries')
+                            ->label('')
+                            ->schema([
+                                TextEntry::make('created_at')
+                                    ->label('Date')
+                                    ->dateTime('d/m/Y H:i'),
+
+                                TextEntry::make('transaction_id')
+                                    ->label('Transaction'),
+
+                                TextEntry::make('direction')
+                                    ->label('Sens')
+                                    ->badge()
+                                    ->color(fn($state) => match ((string)$state) {
+                                        'DEBIT'  => 'danger',
+                                        'CREDIT' => 'success',
+                                        default  => 'gray',
+                                    })
+                                    ->formatStateUsing(fn($state) => $state instanceof \BackedEnum ? $state->value : (string) $state),
+
+                                TextEntry::make('amount')
+                                    ->label('Montant')
+                                    ->getStateUsing(function ($record): string {
+                                        $currency = $record->account?->currency instanceof \BackedEnum
+                                            ? $record->account->currency->value
+                                            : 'EUR';
+                                        return number_format($record->amount / 100, 2, ',', ' ') . ' ' . $currency;
+                                    }),
+
+                                TextEntry::make('description')
+                                    ->label('Description'),
+                            ])
+                            ->columns(5),
+                    ]),
+            ]);
     }
 
     public static function canCreate(): bool
