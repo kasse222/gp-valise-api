@@ -20,7 +20,7 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
-class KvtecPanelProvider extends PanelProvider
+class AdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
@@ -45,8 +45,11 @@ class KvtecPanelProvider extends PanelProvider
                 Pages\Dashboard::class,
             ])
             ->widgets([
-                Widgets\AccountWidget::class, // ← widget Filament natif — doit rester ici
+                Widgets\AccountWidget::class,
+                \App\Filament\Widgets\EscrowBalanceWidget::class,
                 \App\Filament\Widgets\BookingStatsWidget::class,
+                \App\Filament\Widgets\RevenueWidget::class,
+                \App\Filament\Widgets\FinancialKpisWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,
