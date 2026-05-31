@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             ReportSeeder::class,
             InvitationSeeder::class,
             LedgerAccountSeeder::class,
+            LedgerDemoSeeder::class,
         ]);
     }
 }
