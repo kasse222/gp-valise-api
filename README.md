@@ -406,8 +406,9 @@ Phase 2 — PSP routing Kkiapay/Stripe       ✅
 Phase 3 — platform_accounts + PostgreSQL   ✅
 Phase 4 — Escrow 48h + OpenDispute         ✅
 Phase 5 — Ledger double-entry              ✅
-Phase 6 — Dispute system v2               ✅
-Phase 7 — API publique dispute             ⏳
+Phase 6 — Dispute system v2                ✅
+Phase 7 — PayDunya sandbox production      ✅
+           API publique dispute             ⏳
            Notifications email/websocket   ⏳
            Upload pièces jointes S3        ⏳
            PSP réel (Kkiapay sandbox)      ⏳
