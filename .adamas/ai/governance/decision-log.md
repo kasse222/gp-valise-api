@@ -1437,3 +1437,123 @@ Actions
 ✅ actif — Phase 6 dispute system v2 complété
 ⏳ à venir — DisputeResource Filament
 ⏳ à venir — API publique lecture (expéditeur/voyageur) Phase 7
+
+## [2026-05] — Déploiement production VPS Hetzner
+
+### Contexte
+
+GP-Valise Phase 6 complétée — besoin de déployer en production pour démonstration et entretiens.
+
+### Décision
+
+Infrastructure mono-VPS Hetzner CX22 (2 vCPU, 4GB RAM, 9.49$/mois) :
+
+- Backend Laravel 12 via Docker Compose (app + horizon + nginx + postgres + redis)
+- Frontend React 19 buildé statiquement servi par Nginx système
+- Admin Filament sur sous-domaine dédié `admin.safemove.tech`
+
+Stack Nginx :
+
+```txt
+safemove.tech       → /var/www/gp-valise-front/dist (statique)
+/api/*              → proxy localhost:8080 (Docker)
+admin.safemove.tech → proxy localhost:8080 (Docker)
+```
+
+### Problèmes résolus
+
+- SSL Let's Encrypt sur 3 domaines via Certbot
+- Mixed content Filament : `URL::forceScheme('https')` dans AppServiceProvider
+- Redirect guest Filament : `redirectGuestsTo()` retournait `null` — fix pour `/admin/*`
+- `FakeProvider` interdit en production : `country` null → fallback `SN` côté frontend
+- `checkout_url` non retourné : `$transaction->checkout_url = $providerResult->checkoutUrl`
+- Factories indisponibles en prod : `fakerphp/faker` ajouté en dépendance prod
+
+### Conséquences
+
+- `APP_URL=https://admin.safemove.tech` + `ASSET_URL` + `TRUSTED_PROXIES=*`
+- `SESSION_SECURE_COOKIE=true` + `SESSION_DOMAIN=admin.safemove.tech`
+- `docker-compose.prod.yml` + `nginx.prod.conf` versionnés dans le repo
+
+### Statut
+
+✅ actif
+
+---
+
+## [2026-05] — PayDunya sandbox intégré en production
+
+### Contexte
+
+PSP routing configuré avec `FakeProvider` comme fallback. Besoin d'un PSP réel pour la démo.
+
+### Décision
+
+PayDunya sandbox activé sur le corridor SN (Sénégal) :
+
+```txt
+country=SN + mobile_money → PayDunyaProvider
+```
+
+Variables `.env` prod :
+
+```txt
+PAYDUNYA_MASTER_KEY=...
+PAYDUNYA_PUBLIC_KEY=test_public_...
+PAYDUNYA_PRIVATE_KEY=test_private_...
+PAYDUNYA_TOKEN=...
+PAYDUNYA_MODE=test
+PAYDUNYA_SUCCESS_URL=https://safemove.tech/payment/success
+PAYDUNYA_CANCEL_URL=https://safemove.tech/payment/cancel
+PAYDUNYA_CALLBACK_URL=https://safemove.tech/api/v1/webhooks/paydunya
+```
+
+Flow validé : POST pay → PayDunya API → token + checkout_url → redirect browser.
+
+### Limites
+
+- Token PayDunya sandbox expire en quelques secondes (limitation sandbox)
+- Pays frontend hardcodé `SN` comme fallback (fix `BookingDetailPage.tsx`)
+
+### Statut
+
+✅ actif — sandbox
+⏳ à remplacer — clés production après KYC validé
+
+---
+
+## [2026-05] — Frontend responsive mobile
+
+### Contexte
+
+Sidebar fixe visible sur mobile bloquait le contenu. Pas de hamburger menu.
+
+### Décision
+
+`AppLayout.tsx` refactorisé :
+
+- Sidebar desktop : `hidden md:flex` fixed
+- Sidebar mobile : drawer avec `translate-x` + overlay `bg-black/40`
+- Topbar mobile sticky avec bouton hamburger
+
+### Statut
+
+✅ actif
+
+---
+
+## [2026-05] — Recherche trajets fonctionnelle
+
+### Contexte
+
+Le formulaire de recherche sur la landing était factice (champs non interactifs).
+
+### Décision
+
+- `LandingPage.tsx` : 3 states `departure/destination/date` + navigation vers `/trips?params`
+- `TripsPublicPage.tsx` : lecture `useSearchParams` + filtrage côté client + barre de recherche inline
+- Filtrage : `includes()` sur départ/destination, `startsWith()` sur date
+
+### Statut
+
+✅ actif
