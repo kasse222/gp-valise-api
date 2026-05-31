@@ -639,6 +639,24 @@ Le système financier GP-Valise est conçu pour être :
 
 > La priorité absolue est la cohérence transactionnelle.
 
+# PSP actif en production (sandbox)
+
+| Corridor | Provider     | Méthode      | Statut           |
+| -------- | ------------ | ------------ | ---------------- |
+| SN       | PayDunya     | Mobile Money | ✅ sandbox actif |
+| BJ / CI  | Kkiapay      | Mobile Money | ⏳ à configurer  |
+| MA / FR  | Stripe       | Card         | ⏳ à configurer  |
+| fallback | FakeProvider | —            | ❌ prod interdit |
+
+Flow validé end-to-end :
+
+```txt
+POST /api/v1/bookings/{id}/pay
+→ PayDunyaProvider::charge()
+→ token + checkout_url
+→ redirect browser → PayDunya sandbox
+```
+
 ```
 
 ```
