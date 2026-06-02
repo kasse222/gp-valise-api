@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\{
     TransactionController,
     TripController,
     UserController,
+    WaitlistEmailController,
     WebhookController
 };
 use App\Http\Middleware\EnsureRole;
@@ -33,6 +34,9 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
     Route::post('/webhooks/{providerKey}', WebhookController::class)
         ->middleware(['throttle:webhooks'])
         ->name('webhooks.payment');
+
+    Route::post('/waitlist', [WaitlistEmailController::class, 'store'])
+        ->name('waitlist.store');
 });
 
 Route::prefix('v1')
