@@ -7,7 +7,7 @@ GP-Valise modélise un système SaaS réel avec réservation de capacité, paiem
 ---
 
 [![CI](https://github.com/kasse222/gp-valise-api/actions/workflows/ci.yml/badge.svg)](https://github.com/kasse222/gp-valise-api/actions)
-[![Tests](https://img.shields.io/badge/tests-415%20passing-brightgreen)](#tests)
+[![Tests](https://img.shields.io/badge/tests-435%20passing-brightgreen)](#tests)
 [![Laravel](https://img.shields.io/badge/Laravel-12-red.svg)](https://laravel.com)
 [![PHP](https://img.shields.io/badge/PHP-8.2-blue.svg)](https://php.net)
 
@@ -31,7 +31,7 @@ Le projet vise un backend SaaS crédible, traçable et testable, avec une archit
 - PostgreSQL 16 Alpine
 - Redis / Horizon
 - Docker / Docker Compose
-- PestPHP (415 tests / 985 assertions)
+- PestPHP (435 tests / 1024 assertions)
 - GitHub Actions CI
 - Filament 3.3 (admin panel)
 - Sanctum
@@ -84,25 +84,29 @@ Responsabilités :
 - Queue monitoring / retry storm detection
 - Observability / Correlation ID
 - Filament Admin Dashboard
+- Waitlist email (collecte early adopters)
 
 ---
 
 ## Booking lifecycle
 
 ```
-EN_PAIEMENT → CONFIRMEE → LIVREE → TERMINE
+PENDING_APPROVAL → EN_PAIEMENT → CONFIRMEE → LIVREE → TERMINE
 ```
 
 Cas alternatifs :
 
 ```
-EN_PAIEMENT     → EXPIREE | ANNULE | PAIEMENT_ECHOUE
-CONFIRMEE       → REMBOURSEE (via webhook refund.completed)
-CONFIRMEE/LIVREE → EN_LITIGE → REMBOURSEE | TERMINE
+PENDING_APPROVAL    → DECLINED_BY_TRAVELER | ANNULE
+EN_PAIEMENT         → EXPIREE | ANNULE | PAIEMENT_ECHOUE
+CONFIRMEE           → REMBOURSEE (via webhook refund.completed)
+CONFIRMEE/LIVREE    → EN_LITIGE → REMBOURSEE | TERMINE
 ```
 
 Règles :
 
+- le sender crée une réservation en `PENDING_APPROVAL`
+- le traveler accepte (`EN_PAIEMENT`) ou refuse (`DECLINED_BY_TRAVELER`)
 - aucune confirmation sans `CHARGE COMPLETED`
 - escrow 48h avant payout (configurable via `GPVALISE_ESCROW_DELAY_HOURS`)
 - `disputed_at !== null` → escrow bloqué indéfiniment
@@ -276,11 +280,12 @@ Ressources :
 - Transactions — badges type/status, montants
 - Ledger Accounts — balances EUR/XOF calculées
 - Ledger Entries — écritures double-entry
+- Waitlist — emails collectés, filtre par rôle
 
 Widgets dashboard :
 
 - Escrow EUR/XOF + `isBalanced()` ✓
-- Bookings par statut (EN_PAIEMENT / CONFIRMEE / LIVREE / EN_LITIGE)
+- Bookings par statut (PENDING_APPROVAL / EN_PAIEMENT / CONFIRMEE / LIVREE / EN_LITIGE)
 - Revenue EUR/XOF + profit net
 
 Action admin :
@@ -296,13 +301,14 @@ make test
 ```
 
 ```
-Tests:    415 passed (988 assertions)
-Duration: ~5.5s
+Tests:    435 passed (1024 assertions)
+Duration: ~6s
 ```
 
 Couverture :
 
 - actions métier (booking, transaction, refund, payout, webhook)
+- confirmation traveler (approve/decline)
 - escrow lifecycle + dispute system v2
 - ledger double-entry (LedgerWriter + LedgerReader)
 - controllers API + policies
@@ -311,6 +317,7 @@ Couverture :
 - correlation_id propagation
 - queue monitoring + retry storm detection
 - webhook idempotence + HMAC
+- capacity semantics (PENDING_APPROVAL inclus)
 
 Types de tests :
 
@@ -321,6 +328,8 @@ Types de tests :
 - Queue monitoring tests
 - Audit integrity tests
 - Concurrency tests
+
+---
 
 ## Sécurité
 
@@ -340,7 +349,7 @@ GitHub Actions :
 
 - installation Composer
 - migrations PostgreSQL
-- PestPHP (415 tests)
+- PestPHP (435 tests)
 - Redis service
 
 ---
@@ -401,18 +410,23 @@ Le dossier `.adamas/` documente les règles d'ingénierie du projet :
 ## Roadmap
 
 ```
-Phase 1 — MVP                              ✅
-Phase 2 — PSP routing Kkiapay/Stripe       ✅
-Phase 3 — platform_accounts + PostgreSQL   ✅
-Phase 4 — Escrow 48h + OpenDispute         ✅
-Phase 5 — Ledger double-entry              ✅
-Phase 6 — Dispute system v2                ✅
-Phase 7 — PayDunya sandbox production      ✅
-           API publique dispute             ⏳
-           Notifications email/websocket   ⏳
-           Upload pièces jointes S3        ⏳
-           PSP réel (Kkiapay sandbox)      ⏳
+Phase 1 — MVP                                    ✅
+Phase 2 — PSP routing Kkiapay/Stripe             ✅
+Phase 3 — platform_accounts + PostgreSQL         ✅
+Phase 4 — Escrow 48h + OpenDispute               ✅
+Phase 5 — Ledger double-entry                    ✅
+Phase 6 — Dispute system v2                      ✅
+Phase 7 — PayDunya sandbox production            ✅
+Phase 8 — Confirmation traveler (PENDING_APPROVAL) ✅
+           Waitlist email collecte               ✅
+           API publique dispute                  ⏳
+           KYC manuel                            ⏳
+           Notifications email/websocket         ⏳
+           Upload pièces jointes S3              ⏳
+           PSP réel (Kkiapay sandbox)            ⏳
 ```
+
+---
 
 ## 🚀 Démo live
 
@@ -450,8 +464,3 @@ Je conçois des backends SaaS robustes avec :
 📧 kasse.lamine.dev@icloud.com
 🔗 [LinkedIn](https://www.linkedin.com/in/lamine-kasse-05742536a)
 🔗 [GitHub](https://github.com/kasse222/gp-valise-api)
-
-```
-
----
-```
