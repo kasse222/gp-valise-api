@@ -71,17 +71,17 @@ it('crée une réservation (store)', function (): void {
         'items'   => [
             [
                 'luggage_id'  => $luggage->id,
-                'kg_reserved' => 2500,  // ← grammes : 2.5kg
-                'price'       => 10000, // ← centimes : 100.00€
+                'kg_reserved' => 2500,
+                'price'       => 10000,
             ],
         ],
     ];
 
     $this->postJson('/api/v1/bookings', $data)
         ->assertCreated()
-        ->assertJsonPath('data.status', BookingStatusEnum::EN_PAIEMENT->value)
+        ->assertJsonPath('data.status', BookingStatusEnum::PENDING_APPROVAL->value)
         ->assertJsonPath('data.items.0.luggage.id', $luggage->id)
-        ->assertJsonPath('data.payment_expires_at', fn($value) => ! is_null($value));
+        ->assertJsonPath('data.payment_expires_at', null);
 });
 
 it('supprime une réservation (destroy)', function (): void {
@@ -121,11 +121,12 @@ it('autorise la création de réservation à un SENDER (201)', function (): void
         'items'   => [
             [
                 'luggage_id'  => $luggage->id,
-                'kg_reserved' => 2000,  // ← grammes : 2kg
-                'price'       => 5000,  // ← centimes : 50.00€
+                'kg_reserved' => 2000,
+                'price'       => 5000,
             ],
         ],
-    ])->assertCreated();
+    ])->assertCreated()
+        ->assertJsonPath('data.status', BookingStatusEnum::PENDING_APPROVAL->value);
 });
 
 it('refuse la création de réservation à un ADMIN (403)', function (): void {

@@ -1,11 +1,10 @@
-````md
 # 🧠 Booking Domain — GP-Valise
 
 ---
 
 # 🎯 Objectif
 
-Le Booking est l’entité centrale du système GP-Valise.
+Le Booking est l'entité centrale du système GP-Valise.
 
 Il représente :
 
@@ -18,7 +17,6 @@ Il garantit la cohérence entre :
 ```txt
 Expéditeur ↔ Trip ↔ Luggage ↔ Transaction
 ```
-````
 
 ---
 
@@ -54,6 +52,7 @@ Le Booking :
 
 ```txt
 EN_ATTENTE
+→ PENDING_APPROVAL
 → EN_PAIEMENT
 → CONFIRMEE
 → LIVREE
@@ -64,12 +63,14 @@ EN_ATTENTE
 
 ## États alternatifs
 
-| Statut     | Description               |
-| ---------- | ------------------------- |
-| EXPIREE    | paiement non effectué     |
-| ANNULE     | annulé avant confirmation |
-| REMBOURSEE | refund effectué           |
-| EN_LITIGE  | problème déclaré          |
+| Statut               | Description                          |
+| -------------------- | ------------------------------------ |
+| PENDING_APPROVAL     | en attente d'acceptation du voyageur |
+| DECLINED_BY_TRAVELER | refusé explicitement par le voyageur |
+| EXPIREE              | paiement non effectué                |
+| ANNULE               | annulé avant confirmation            |
+| REMBOURSEE           | refund effectué                      |
+| EN_LITIGE            | problème déclaré                     |
 
 ---
 
@@ -86,6 +87,7 @@ TERMINE
 REMBOURSEE
 ANNULE
 EXPIREE
+DECLINED_BY_TRAVELER
 ```
 
 Une fois finalisé :
@@ -150,6 +152,26 @@ Le payout devient éligible uniquement après :
 
 ---
 
+## Approbation traveler
+
+Un booking passe à `EN_PAIEMENT` uniquement si :
+
+- statut actuel = `PENDING_APPROVAL`
+- le voyageur du trip a explicitement accepté
+
+Si le voyageur refuse :
+
+- statut → `DECLINED_BY_TRAVELER`
+- capacité libérée
+- bagages remis disponibles
+
+Si le sender annule depuis `PENDING_APPROVAL` :
+
+- statut → `ANNULE`
+- capacité libérée
+
+---
+
 ## Confirmation
 
 Un booking devient `CONFIRMEE` uniquement si :
@@ -207,7 +229,7 @@ Le scheduler escrow est responsable de la libération.
 
 Possible uniquement si :
 
-- booking non confirmé
+- booking en `PENDING_APPROVAL` ou non confirmé
 - aucun engagement financier irréversible
 
 ---
@@ -216,7 +238,7 @@ Possible uniquement si :
 
 Un litige :
 
-- bloque l’escrow
+- bloque l'escrow
 - interdit le payout
 - peut mener à refund admin
 - nécessite résolution explicite
@@ -262,7 +284,7 @@ fonds transférés au voyageur
 Après refund :
 
 ```txt
-fonds retournés à l’expéditeur
+fonds retournés à l'expéditeur
 ```
 
 Le Booking ne possède jamais directement les fonds.
@@ -290,9 +312,9 @@ EN_ATTENTE
 
 ## Règles
 
-- un bagage ne peut être réservé qu’une seule fois
-- dépend toujours d’un Booking
-- libéré si booking expire ou annulé
+- un bagage ne peut être réservé qu'une seule fois
+- dépend toujours d'un Booking
+- libéré si booking expire, annulé ou refusé par le voyageur
 
 ---
 
@@ -318,6 +340,7 @@ Comptabilisés :
 
 - CONFIRMEE
 - EN_PAIEMENT non expiré
+- PENDING_APPROVAL (capacité réservée dès la demande)
 
 ---
 
@@ -365,6 +388,7 @@ Autorisés :
 ## Cas critiques
 
 - réservation
+- approbation traveler
 - confirmation
 - expiration
 - payout release
@@ -384,6 +408,7 @@ Autorisés :
 
 Doit être garantie pour :
 
+- approbation / refus traveler
 - confirmation
 - expiration
 - payout release
@@ -412,18 +437,22 @@ BookingStatusEnum
 
 ## Table des transitions autorisées
 
-| De → Vers                | Déclencheur            |
-| ------------------------ | ---------------------- |
-| EN_ATTENTE → EN_PAIEMENT | paiement initié        |
-| EN_PAIEMENT → CONFIRMEE  | charge completed       |
-| EN_PAIEMENT → EXPIREE    | expiration paiement    |
-| CONFIRMEE → LIVREE       | livraison confirmée    |
-| CONFIRMEE → EN_LITIGE    | ouverture litige       |
-| CONFIRMEE → REMBOURSEE   | refund completed       |
-| LIVREE → EN_LITIGE       | dispute post-livraison |
-| LIVREE → TERMINE         | payout completed       |
-| EN_LITIGE → REMBOURSEE   | refund admin           |
-| EN_LITIGE → LIVREE       | résolution litige      |
+| De → Vers                               | Déclencheur                 |
+| --------------------------------------- | --------------------------- |
+| EN_ATTENTE → PENDING_APPROVAL           | booking créé par sender     |
+| PENDING_APPROVAL → EN_PAIEMENT          | traveler accepte            |
+| PENDING_APPROVAL → DECLINED_BY_TRAVELER | traveler refuse             |
+| PENDING_APPROVAL → ANNULE               | sender annule ou expiration |
+| EN_PAIEMENT → CONFIRMEE                 | charge completed            |
+| EN_PAIEMENT → EXPIREE                   | expiration paiement         |
+| EN_PAIEMENT → ANNULE                    | annulation avant paiement   |
+| CONFIRMEE → LIVREE                      | livraison confirmée         |
+| CONFIRMEE → EN_LITIGE                   | ouverture litige            |
+| CONFIRMEE → REMBOURSEE                  | refund completed            |
+| LIVREE → EN_LITIGE                      | dispute post-livraison      |
+| LIVREE → TERMINE                        | payout completed            |
+| EN_LITIGE → REMBOURSEE                  | refund admin                |
+| EN_LITIGE → LIVREE                      | résolution litige           |
 
 ---
 
@@ -485,6 +514,7 @@ Accès via Policies :
 Le domaine doit être testé pour :
 
 - transitions
+- approbation / refus traveler
 - capacité
 - concurrence
 - escrow
@@ -504,6 +534,7 @@ Le domaine doit être testé pour :
 - float pour money/weight
 - réservation sans lock
 - payout immédiat à LIVREE
+- paiement sans approbation traveler
 
 ---
 
@@ -546,8 +577,3 @@ Le Booking est conçu pour :
 - évoluer vers un backend marketplace robuste
 
 > Un Booking mal conçu casse tout le système.
-
-```
-
-```
-

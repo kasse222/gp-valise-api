@@ -67,7 +67,6 @@ Route::prefix('v1')
             Route::post('/{user}/upgrade-plan', [UserController::class, 'upgradePlan'])->name('upgrade_plan');
         });
 
-
         Route::middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)->group(function (): void {
             Route::post('/trips', [TripController::class, 'store'])->name('trips.store');
             Route::put('/trips/{trip}', [TripController::class, 'update'])->name('trips.update');
@@ -106,17 +105,20 @@ Route::prefix('v1')
             Route::delete('/bookings/{booking}', [BookingController::class, 'destroy'])->name('bookings.destroy');
         });
 
-        Route::post('/bookings/{booking}/confirm', [BookingController::class, 'confirm'])
-            ->middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)
-            ->name('bookings.confirm');
+        Route::middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)->group(function (): void {
+            Route::post('/bookings/{booking}/approve', [BookingController::class, 'approve'])
+                ->name('bookings.approve');
+            Route::post('/bookings/{booking}/decline', [BookingController::class, 'decline'])
+                ->name('bookings.decline');
+            Route::post('/bookings/{booking}/confirm', [BookingController::class, 'confirm'])
+                ->name('bookings.confirm');
+            Route::post('/bookings/{booking}/complete', [BookingController::class, 'complete'])
+                ->name('bookings.complete');
+        });
 
         Route::post('/bookings/{booking}/cancel', [BookingController::class, 'cancel'])
             ->middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value . ',' . UserRoleEnum::SENDER->value)
             ->name('bookings.cancel');
-
-        Route::post('/bookings/{booking}/complete', [BookingController::class, 'complete'])
-            ->middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)
-            ->name('bookings.complete');
 
         Route::prefix('bookings/{booking}')->name('bookings.')->group(function (): void {
             Route::get('items', [BookingItemController::class, 'index'])->name('items.index');
