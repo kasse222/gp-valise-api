@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Booking\ApproveBooking;
 use App\Actions\Booking\CancelBooking;
 use App\Actions\Booking\CompleteBooking;
 use App\Actions\Booking\ConfirmBooking;
+use App\Actions\Booking\DeclineBooking;
 use App\Actions\Booking\DeleteBooking;
 use App\Actions\Booking\GetBookingDetails;
 use App\Actions\Booking\GetUserBookings;
@@ -15,6 +17,7 @@ use App\Http\Requests\Booking\StoreBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
@@ -22,14 +25,12 @@ class BookingController extends Controller
 {
     use AuthorizesRequests;
 
-
     public function index(Request $request, GetUserBookings $action)
     {
         $bookings = $action->execute($request->user());
 
         return BookingResource::collection($bookings);
     }
-
 
     public function store(StoreBookingRequest $request, ReserveBooking $action)
     {
@@ -39,11 +40,11 @@ class BookingController extends Controller
             $request->user(),
             $request->validated()
         );
+
         return (new BookingResource($booking))
             ->response()
             ->setStatusCode(201);
     }
-
 
     public function show(Booking $booking, GetBookingDetails $action)
     {
@@ -53,7 +54,6 @@ class BookingController extends Controller
 
         return new BookingResource($booking->loadMissing('bookingItems.luggage'));
     }
-
 
     public function destroy(Booking $booking, DeleteBooking $action)
     {
@@ -66,6 +66,29 @@ class BookingController extends Controller
         ]);
     }
 
+    public function approve(Request $request, Booking $booking, ApproveBooking $action): JsonResponse
+    {
+        $this->authorize('approve', $booking);
+
+        $booking = $action->execute($booking, $request->user());
+
+        return response()->json([
+            'message' => 'Réservation approuvée.',
+            'data'    => new BookingResource($booking),
+        ]);
+    }
+
+    public function decline(Request $request, Booking $booking, DeclineBooking $action): JsonResponse
+    {
+        $this->authorize('decline', $booking);
+
+        $booking = $action->execute($booking, $request->user());
+
+        return response()->json([
+            'message' => 'Réservation refusée.',
+            'data'    => new BookingResource($booking),
+        ]);
+    }
 
     public function confirm(Request $request, Booking $booking, ConfirmBooking $action)
     {
@@ -75,7 +98,6 @@ class BookingController extends Controller
 
         return new BookingResource($booking->load('bookingItems.luggage'));
     }
-
 
     public function cancel(Request $request, Booking $booking, CancelBooking $action)
     {
@@ -88,7 +110,6 @@ class BookingController extends Controller
         );
     }
 
-
     public function complete(Request $request, Booking $booking, CompleteBooking $action)
     {
         $this->authorize('complete', $booking);
@@ -100,7 +121,6 @@ class BookingController extends Controller
             'booking' => new BookingResource($booking->load('bookingItems.luggage')),
         ]);
     }
-
 
     public function pay(PayBookingRequest $request, Booking $booking, CreateTransaction $action)
     {

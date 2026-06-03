@@ -47,6 +47,18 @@ class BookingPolicy
             || $this->isAdmin($user);
     }
 
+    public function approve(User $user, Booking $booking): bool
+    {
+        return $this->isTraveler($user, $booking)
+            || $this->isAdmin($user);
+    }
+
+    public function decline(User $user, Booking $booking): bool
+    {
+        return $this->isTraveler($user, $booking)
+            || $this->isAdmin($user);
+    }
+
     public function cancel(User $user, Booking $booking): bool
     {
         return $this->isSender($user, $booking)

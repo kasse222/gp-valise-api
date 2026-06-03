@@ -4,19 +4,19 @@ namespace App\Enums;
 
 enum BookingStatusEnum: string
 {
-    case EN_ATTENTE = 'en_attente';
-    case EN_PAIEMENT = 'en_paiement';
-    case PAIEMENT_ECHOUE = 'paiement_echoue';
-
-    case CONFIRMEE = 'confirmee';
-    case LIVREE = 'livree';
-    case TERMINE = 'termine';
-
-    case ANNULE = 'annule';
-    case REMBOURSEE = 'remboursee';
-    case EXPIREE = 'expiree';
-    case EN_LITIGE = 'en_litige';
-    case SUSPENDUE = 'suspendue';
+    case EN_ATTENTE           = 'en_attente';
+    case PENDING_APPROVAL     = 'pending_approval';
+    case EN_PAIEMENT          = 'en_paiement';
+    case PAIEMENT_ECHOUE      = 'paiement_echoue';
+    case CONFIRMEE            = 'confirmee';
+    case LIVREE               = 'livree';
+    case TERMINE              = 'termine';
+    case ANNULE               = 'annule';
+    case REMBOURSEE           = 'remboursee';
+    case EXPIREE              = 'expiree';
+    case EN_LITIGE            = 'en_litige';
+    case SUSPENDUE            = 'suspendue';
+    case DECLINED_BY_TRAVELER = 'declined_by_traveler';
 
     public function canTransitionTo(self $target): bool
     {
@@ -27,7 +27,13 @@ enum BookingStatusEnum: string
     {
         return match ($this) {
             self::EN_ATTENTE => [
+                self::PENDING_APPROVAL,
+                self::ANNULE,
+            ],
+
+            self::PENDING_APPROVAL => [
                 self::EN_PAIEMENT,
+                self::DECLINED_BY_TRAVELER,
                 self::ANNULE,
             ],
 
@@ -69,7 +75,8 @@ enum BookingStatusEnum: string
             self::ANNULE,
             self::REMBOURSEE,
             self::EXPIREE,
-            self::TERMINE => [],
+            self::TERMINE,
+            self::DECLINED_BY_TRAVELER => [],
         };
     }
 
@@ -80,12 +87,18 @@ enum BookingStatusEnum: string
             self::REMBOURSEE,
             self::EXPIREE,
             self::TERMINE,
+            self::DECLINED_BY_TRAVELER,
         ], true);
     }
 
     public function isPaymentPending(): bool
     {
         return $this === self::EN_PAIEMENT;
+    }
+
+    public function isPendingApproval(): bool
+    {
+        return $this === self::PENDING_APPROVAL;
     }
 
     public function isConfirmed(): bool
@@ -112,6 +125,7 @@ enum BookingStatusEnum: string
     {
         return in_array($this, [
             self::EN_ATTENTE,
+            self::PENDING_APPROVAL,
             self::EN_PAIEMENT,
             self::CONFIRMEE,
         ], true);
@@ -135,37 +149,51 @@ enum BookingStatusEnum: string
         return $this === self::EN_LITIGE;
     }
 
+    public function canBeApprovedByTraveler(): bool
+    {
+        return $this === self::PENDING_APPROVAL;
+    }
+
+    public function canBeDeclinedByTraveler(): bool
+    {
+        return $this === self::PENDING_APPROVAL;
+    }
+
     public function label(): string
     {
         return match ($this) {
-            self::EN_ATTENTE => 'En attente',
-            self::EN_PAIEMENT => 'En paiement',
-            self::PAIEMENT_ECHOUE => 'Paiement échoué',
-            self::CONFIRMEE => 'Confirmée',
-            self::LIVREE => 'Livrée',
-            self::TERMINE => 'Terminée',
-            self::ANNULE => 'Annulée',
-            self::REMBOURSEE => 'Remboursée',
-            self::EXPIREE => 'Expirée',
-            self::EN_LITIGE => 'En litige',
-            self::SUSPENDUE => 'Suspendue',
+            self::EN_ATTENTE           => 'En attente',
+            self::PENDING_APPROVAL     => 'En attente d\'approbation',
+            self::EN_PAIEMENT          => 'En paiement',
+            self::PAIEMENT_ECHOUE      => 'Paiement échoué',
+            self::CONFIRMEE            => 'Confirmée',
+            self::LIVREE               => 'Livrée',
+            self::TERMINE              => 'Terminée',
+            self::ANNULE               => 'Annulée',
+            self::REMBOURSEE           => 'Remboursée',
+            self::EXPIREE              => 'Expirée',
+            self::EN_LITIGE            => 'En litige',
+            self::SUSPENDUE            => 'Suspendue',
+            self::DECLINED_BY_TRAVELER => 'Refusée par le voyageur',
         };
     }
 
     public function color(): string
     {
         return match ($this) {
-            self::EN_ATTENTE => 'gray',
-            self::EN_PAIEMENT => 'yellow',
-            self::PAIEMENT_ECHOUE => 'red',
-            self::CONFIRMEE => 'blue',
-            self::LIVREE => 'green',
-            self::TERMINE => 'green',
-            self::ANNULE => 'red',
-            self::REMBOURSEE => 'purple',
-            self::EXPIREE => 'orange',
-            self::EN_LITIGE => 'red',
-            self::SUSPENDUE => 'gray',
+            self::EN_ATTENTE           => 'gray',
+            self::PENDING_APPROVAL     => 'yellow',
+            self::EN_PAIEMENT          => 'yellow',
+            self::PAIEMENT_ECHOUE      => 'red',
+            self::CONFIRMEE            => 'blue',
+            self::LIVREE               => 'green',
+            self::TERMINE              => 'green',
+            self::ANNULE               => 'red',
+            self::REMBOURSEE           => 'purple',
+            self::EXPIREE              => 'orange',
+            self::EN_LITIGE            => 'red',
+            self::SUSPENDUE            => 'gray',
+            self::DECLINED_BY_TRAVELER => 'red',
         };
     }
 

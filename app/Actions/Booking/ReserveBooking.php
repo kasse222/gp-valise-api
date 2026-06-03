@@ -50,8 +50,7 @@ class ReserveBooking
             $booking = Booking::query()->create([
                 'user_id' => $user->id,
                 'trip_id' => $trip->id,
-                'status' => BookingStatusEnum::EN_PAIEMENT,
-                'payment_expires_at' => now()->addMinutes(15),
+                'status'  => BookingStatusEnum::PENDING_APPROVAL,
                 'comment' => $data['comment'] ?? null,
             ]);
 

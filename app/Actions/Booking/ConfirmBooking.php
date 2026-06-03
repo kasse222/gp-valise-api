@@ -47,9 +47,15 @@ class ConfirmBooking
             $occupiedGrams    = $trip->gramsReserved(); // ← kgReserved → gramsReserved
 
             if (
-                $booking->status === BookingStatusEnum::EN_PAIEMENT
-                && $booking->payment_expires_at !== null
-                && $booking->payment_expires_at->isFuture()
+                in_array($booking->status, [
+                    BookingStatusEnum::EN_PAIEMENT,
+                    BookingStatusEnum::PENDING_APPROVAL,
+                ], true)
+                && (
+                    $booking->status === BookingStatusEnum::EN_PAIEMENT
+                    ? $booking->payment_expires_at?->isFuture()
+                    : true
+                )
             ) {
                 $occupiedGrams -= $thisBookingGrams;
             }
