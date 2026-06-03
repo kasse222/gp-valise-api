@@ -228,3 +228,48 @@ it('scopeReservable ne compte pas les EN_PAIEMENT expirés dans la capacité', f
 
     expect(Trip::reservable()->where('id', $this->trip->id)->exists())->toBeTrue();
 });
+
+it('compte les bookings PENDING_APPROVAL dans les kg réservés', function (): void {
+    $traveler = User::factory()->traveler()->create();
+    $trip     = Trip::factory()->create([
+        'user_id'  => $traveler->id,
+        'capacity' => 20000,
+    ]);
+    $sender  = User::factory()->sender()->create();
+    $booking = Booking::factory()->create([
+        'user_id' => $sender->id,
+        'trip_id' => $trip->id,
+        'status'  => BookingStatusEnum::PENDING_APPROVAL,
+    ]);
+    BookingItem::factory()->create([
+        'booking_id'  => $booking->id,
+        'trip_id'     => $trip->id,
+        'kg_reserved' => 5000,
+    ]);
+
+    expect($trip->gramsReserved())->toBe(5000);
+});
+
+it('scopeReservable exclut un trip saturé par des PENDING_APPROVAL', function (): void {
+    $traveler = User::factory()->traveler()->create();
+    $trip     = Trip::factory()->create([
+        'user_id'  => $traveler->id,
+        'capacity' => 5000,
+        'status'   => TripStatusEnum::ACTIVE,
+        'date'     => now()->addDays(5),
+    ]);
+    $sender  = User::factory()->sender()->create();
+    $booking = Booking::factory()->create([
+        'user_id' => $sender->id,
+        'trip_id' => $trip->id,
+        'status'  => BookingStatusEnum::PENDING_APPROVAL,
+    ]);
+    BookingItem::factory()->create([
+        'booking_id'  => $booking->id,
+        'trip_id'     => $trip->id,
+        'kg_reserved' => 5000,
+    ]);
+
+    $result = Trip::reservable()->where('id', $trip->id)->exists();
+    expect($result)->toBeFalse();
+});

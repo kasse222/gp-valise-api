@@ -97,6 +97,7 @@ class Trip extends Model
             ->whereHas('booking', function ($query) use ($now) {
                 $query->where(function ($q) use ($now) {
                     $q->where('status', BookingStatusEnum::CONFIRMEE->value)
+                        ->orWhere('status', BookingStatusEnum::PENDING_APPROVAL->value)
                         ->orWhere(function ($subQuery) use ($now) {
                             $subQuery->where('status', BookingStatusEnum::EN_PAIEMENT->value)
                                 ->whereNotNull('payment_expires_at')
@@ -104,7 +105,7 @@ class Trip extends Model
                         });
                 });
             })
-            ->sum('kg_reserved'); // ← à renommer en grams_reserved sur BookingItem aussi
+            ->sum('kg_reserved');
     }
 
     public function gramsDisponible(): int
@@ -131,20 +132,26 @@ class Trip extends Model
         return $query->whereIn('status', [TripStatusEnum::ACTIVE, TripStatusEnum::PENDING])
             ->where('date', '>', $now)
             ->whereRaw('
-                (
-                    SELECT COALESCE(SUM(booking_items.kg_reserved), 0)
-                    FROM bookings
-                    JOIN booking_items ON booking_items.booking_id = bookings.id
-                    WHERE bookings.trip_id = trips.id
-                    AND (
+            (
+                SELECT COALESCE(SUM(booking_items.kg_reserved), 0)
+                FROM bookings
+                JOIN booking_items ON booking_items.booking_id = bookings.id
+                WHERE bookings.trip_id = trips.id
+                AND (
+                    bookings.status = ?
+                    OR bookings.status = ?
+                    OR (
                         bookings.status = ?
-                        OR (
-                            bookings.status = ?
-                            AND bookings.payment_expires_at IS NOT NULL
-                            AND bookings.payment_expires_at > ?
-                        )
+                        AND bookings.payment_expires_at IS NOT NULL
+                        AND bookings.payment_expires_at > ?
                     )
-                ) < trips.capacity
-            ', [BookingStatusEnum::CONFIRMEE->value, BookingStatusEnum::EN_PAIEMENT->value, $now]);
+                )
+            ) < trips.capacity
+        ', [
+                BookingStatusEnum::CONFIRMEE->value,
+                BookingStatusEnum::PENDING_APPROVAL->value,
+                BookingStatusEnum::EN_PAIEMENT->value,
+                $now,
+            ]);
     }
 }
