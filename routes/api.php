@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\{
     BookingItemController,
     BookingStatusHistoryController,
     InvitationController,
+    KycRequestController,
     LocationController,
     LuggageController,
     PaymentController,
@@ -65,6 +66,11 @@ Route::prefix('v1')
             Route::post('/{user}/verify-phone', [UserController::class, 'verifyPhone'])->name('verify_phone');
             Route::post('/{user}/verify-email', [UserController::class, 'verifyEmail'])->name('verify_email');
             Route::post('/{user}/upgrade-plan', [UserController::class, 'upgradePlan'])->name('upgrade_plan');
+        });
+
+        Route::prefix('kyc')->name('kyc.')->group(function (): void {
+            Route::get('/', [KycRequestController::class, 'show'])->name('show');
+            Route::post('/', [KycRequestController::class, 'store'])->name('store');
         });
 
         Route::middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)->group(function (): void {
