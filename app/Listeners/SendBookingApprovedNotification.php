@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace App\Listeners;
 
 use App\Events\BookingApproved;
+use App\Mail\Booking\BookingApprovedMail;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Support\Facades\Mail;
 
 class SendBookingApprovedNotification implements ShouldQueue
 {
     public function handle(BookingApproved $event): void
     {
-        // TODO: Mail sender — booking approuvé, procéder au paiement
-        // Mail::to($event->booking->user)->send(new BookingApprovedMail($event->booking));
+        $booking = $event->booking->loadMissing(['user', 'trip']);
+
+        Mail::to($booking->user->email)
+            ->queue(new BookingApprovedMail($booking));
     }
 }
