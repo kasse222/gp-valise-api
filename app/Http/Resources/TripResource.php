@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
-use App\Models\Booking;
+use App\Actions\Trip\ResolvePickupVisibility;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -12,16 +13,11 @@ class TripResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $revealed = false;
-        $isOwner = (int) $request->user()?->id === (int) $this->user_id;
+        /** @var User|null $user */
+        $user = auth('sanctum')->user();
 
-        if ($request->user() && !$isOwner) {
-            $revealed = Booking::query()
-                ->where('trip_id', $this->id)
-                ->where('user_id', $request->user()->id)
-                ->whereIn('status', ['confirmee', 'livree', 'termine'])
-                ->exists();
-        }
+        ['isOwner' => $isOwner, 'revealed' => $revealed] =
+            ResolvePickupVisibility::handle($this->resource, $user);
 
         return [
             'id'            => $this->id,
@@ -54,7 +50,7 @@ class TripResource extends JsonResource
             'created_at' => optional($this->created_at)?->toDateTimeString(),
             'updated_at' => optional($this->updated_at)?->toDateTimeString(),
 
-            // Champs directs — visibles uniquement par le propriétaire du trajet
+            // Champs directs — propriétaire uniquement
             'pickup_address'        => $isOwner ? $this->pickup_address        : null,
             'pickup_city'           => $isOwner ? $this->pickup_city           : null,
             'pickup_instructions'   => $isOwner ? $this->pickup_instructions   : null,
@@ -62,12 +58,12 @@ class TripResource extends JsonResource
             'delivery_city'         => $isOwner ? $this->delivery_city         : null,
             'delivery_instructions' => $isOwner ? $this->delivery_instructions : null,
 
-            // Pickup location — objet révélé/masqué pour le sender
+            // Pickup location — révélé selon contexte
             'pickup_location' => $this->pickup_address ? [
-                'address'               => ($revealed || $isOwner) ? $this->pickup_address : null,
+                'address'               => ($revealed || $isOwner) ? $this->pickup_address      : null,
                 'city'                  => $this->pickup_city,
-                'latitude'              => ($revealed || $isOwner) ? $this->pickup_latitude   : null,
-                'longitude'             => ($revealed || $isOwner) ? $this->pickup_longitude  : null,
+                'latitude'              => ($revealed || $isOwner) ? $this->pickup_latitude     : null,
+                'longitude'             => ($revealed || $isOwner) ? $this->pickup_longitude    : null,
                 'approximate_latitude'  => $this->pickup_approx_latitude,
                 'approximate_longitude' => $this->pickup_approx_longitude,
                 'instructions'          => ($revealed || $isOwner) ? $this->pickup_instructions : null,
@@ -75,10 +71,10 @@ class TripResource extends JsonResource
             ] : null,
 
             'delivery_location' => $this->delivery_address ? [
-                'address'               => ($revealed || $isOwner) ? $this->delivery_address : null,
+                'address'               => ($revealed || $isOwner) ? $this->delivery_address      : null,
                 'city'                  => $this->delivery_city,
-                'latitude'              => ($revealed || $isOwner) ? $this->delivery_latitude   : null,
-                'longitude'             => ($revealed || $isOwner) ? $this->delivery_longitude  : null,
+                'latitude'              => ($revealed || $isOwner) ? $this->delivery_latitude     : null,
+                'longitude'             => ($revealed || $isOwner) ? $this->delivery_longitude    : null,
                 'approximate_latitude'  => $this->delivery_approx_latitude,
                 'approximate_longitude' => $this->delivery_approx_longitude,
                 'instructions'          => ($revealed || $isOwner) ? $this->delivery_instructions : null,
