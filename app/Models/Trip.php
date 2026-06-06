@@ -34,6 +34,13 @@ class Trip extends Model
         'pickup_approx_latitude',
         'pickup_approx_longitude',
         'pickup_instructions',
+        'delivery_address',
+        'delivery_city',
+        'delivery_latitude',
+        'delivery_longitude',
+        'delivery_approx_latitude',
+        'delivery_approx_longitude',
+        'delivery_instructions',
     ];
 
     protected $casts = [
