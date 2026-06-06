@@ -37,6 +37,7 @@ class TripController extends Controller
     public function store(StoreTripRequest $request, CreateTrip $action)
     {
         $trip = $action->execute($request->user(), $request->validated());
+        $trip->refresh(); // ← forcer le rechargement
 
         return (new TripResource($trip))
             ->response()
