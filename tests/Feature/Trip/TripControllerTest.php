@@ -109,6 +109,6 @@ it('crée un trajet avec pickup location', function (): void {
     postJson('/api/v1/trips', $data)
         ->assertCreated()
         ->assertJsonPath('data.pickup_location.city', 'Paris')
-        ->assertJsonPath('data.pickup_location.revealed', false)
-        ->assertJsonPath('data.pickup_location.address', null); // masqué car pas de booking confirmé
+        ->assertJsonPath('data.pickup_location.revealed', true)
+        ->assertJsonPath('data.pickup_location.address', '12 rue de la Paix');
 });
