@@ -13,7 +13,7 @@ class TripResource extends JsonResource
     public function toArray(Request $request): array
     {
         $revealed = false;
-        $isOwner  = $request->user()?->id === $this->user_id;
+        $isOwner = (int) $request->user()?->id === (int) $this->user_id;
 
         if ($request->user() && !$isOwner) {
             $revealed = Booking::query()
