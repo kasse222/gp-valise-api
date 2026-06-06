@@ -13,8 +13,9 @@ class TripResource extends JsonResource
     public function toArray(Request $request): array
     {
         $revealed = false;
+        $isOwner  = $request->user()?->id === $this->user_id;
 
-        if ($request->user()) {
+        if ($request->user() && !$isOwner) {
             $revealed = Booking::query()
                 ->where('trip_id', $this->id)
                 ->where('user_id', $request->user()->id)
@@ -53,25 +54,35 @@ class TripResource extends JsonResource
             'created_at' => optional($this->created_at)?->toDateTimeString(),
             'updated_at' => optional($this->updated_at)?->toDateTimeString(),
 
+            // Champs directs — visibles uniquement par le propriétaire du trajet
+            'pickup_address'        => $isOwner ? $this->pickup_address        : null,
+            'pickup_city'           => $isOwner ? $this->pickup_city           : null,
+            'pickup_instructions'   => $isOwner ? $this->pickup_instructions   : null,
+            'delivery_address'      => $isOwner ? $this->delivery_address      : null,
+            'delivery_city'         => $isOwner ? $this->delivery_city         : null,
+            'delivery_instructions' => $isOwner ? $this->delivery_instructions : null,
+
+            // Pickup location — objet révélé/masqué pour le sender
             'pickup_location' => $this->pickup_address ? [
-                'address'               => $revealed ? $this->pickup_address : null,
+                'address'               => ($revealed || $isOwner) ? $this->pickup_address : null,
                 'city'                  => $this->pickup_city,
-                'latitude'              => $revealed ? $this->pickup_latitude  : null,
-                'longitude'             => $revealed ? $this->pickup_longitude : null,
+                'latitude'              => ($revealed || $isOwner) ? $this->pickup_latitude   : null,
+                'longitude'             => ($revealed || $isOwner) ? $this->pickup_longitude  : null,
                 'approximate_latitude'  => $this->pickup_approx_latitude,
                 'approximate_longitude' => $this->pickup_approx_longitude,
-                'instructions'          => $revealed ? $this->pickup_instructions : null,
-                'revealed'              => $revealed,
+                'instructions'          => ($revealed || $isOwner) ? $this->pickup_instructions : null,
+                'revealed'              => $revealed || $isOwner,
             ] : null,
+
             'delivery_location' => $this->delivery_address ? [
-                'address'               => $revealed ? $this->delivery_address : null,
+                'address'               => ($revealed || $isOwner) ? $this->delivery_address : null,
                 'city'                  => $this->delivery_city,
-                'latitude'              => $revealed ? $this->delivery_latitude  : null,
-                'longitude'             => $revealed ? $this->delivery_longitude : null,
+                'latitude'              => ($revealed || $isOwner) ? $this->delivery_latitude   : null,
+                'longitude'             => ($revealed || $isOwner) ? $this->delivery_longitude  : null,
                 'approximate_latitude'  => $this->delivery_approx_latitude,
                 'approximate_longitude' => $this->delivery_approx_longitude,
-                'instructions'          => $revealed ? $this->delivery_instructions : null,
-                'revealed'              => $revealed,
+                'instructions'          => ($revealed || $isOwner) ? $this->delivery_instructions : null,
+                'revealed'              => $revealed || $isOwner,
             ] : null,
         ];
     }
