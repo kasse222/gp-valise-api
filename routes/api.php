@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\{
     BookingController,
     BookingItemController,
     BookingStatusHistoryController,
+    DisputeController,
     InvitationController,
     KycRequestController,
     LocationController,
@@ -54,7 +55,6 @@ Route::prefix('v1')
             ->group(function (): void {
                 Route::get('/audit-logs', [AuditLogController::class, 'index'])
                     ->name('audit_logs.index');
-
                 Route::get('/audit-logs/{auditLog}', [AuditLogController::class, 'show'])
                     ->name('audit_logs.show');
             });
@@ -93,7 +93,6 @@ Route::prefix('v1')
         Route::prefix('locations')->name('locations.')->group(function (): void {
             Route::get('/', [LocationController::class, 'index'])->name('index');
             Route::get('/{location}', [LocationController::class, 'show'])->name('show');
-
             Route::post('/', [LocationController::class, 'store'])
                 ->middleware(EnsureRole::class . ':' . UserRoleEnum::ADMIN->value . ',' . UserRoleEnum::TRAVELER->value)
                 ->name('store');
@@ -126,10 +125,24 @@ Route::prefix('v1')
             ->middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value . ',' . UserRoleEnum::SENDER->value)
             ->name('bookings.cancel');
 
+        // ── Dispute public API ─────────────────────────────────────────────────
+        Route::post('/bookings/{booking}/dispute', [DisputeController::class, 'open'])
+            ->middleware(EnsureRole::class . ':' . UserRoleEnum::SENDER->value)
+            ->name('bookings.dispute.open');
+
+        Route::prefix('disputes')->name('disputes.')->group(function (): void {
+            Route::get('/{dispute}', [DisputeController::class, 'show'])
+                ->name('show');
+            Route::get('/{dispute}/messages', [DisputeController::class, 'messages'])
+                ->name('messages.index');
+            Route::post('/{dispute}/messages', [DisputeController::class, 'addMessage'])
+                ->name('messages.store');
+        });
+        // ──────────────────────────────────────────────────────────────────────
+
         Route::prefix('bookings/{booking}')->name('bookings.')->group(function (): void {
             Route::get('items', [BookingItemController::class, 'index'])->name('items.index');
             Route::post('items', [BookingItemController::class, 'store'])->name('items.store');
-
             Route::get('status-histories', [BookingStatusHistoryController::class, 'index'])
                 ->name('status_histories.index');
         });
