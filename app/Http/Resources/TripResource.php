@@ -63,6 +63,16 @@ class TripResource extends JsonResource
                 'instructions'          => $revealed ? $this->pickup_instructions : null,
                 'revealed'              => $revealed,
             ] : null,
+            'delivery_location' => $this->delivery_address ? [
+                'address'               => $revealed ? $this->delivery_address : null,
+                'city'                  => $this->delivery_city,
+                'latitude'              => $revealed ? $this->delivery_latitude  : null,
+                'longitude'             => $revealed ? $this->delivery_longitude : null,
+                'approximate_latitude'  => $this->delivery_approx_latitude,
+                'approximate_longitude' => $this->delivery_approx_longitude,
+                'instructions'          => $revealed ? $this->delivery_instructions : null,
+                'revealed'              => $revealed,
+            ] : null,
         ];
     }
 }

@@ -27,7 +27,7 @@ class UpdateTripRequest extends FormRequest
             'status'         => ['sometimes', new Enum(TripStatusEnum::class)],
             'type_trip'      => ['sometimes', new Enum(TripTypeEnum::class)],
 
-            // Pickup location — modifiable après création
+            // Pickup location
             'pickup_address'               => ['nullable', 'string', 'max:255'],
             'pickup_city'                  => ['nullable', 'string', 'max:100'],
             'pickup_latitude'              => ['nullable', 'numeric'],
@@ -35,6 +35,15 @@ class UpdateTripRequest extends FormRequest
             'pickup_approx_latitude'       => ['nullable', 'numeric'],
             'pickup_approx_longitude'      => ['nullable', 'numeric'],
             'pickup_instructions'          => ['nullable', 'string', 'max:500'],
+
+            // Delivery location
+            'delivery_address'             => ['nullable', 'string', 'max:255'],
+            'delivery_city'                => ['nullable', 'string', 'max:100'],
+            'delivery_latitude'            => ['nullable', 'numeric'],
+            'delivery_longitude'           => ['nullable', 'numeric'],
+            'delivery_approx_latitude'     => ['nullable', 'numeric'],
+            'delivery_approx_longitude'    => ['nullable', 'numeric'],
+            'delivery_instructions'        => ['nullable', 'string', 'max:500'],
         ];
     }
 }
