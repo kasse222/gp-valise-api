@@ -34,6 +34,14 @@ class StoreTripRequest extends FormRequest
             'price_per_kg'   => ['required', 'numeric', 'min:0'],
             'status'         => ['nullable', new Enum(TripStatusEnum::class)],
             'type_trip'      => ['required', new Enum(TripTypeEnum::class)],
+
+            'pickup_address'               => 'nullable|string|max:255',
+            'pickup_city'                  => 'nullable|string|max:100',
+            'pickup_latitude'              => 'nullable|numeric',
+            'pickup_longitude'             => 'nullable|numeric',
+            'pickup_approx_latitude'       => 'nullable|numeric',
+            'pickup_approx_longitude'      => 'nullable|numeric',
+            'pickup_instructions'          => 'nullable|string|max:500',
         ];
     }
 }
