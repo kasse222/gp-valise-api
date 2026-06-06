@@ -26,7 +26,14 @@ class Trip extends Model
         'status',
         'type_trip',
         'flight_number',
-        'price_per_kg'
+        'price_per_kg',
+        'pickup_address',
+        'pickup_city',
+        'pickup_latitude',
+        'pickup_longitude',
+        'pickup_approx_latitude',
+        'pickup_approx_longitude',
+        'pickup_instructions',
     ];
 
     protected $casts = [

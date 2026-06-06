@@ -12,7 +12,6 @@ class UpdateTripRequest extends FormRequest
 {
     public function authorize(): bool
     {
-
         return Auth::check();
     }
 
@@ -27,6 +26,15 @@ class UpdateTripRequest extends FormRequest
             'price_per_kg'   => ['sometimes', 'numeric', 'min:0'],
             'status'         => ['sometimes', new Enum(TripStatusEnum::class)],
             'type_trip'      => ['sometimes', new Enum(TripTypeEnum::class)],
+
+            // Pickup location — modifiable après création
+            'pickup_address'               => ['nullable', 'string', 'max:255'],
+            'pickup_city'                  => ['nullable', 'string', 'max:100'],
+            'pickup_latitude'              => ['nullable', 'numeric'],
+            'pickup_longitude'             => ['nullable', 'numeric'],
+            'pickup_approx_latitude'       => ['nullable', 'numeric'],
+            'pickup_approx_longitude'      => ['nullable', 'numeric'],
+            'pickup_instructions'          => ['nullable', 'string', 'max:500'],
         ];
     }
 }

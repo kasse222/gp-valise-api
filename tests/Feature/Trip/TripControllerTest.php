@@ -87,3 +87,28 @@ it('rejette la suppression d\'un trajet d\'un autre utilisateur', function (): v
     deleteJson("/api/v1/trips/{$trip->id}")
         ->assertForbidden();
 });
+
+it('crée un trajet avec pickup location', function (): void {
+    $data = [
+        'departure'     => 'Paris, FR',
+        'destination'   => 'Dakar, SN',
+        'date'          => now()->addDays(3)->toDateString(),
+        'capacity'      => 40000,
+        'price_per_kg'  => 2050,
+        'type_trip'     => TripTypeEnum::STANDARD->value,
+
+        'pickup_address'               => '12 rue de la Paix',
+        'pickup_city'                  => 'Paris',
+        'pickup_latitude'              => 48.8566,
+        'pickup_longitude'             => 2.3522,
+        'pickup_approx_latitude'       => 48.85,
+        'pickup_approx_longitude'      => 2.35,
+        'pickup_instructions'          => 'Devant l\'entrée principale',
+    ];
+
+    postJson('/api/v1/trips', $data)
+        ->assertCreated()
+        ->assertJsonPath('data.pickup_location.city', 'Paris')
+        ->assertJsonPath('data.pickup_location.revealed', false)
+        ->assertJsonPath('data.pickup_location.address', null); // masqué car pas de booking confirmé
+});
