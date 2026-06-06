@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\{
     LocationController,
     LuggageController,
     PaymentController,
+    PickupLocationController,
     PlanController,
     ReportController,
     TransactionController,
@@ -145,6 +146,13 @@ Route::prefix('v1')
             Route::post('items', [BookingItemController::class, 'store'])->name('items.store');
             Route::get('status-histories', [BookingStatusHistoryController::class, 'index'])
                 ->name('status_histories.index');
+        });
+
+        Route::prefix('bookings/{booking}/pickup-location')->name('bookings.pickup.')->group(function (): void {
+            Route::get('/', [PickupLocationController::class, 'show'])->name('show');
+            Route::post('/', [PickupLocationController::class, 'store'])
+                ->middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)
+                ->name('store');
         });
 
         Route::prefix('booking-items')->name('booking_items.')->group(function (): void {

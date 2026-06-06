@@ -118,6 +118,11 @@ class Booking extends Model
         return $this->morphMany(Report::class, 'reportable');
     }
 
+    public function pickupLocation(): HasOne
+    {
+        return $this->hasOne(PickupLocation::class);
+    }
+
     public function transitionTo(
         BookingStatusEnum $newStatus,
         ?User $changer = null,
