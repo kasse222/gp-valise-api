@@ -1490,3 +1490,16 @@ Flow validé end-to-end : POST pay → PayDunya API → redirect checkout.
 
 ✅ actif sandbox
 ⏳ clés production après KYC
+
+## [2026-06-07] — category + photo_path sur Luggage
+
+### Décision
+
+- `category` ajouté sur `luggages` (enum LuggageCategoryEnum)
+- `photo_path` ajouté sur `luggages` (upload avant paiement)
+- Colonne `category` ajoutée manuellement en prod via tinker (ALTER TABLE IF NOT EXISTS)
+  car migration create_luggages_table déjà appliquée
+
+### Statut
+
+✅ actif
