@@ -45,7 +45,7 @@ class CreateTransaction
 
             if ($booking->status !== BookingStatusEnum::EN_PAIEMENT) {
                 throw ValidationException::withMessages([
-                    'booking_id' => 'Ce booking n’est pas dans un état permettant un paiement.',
+                    'booking_id' => 'Ce booking n\'est pas dans un état permettant un paiement.',
                 ]);
             }
 
@@ -89,7 +89,7 @@ class CreateTransaction
                 country: (string) ($data['country'] ?? 'FR'),
                 currency: $currency,
                 method: $method,
-                amount: (int) round((float) $data['amount'] * 100),
+                amount: (int) $data['amount'],  // ← déjà en centimes, pas de * 100
                 idempotencyKey: 'charge-' . $booking->id,
                 operator: $operator,
                 metadata: [
@@ -108,9 +108,9 @@ class CreateTransaction
 
             $status = match ($providerResult->providerStatus) {
                 'completed' => TransactionStatusEnum::COMPLETED,
-                'pending' => TransactionStatusEnum::PENDING,
-                'failed' => TransactionStatusEnum::FAILED,
-                default => throw new InvalidArgumentException("Statut provider inconnu : {$providerResult->providerStatus}"),
+                'pending'   => TransactionStatusEnum::PENDING,
+                'failed'    => TransactionStatusEnum::FAILED,
+                default     => throw new InvalidArgumentException("Statut provider inconnu : {$providerResult->providerStatus}"),
             };
 
             if ($status === TransactionStatusEnum::FAILED) {
@@ -121,13 +121,13 @@ class CreateTransaction
 
             $transaction = $user->transactions()->create([
                 ...$data,
-                'booking_id' => $booking->id,
-                'type' => TransactionTypeEnum::CHARGE,
-                'status' => $status,
-                'currency' => $currency,
-                'method' => $method,
+                'booking_id'              => $booking->id,
+                'type'                    => TransactionTypeEnum::CHARGE,
+                'status'                  => $status,
+                'currency'                => $currency,
+                'method'                  => $method,
                 'provider_transaction_id' => $providerResult->providerTransactionId,
-                'processed_at' => $status === TransactionStatusEnum::COMPLETED ? now() : null,
+                'processed_at'            => $status === TransactionStatusEnum::COMPLETED ? now() : null,
             ])->fresh();
             $transaction->checkout_url = $providerResult->checkoutUrl;
             return $transaction;

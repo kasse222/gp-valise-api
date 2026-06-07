@@ -139,7 +139,7 @@ class BookingController extends Controller
 
         $transaction = $action->execute($request->user(), [
             'booking_id'     => $booking->id,
-            'amount'         => $totalCentimes / 100,
+            'amount'         => $totalCentimes,  // ← centimes entiers, pas de division
             'currency'       => 'EUR',
             'method'         => $method,
             'country'        => $country,
