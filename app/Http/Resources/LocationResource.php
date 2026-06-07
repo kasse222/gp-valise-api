@@ -33,7 +33,7 @@ class LocationResource extends JsonResource
             'is_customs_point'   => $this->isCustomsCheckpoint(),
             'is_hub'             => $this->isHub(),
 
-            'created_at'   => $this->created_at->toDateTimeString(),
+            'created_at'   => $this->created_at?->toDateTimeString(),
         ];
     }
 }
