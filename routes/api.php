@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\{
     ReportController,
     TransactionController,
     TripController,
+    UploadController,
     UserController,
     WaitlistEmailController,
     WebhookController
@@ -73,6 +74,9 @@ Route::prefix('v1')
             Route::get('/', [KycRequestController::class, 'show'])->name('show');
             Route::post('/', [KycRequestController::class, 'store'])->name('store');
         });
+        Route::post('/uploads', [UploadController::class, 'store'])
+            ->middleware('auth:sanctum')
+            ->name('uploads.store');
 
         Route::middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)->group(function (): void {
             Route::post('/trips', [TripController::class, 'store'])->name('trips.store');
