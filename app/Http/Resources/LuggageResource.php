@@ -35,8 +35,9 @@ class LuggageResource extends JsonResource
             'is_fragile'          => $this->is_fragile,
             'insurance_requested' => $this->insurance_requested,
 
-            'description' => $this->description,
-            'photo_path'  => $this->photo_path,
+            'description'   => $this->description,
+            'photo_path'    => $this->photo_path,
+            'content_items' => $this->content_items ?? [],
 
             'user' => new UserResource($this->whenLoaded('user')),
 

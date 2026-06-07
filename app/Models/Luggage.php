@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Data\Luggage\LuggageContentItem;
 use App\Enums\LuggageCategoryEnum;
 use App\Enums\LuggageStatusEnum;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -37,6 +38,7 @@ final class Luggage extends Model
         'is_fragile',
         'insurance_requested',
         'photo_path',
+        'content_items',
     ];
 
     protected function casts(): array
@@ -53,6 +55,7 @@ final class Luggage extends Model
             'volume_cm3'          => 'integer',
             'is_fragile'          => 'boolean',
             'insurance_requested' => 'boolean',
+            'content_items'       => 'array',
         ];
     }
 
@@ -69,6 +72,15 @@ final class Luggage extends Model
                 $luggage->volume_cm3 = $luggage->length_cm * $luggage->width_cm * $luggage->height_cm;
             }
         });
+    }
+
+    /** @return LuggageContentItem[] */
+    public function getContentItems(): array
+    {
+        return array_map(
+            fn(array $item) => LuggageContentItem::fromArray($item),
+            $this->content_items ?? []
+        );
     }
 
     public function weightKgDisplay(): float
