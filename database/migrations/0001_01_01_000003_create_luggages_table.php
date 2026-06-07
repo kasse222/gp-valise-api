@@ -24,7 +24,7 @@ return new class extends Migration
 
             $table->string('description')->nullable();
 
-            $table->unsignedSmallInteger('weight_kg')->default(0);   // kg × 10 : 25 = 2.5kg
+            $table->unsignedSmallInteger('weight_kg')->default(0);
             $table->unsignedSmallInteger('length_cm')->nullable();
             $table->unsignedSmallInteger('width_cm')->nullable();
             $table->unsignedSmallInteger('height_cm')->nullable();
@@ -38,6 +38,9 @@ return new class extends Migration
 
             $table->boolean('is_fragile')->default(false);
             $table->boolean('insurance_requested')->default(false);
+
+            // Photo du colis — uploadée avant paiement
+            $table->string('photo_path')->nullable();
 
             $table->string('status', 30)
                 ->default(LuggageStatusEnum::EN_ATTENTE->value);

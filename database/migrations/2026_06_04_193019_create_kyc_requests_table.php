@@ -27,12 +27,14 @@ return new class extends Migration
             $table->index(['user_id', 'status']);
         });
 
-        // Index partiel PostgreSQL — un seul PENDING par user
-        DB::statement("
-        CREATE UNIQUE INDEX kyc_requests_one_pending_per_user
-        ON kyc_requests (user_id)
-        WHERE status = 'pending'
-    ");
+        // Index partiel uniquement sur PostgreSQL
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement("
+                CREATE UNIQUE INDEX kyc_requests_one_pending_per_user
+                ON kyc_requests (user_id)
+                WHERE status = 'pending'
+            ");
+        }
     }
 
     public function down(): void

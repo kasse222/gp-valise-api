@@ -15,14 +15,14 @@ class KycRequestFactory extends Factory
     public function definition(): array
     {
         return [
-            'status'             => KycStatusEnum::PENDING,
-            'id_photo_path'      => 'kyc/id_' . $this->faker->uuid() . '.jpg',
-            'parcel_photo_path'  => 'kyc/parcel_' . $this->faker->uuid() . '.jpg',
-            'admin_notes'        => null,
-            'rejection_reason'   => null,
-            'reviewed_by'        => null,
-            'submitted_at'       => now(),
-            'reviewed_at'        => null,
+            'status'           => KycStatusEnum::PENDING,
+            'id_front_path'    => 'kyc/id_' . $this->faker->uuid() . '.jpg',
+            'id_back_path'     => null,
+            'admin_notes'      => null,
+            'rejection_reason' => null,
+            'reviewed_by'      => null,
+            'submitted_at'     => now(),
+            'reviewed_at'      => null,
         ];
     }
 

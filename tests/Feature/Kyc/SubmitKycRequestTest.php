@@ -17,15 +17,24 @@ beforeEach(function (): void {
 
 it('soumet une demande KYC avec succès', function (): void {
     $kyc = app(SubmitKycRequest::class)->execute($this->sender, [
-        'id_photo_path'     => 'kyc/id_123.jpg',
-        'parcel_photo_path' => 'kyc/parcel_123.jpg',
+        'id_front_path' => 'kyc/1/id_front_123.jpg',
+        'id_back_path'  => 'kyc/1/id_back_123.jpg',
     ]);
 
     expect($kyc->status)->toBe(KycStatusEnum::PENDING)
         ->and($kyc->user_id)->toBe($this->sender->id)
-        ->and($kyc->id_photo_path)->toBe('kyc/id_123.jpg')
-        ->and($kyc->parcel_photo_path)->toBe('kyc/parcel_123.jpg')
+        ->and($kyc->id_front_path)->toBe('kyc/1/id_front_123.jpg')
+        ->and($kyc->id_back_path)->toBe('kyc/1/id_back_123.jpg')
         ->and($kyc->submitted_at)->not->toBeNull();
+});
+
+it('soumet une demande KYC sans verso', function (): void {
+    $kyc = app(SubmitKycRequest::class)->execute($this->sender, [
+        'id_front_path' => 'kyc/1/id_front_123.jpg',
+    ]);
+
+    expect($kyc->status)->toBe(KycStatusEnum::PENDING)
+        ->and($kyc->id_back_path)->toBeNull();
 });
 
 it('refuse si une demande est déjà en cours', function (): void {
@@ -35,8 +44,7 @@ it('refuse si une demande est déjà en cours', function (): void {
     ]);
 
     expect(fn() => app(SubmitKycRequest::class)->execute($this->sender, [
-        'id_photo_path'     => 'kyc/id_123.jpg',
-        'parcel_photo_path' => 'kyc/parcel_123.jpg',
+        'id_front_path' => 'kyc/1/id_front_123.jpg',
     ]))->toThrow(ValidationException::class);
 });
 
@@ -47,8 +55,7 @@ it('refuse si le KYC est déjà approuvé', function (): void {
     ]);
 
     expect(fn() => app(SubmitKycRequest::class)->execute($this->sender, [
-        'id_photo_path'     => 'kyc/id_123.jpg',
-        'parcel_photo_path' => 'kyc/parcel_123.jpg',
+        'id_front_path' => 'kyc/1/id_front_123.jpg',
     ]))->toThrow(ValidationException::class);
 });
 
@@ -59,8 +66,8 @@ it('remplace une demande rejetée', function (): void {
     ]);
 
     $kyc = app(SubmitKycRequest::class)->execute($this->sender, [
-        'id_photo_path'     => 'kyc/id_new.jpg',
-        'parcel_photo_path' => 'kyc/parcel_new.jpg',
+        'id_front_path' => 'kyc/1/id_front_new.jpg',
+        'id_back_path'  => 'kyc/1/id_back_new.jpg',
     ]);
 
     expect($kyc->status)->toBe(KycStatusEnum::PENDING)

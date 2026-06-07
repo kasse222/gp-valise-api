@@ -17,7 +17,7 @@ class StoreUploadRequest extends FormRequest
     {
         return [
             'file'    => ['required', 'file', 'max:5120', 'mimes:jpg,jpeg,png,pdf'],
-            'context' => ['required', 'string', 'in:kyc'],
+            'context' => ['required', 'string', 'in:kyc,luggage'],
         ];
     }
 }
