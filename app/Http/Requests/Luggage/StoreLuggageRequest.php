@@ -32,6 +32,10 @@ class StoreLuggageRequest extends FormRequest
             'is_fragile'          => ['nullable', 'boolean'],
             'insurance_requested' => ['nullable', 'boolean'],
             'photo_path'          => ['nullable', 'string', 'max:500'],
+            'content_items'       => ['nullable', 'array'],
+            'content_items.*.category'    => ['required', Rule::enum(LuggageCategoryEnum::class)],
+            'content_items.*.description' => ['required', 'string', 'max:500'],
+            'content_items.*.photo_path'  => ['nullable', 'string', 'max:500'],
         ];
     }
 }
