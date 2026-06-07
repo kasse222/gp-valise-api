@@ -16,8 +16,8 @@ class KycRequest extends Model
     protected $fillable = [
         'user_id',
         'status',
-        'id_photo_path',
-        'parcel_photo_path',
+        'id_front_path',
+        'id_back_path',
         'admin_notes',
         'rejection_reason',
         'reviewed_by',
@@ -45,17 +45,14 @@ class KycRequest extends Model
     {
         return $this->status === KycStatusEnum::PENDING;
     }
-
     public function isApproved(): bool
     {
         return $this->status === KycStatusEnum::APPROVED;
     }
-
     public function isRejected(): bool
     {
         return $this->status === KycStatusEnum::REJECTED;
     }
-
     public function isFinal(): bool
     {
         return $this->status->isFinal();

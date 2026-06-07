@@ -37,10 +37,10 @@ class SubmitKycRequest
             }
 
             return KycRequest::query()->create([
-                'user_id'            => $user->id,
-                'status'             => KycStatusEnum::PENDING,
-                'id_photo_path'      => $data['id_photo_path'],
-                'parcel_photo_path'  => $data['parcel_photo_path'],
+                'user_id'       => $user->id,
+                'status'        => KycStatusEnum::PENDING,
+                'id_front_path' => $data['id_front_path'],
+                'id_back_path'  => $data['id_back_path'] ?? null,
                 'admin_notes'        => null,
                 'rejection_reason'   => null,
                 'submitted_at'       => now(),

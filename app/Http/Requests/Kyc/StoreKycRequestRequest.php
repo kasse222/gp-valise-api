@@ -16,8 +16,15 @@ class StoreKycRequestRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'id_photo_path'     => ['required', 'string', 'max:500'],
-            'parcel_photo_path' => ['required', 'string', 'max:500'],
+            'id_front_path' => ['required', 'string', 'max:500'],
+            'id_back_path'  => ['nullable', 'string', 'max:500'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'id_front_path.required' => 'La photo recto de votre pièce d\'identité est obligatoire.',
         ];
     }
 }
