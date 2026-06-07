@@ -7,11 +7,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class BookingResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(Request $request): array
     {
         $items = $this->whenLoaded('bookingItems', fn() => $this->bookingItems, collect());
@@ -27,24 +22,24 @@ class BookingResource extends JsonResource
             'is_final'     => $this->status->isFinal(),
 
             'comment'      => $this->comment,
-            'kg_reserved' => $this->relationLoaded('bookingItems') ? $items->sum('kg_reserved') : 0,
+            'kg_reserved'  => $this->relationLoaded('bookingItems') ? $items->sum('kg_reserved') : 0,
 
-
-            'confirmed_at' => optional($this->confirmed_at)?->toDateTimeString(),
-            'completed_at' => optional($this->completed_at)?->toDateTimeString(),
-            'cancelled_at' => optional($this->cancelled_at)?->toDateTimeString(),
+            'confirmed_at'       => optional($this->confirmed_at)?->toDateTimeString(),
+            'completed_at'       => optional($this->completed_at)?->toDateTimeString(),
+            'cancelled_at'       => optional($this->cancelled_at)?->toDateTimeString(),
             'payment_expires_at' => $this->payment_expires_at?->toISOString(),
-            'expired_at' => $this->expired_at?->toISOString(),
+            'expired_at'         => $this->expired_at?->toISOString(),
 
+            // ── Dispute ───────────────────────────────────────────────────
+            'dispute_id' => $this->whenLoaded('dispute', fn() => $this->dispute?->id),
 
-
-            'trip'         => new TripResource($this->whenLoaded('trip')),
-            'user'         => new UserResource($this->whenLoaded('user')),
-            'items'           => BookingItemResource::collection($items),
+            'trip'           => new TripResource($this->whenLoaded('trip')),
+            'user'           => new UserResource($this->whenLoaded('user')),
+            'items'          => BookingItemResource::collection($items),
             'status_history' => BookingStatusHistoryResource::collection($this->whenLoaded('statusHistories')),
 
-            'created_at'   => optional($this->created_at)?->toDateTimeString(),
-            'updated_at'   => optional($this->updated_at)?->toDateTimeString(),
+            'created_at' => optional($this->created_at)?->toDateTimeString(),
+            'updated_at' => optional($this->updated_at)?->toDateTimeString(),
         ];
     }
 }

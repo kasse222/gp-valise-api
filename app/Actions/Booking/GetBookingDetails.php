@@ -16,6 +16,7 @@ class GetBookingDetails
                 'trip.user',
                 'statusHistories',
                 'transactions',
+                'dispute',
             ])
             ->findOrFail($bookingId);
     }
