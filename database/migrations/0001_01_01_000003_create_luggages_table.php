@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\LuggageCategoryEnum;
 use App\Enums\LuggageStatusEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -23,6 +24,7 @@ return new class extends Migration
                 ->cascadeOnDelete();
 
             $table->string('description')->nullable();
+            $table->string('category')->default(LuggageCategoryEnum::OTHER->value)->index();
 
             $table->unsignedSmallInteger('weight_kg')->default(0);
             $table->unsignedSmallInteger('length_cm')->nullable();
@@ -39,7 +41,6 @@ return new class extends Migration
             $table->boolean('is_fragile')->default(false);
             $table->boolean('insurance_requested')->default(false);
 
-            // Photo du colis — uploadée avant paiement
             $table->string('photo_path')->nullable();
 
             $table->string('status', 30)

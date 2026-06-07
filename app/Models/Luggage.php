@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\LuggageCategoryEnum;
 use App\Enums\LuggageStatusEnum;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -21,6 +22,7 @@ final class Luggage extends Model
         'user_id',
         'trip_id',
         'description',
+        'category',
         'weight_kg',
         'length_cm',
         'width_cm',
@@ -43,6 +45,7 @@ final class Luggage extends Model
             'pickup_date'         => 'datetime',
             'delivery_date'       => 'datetime',
             'status'              => LuggageStatusEnum::class,
+            'category'            => LuggageCategoryEnum::class,
             'weight_kg'           => 'integer',
             'length_cm'           => 'integer',
             'width_cm'            => 'integer',

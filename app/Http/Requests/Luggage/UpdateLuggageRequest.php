@@ -2,10 +2,11 @@
 
 namespace App\Http\Requests\Luggage;
 
-use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
+use App\Enums\LuggageCategoryEnum;
 use App\Enums\LuggageStatusEnum;
+use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class UpdateLuggageRequest extends FormRequest
 {
@@ -19,6 +20,7 @@ class UpdateLuggageRequest extends FormRequest
         return [
             'trip_id'             => ['sometimes', 'exists:trips,id'],
             'description'         => ['sometimes', 'string', 'max:1000'],
+            'category'            => ['sometimes', Rule::enum(LuggageCategoryEnum::class)],
             'weight_kg'           => ['sometimes', 'numeric', 'min:0.1', 'max:100'],
             'length_cm'           => ['sometimes', 'numeric', 'min:1', 'max:200'],
             'width_cm'            => ['sometimes', 'numeric', 'min:1', 'max:200'],
@@ -30,15 +32,7 @@ class UpdateLuggageRequest extends FormRequest
             'status'              => ['sometimes', Rule::in(LuggageStatusEnum::values())],
             'is_fragile'          => ['sometimes', 'boolean'],
             'insurance_requested' => ['sometimes', 'boolean'],
-        ];
-    }
-
-    public function messages(): array
-    {
-        return [
-            'pickup_date.after_or_equal' => 'La date d’enlèvement ne peut pas être dans le passé.',
-            'delivery_date.after'        => 'La date de livraison doit être après celle d’enlèvement.',
-            'status.in'                  => 'Le statut fourni est invalide.',
+            'photo_path'          => ['sometimes', 'nullable', 'string', 'max:500'],
         ];
     }
 }
