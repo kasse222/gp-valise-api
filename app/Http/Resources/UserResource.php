@@ -37,6 +37,9 @@ class UserResource extends JsonResource
             'plan'            => new PlanResource($this->whenLoaded('plan')),
 
             'created_at'      => $this->created_at->toDateTimeString(),
+            'trips_count'  => $this->trips()->where('status', 'active')->count(),
+            'kyc_verified' => $this->hasKyc(),
+            'member_since' => $this->created_at->format('M Y'),
         ];
     }
 }
