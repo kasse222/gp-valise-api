@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Kyc;
 
 use App\Enums\KycStatusEnum;
+use App\Events\KycSubmitted;
 use App\Models\KycRequest;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -36,15 +37,19 @@ class SubmitKycRequest
                 $existing->delete();
             }
 
-            return KycRequest::query()->create([
-                'user_id'       => $user->id,
-                'status'        => KycStatusEnum::PENDING,
-                'id_front_path' => $data['id_front_path'],
-                'id_back_path'  => $data['id_back_path'] ?? null,
-                'admin_notes'        => null,
-                'rejection_reason'   => null,
-                'submitted_at'       => now(),
+            $kycRequest = KycRequest::query()->create([
+                'user_id'          => $user->id,
+                'status'           => KycStatusEnum::PENDING,
+                'id_front_path'    => $data['id_front_path'],
+                'id_back_path'     => $data['id_back_path'] ?? null,
+                'admin_notes'      => null,
+                'rejection_reason' => null,
+                'submitted_at'     => now(),
             ]);
+
+            KycSubmitted::dispatch($kycRequest);
+
+            return $kycRequest;
         });
     }
 }

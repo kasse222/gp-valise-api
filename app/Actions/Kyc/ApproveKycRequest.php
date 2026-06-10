@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Kyc;
 
 use App\Enums\KycStatusEnum;
+use App\Events\KycApproved;
 use App\Models\KycRequest;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -36,7 +37,10 @@ class ApproveKycRequest
                 'kyc_passed_at' => now(),
             ]);
 
-            return $kycRequest->fresh(['user', 'reviewer']);
+
+            $fresh = $kycRequest->fresh(['user', 'reviewer']);
+            KycApproved::dispatch($fresh);
+            return $fresh;
         });
     }
 }

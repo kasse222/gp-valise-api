@@ -7,11 +7,13 @@ use App\Enums\KycStatusEnum;
 use App\Models\KycRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
 beforeEach(function (): void {
+    Mail::fake();
     $this->admin  = User::factory()->admin()->create();
     $this->sender = User::factory()->sender()->verified()->create([
         'kyc_passed_at' => now(),
