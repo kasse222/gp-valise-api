@@ -126,6 +126,13 @@ class BookingController extends Controller
     {
         $this->authorize('view', $booking);
 
+        if ($request->user()->isExpeditor() && ! $request->user()->hasKyc()) {
+            return response()->json([
+                'message' => 'Vérification d\'identité (KYC) requise avant de procéder au paiement.',
+                'kyc_required' => true,
+            ], 403);
+        }
+
         $booking->loadMissing('bookingItems');
         $totalCentimes = $booking->bookingItems->sum('price');
 

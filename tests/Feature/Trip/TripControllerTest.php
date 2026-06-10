@@ -16,7 +16,7 @@ use function Pest\Laravel\putJson;
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
 beforeEach(function (): void {
-    $this->user = User::factory()->traveler()->create();
+    $this->user = User::factory()->traveler()->withKyc()->create();
     actingAs($this->user);
 });
 
@@ -111,4 +111,19 @@ it('crée un trajet avec pickup location', function (): void {
         ->assertJsonPath('data.pickup_location.city', 'Paris')
         ->assertJsonPath('data.pickup_location.revealed', true)
         ->assertJsonPath('data.pickup_location.address', '12 rue de la Paix');
+});
+
+it('bloque la création de trajet si traveler sans KYC', function (): void {
+    $user = User::factory()->traveler()->create(['kyc_passed_at' => null]);
+    actingAs($user);
+
+    postJson('/api/v1/trips', [
+        'departure'    => 'Paris, FR',
+        'destination'  => 'Dakar, SN',
+        'date'         => now()->addDays(3)->toDateString(),
+        'capacity'     => 40000,
+        'price_per_kg' => 2050,
+        'type_trip'    => TripTypeEnum::STANDARD->value,
+    ])->assertStatus(422)
+        ->assertJsonPath('errors.kyc.0', "Vous devez compléter votre vérification d'identité (KYC) avant de publier un trajet.");
 });

@@ -66,4 +66,12 @@ class UserFactory extends Factory
             'kyc_passed_at' => now()->subDays(rand(5, 90)),
         ]);
     }
+
+    public function withKyc(): static
+    {
+        return $this->state(fn() => [
+            'kyc_passed_at' => now()->subDays(rand(1, 30)),
+            'verified_user' => true,
+        ]);
+    }
 }
