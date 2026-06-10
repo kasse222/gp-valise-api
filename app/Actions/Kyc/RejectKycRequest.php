@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Kyc;
 
 use App\Enums\KycStatusEnum;
+use App\Events\KycRejected;
 use App\Models\KycRequest;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -42,7 +43,10 @@ class RejectKycRequest
                 'kyc_passed_at' => null,
             ]);
 
-            return $kycRequest->fresh(['user', 'reviewer']);
+
+            $fresh = $kycRequest->fresh(['user', 'reviewer']);
+            KycRejected::dispatch($fresh);
+            return $fresh;
         });
     }
 }

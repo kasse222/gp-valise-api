@@ -11,6 +11,9 @@ use App\Events\BookingDisputed;
 use App\Events\BookingExpired;
 use App\Events\DisputeMessageAdded;
 use App\Events\DisputeStatusChanged;
+use App\Events\KycApproved;
+use App\Events\KycRejected;
+use App\Events\KycSubmitted;
 use App\Events\TransactionCreated;
 use App\Events\TransactionRefunded;
 use App\Listeners\CreatePayoutAfterBookingDelivered;
@@ -29,6 +32,9 @@ use App\Listeners\SendBookingExpiredNotification;
 use App\Listeners\SendDisputeMessageAddedNotification;
 use App\Listeners\SendDisputeOpenedNotification;
 use App\Listeners\SendDisputeStatusChangedNotification;
+use App\Listeners\SendKycApprovedNotification;
+use App\Listeners\SendKycRejectedNotification;
+use App\Listeners\SendKycSubmittedNotification;
 use App\Listeners\SendTransactionRefundedNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
@@ -82,6 +88,15 @@ class EventServiceProvider extends ServiceProvider
 
         DisputeMessageAdded::class => [
             SendDisputeMessageAddedNotification::class,
+        ],
+        KycSubmitted::class => [
+            SendKycSubmittedNotification::class,
+        ],
+        KycApproved::class => [
+            SendKycApprovedNotification::class,
+        ],
+        KycRejected::class => [
+            SendKycRejectedNotification::class,
         ],
     ];
 }
