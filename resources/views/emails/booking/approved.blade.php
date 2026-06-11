@@ -1,12 +1,20 @@
 <x-mail::message>
-# Introduction
+# ✅ Réservation acceptée
 
-The body of your message.
+Bonjour {{ $booking->user->first_name }},
 
-<x-mail::button :url="''">
-Button Text
+Bonne nouvelle ! Votre réservation **#{{ $booking->id }}** a été acceptée par le voyageur.
+
+**Trajet :** {{ $trip->departure }} → {{ $trip->destination }}
+**Date :** {{ \Carbon\Carbon::parse($trip->date)->format('d/m/Y') }}
+**Poids réservé :** {{ number_format($booking->kg_reserved / 1000, 1) }} kg
+
+Vous pouvez maintenant procéder au paiement. Le lien expire dans **30 minutes**.
+
+<x-mail::button :url="$paymentUrl">
+Payer maintenant
 </x-mail::button>
 
-Thanks,<br>
-{{ config('app.name') }}
+Merci de votre confiance,
+**L'équipe Safe Move**
 </x-mail::message>

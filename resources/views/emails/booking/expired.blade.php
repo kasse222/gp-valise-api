@@ -1,12 +1,18 @@
 <x-mail::message>
-# Introduction
+# ⏱ Délai de paiement expiré
 
-The body of your message.
+Bonjour {{ $booking->user->first_name }},
 
-<x-mail::button :url="''">
-Button Text
+Le délai de paiement pour votre réservation **#{{ $booking->id }}** a expiré.
+
+**Trajet :** {{ $booking->trip->departure }} → {{ $booking->trip->destination }}
+
+Vous pouvez créer une nouvelle réservation si le trajet est encore disponible.
+
+<x-mail::button :url="$searchUrl">
+Rechercher un trajet
 </x-mail::button>
 
-Thanks,<br>
-{{ config('app.name') }}
+Merci de votre confiance,
+**L'équipe Safe Move**
 </x-mail::message>

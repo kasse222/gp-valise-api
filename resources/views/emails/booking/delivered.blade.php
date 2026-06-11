@@ -1,12 +1,20 @@
 <x-mail::message>
-# Introduction
+# 📦 Colis livré
 
-The body of your message.
+Bonjour {{ $booking->user->first_name }},
 
-<x-mail::button :url="''">
-Button Text
+Votre colis pour la réservation **#{{ $booking->id }}** a été marqué comme livré par le voyageur.
+
+**Trajet :** {{ $trip->departure }} → {{ $trip->destination }}
+
+Si vous avez bien reçu votre colis, aucune action n'est requise. Le paiement du voyageur sera libéré automatiquement sous **48 heures**.
+
+En cas de problème, vous pouvez ouvrir un litige depuis votre espace.
+
+<x-mail::button :url="$dashboardUrl">
+Voir ma réservation
 </x-mail::button>
 
-Thanks,<br>
-{{ config('app.name') }}
+Merci de votre confiance,
+**L'équipe Safe Move**
 </x-mail::message>

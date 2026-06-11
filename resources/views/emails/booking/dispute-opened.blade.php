@@ -1,12 +1,18 @@
 <x-mail::message>
-# Introduction
+# ⚠️ Litige ouvert
 
-The body of your message.
+Bonjour {{ $booking->user->first_name }},
 
-<x-mail::button :url="''">
-Button Text
+Un litige a été ouvert sur la réservation **#{{ $booking->id }}**.
+
+**Trajet :** {{ $trip->departure }} → {{ $trip->destination }}
+
+Notre équipe va examiner votre dossier dans les plus brefs délais. Vous pouvez suivre l'avancement depuis votre espace.
+
+<x-mail::button :url="$dashboardUrl">
+Voir le litige
 </x-mail::button>
 
-Thanks,<br>
-{{ config('app.name') }}
+Merci de votre confiance,
+**L'équipe Safe Move**
 </x-mail::message>

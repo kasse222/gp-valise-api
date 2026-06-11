@@ -1,12 +1,18 @@
 <x-mail::message>
-# Introduction
+# ❌ Réservation refusée
 
-The body of your message.
+Bonjour {{ $booking->user->first_name }},
 
-<x-mail::button :url="''">
-Button Text
+Votre réservation **#{{ $booking->id }}** a été refusée par le voyageur.
+
+**Trajet :** {{ $trip->departure }} → {{ $trip->destination }}
+
+Ne vous inquiétez pas, d'autres voyageurs sont disponibles pour votre destination.
+
+<x-mail::button :url="$searchUrl">
+Rechercher un autre trajet
 </x-mail::button>
 
-Thanks,<br>
-{{ config('app.name') }}
+Merci de votre confiance,
+**L'équipe Safe Move**
 </x-mail::message>
