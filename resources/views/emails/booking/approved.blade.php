@@ -7,7 +7,7 @@ Bonne nouvelle ! Votre réservation **#{{ $booking->id }}** a été acceptée pa
 
 **Trajet :** {{ $trip->departure }} → {{ $trip->destination }}
 **Date :** {{ \Carbon\Carbon::parse($trip->date)->format('d/m/Y') }}
-**Poids réservé :** {{ number_format($booking->kg_reserved / 1000, 1) }} kg
+**Poids réservé :** {{ number_format($booking->items->sum('kg_reserved') / 1000, 1) }} kg
 
 Vous pouvez maintenant procéder au paiement. Le lien expire dans **30 minutes**.
 

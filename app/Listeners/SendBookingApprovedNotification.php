@@ -13,7 +13,7 @@ class SendBookingApprovedNotification implements ShouldQueue
 {
     public function handle(BookingApproved $event): void
     {
-        $booking = $event->booking->loadMissing(['user', 'trip']);
+        $booking = $event->booking->loadMissing(['user', 'trip', 'items']);
 
         Mail::to($booking->user->email)
             ->queue(new BookingApprovedMail($booking));
