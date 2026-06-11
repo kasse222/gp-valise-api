@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\CurrencyEnum;
 use App\Enums\PaymentMethodEnum;
+use App\Enums\PaymentProviderEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use Illuminate\Database\Eloquent\Model;
@@ -24,6 +25,7 @@ class Transaction extends Model
         'method',
         'processed_at',
         'provider_transaction_id',
+        'provider',
         'correlation_id',
         'platform_account_id',
     ];
@@ -35,6 +37,7 @@ class Transaction extends Model
         'status' => TransactionStatusEnum::class,
         'method' => PaymentMethodEnum::class,
         'processed_at' => 'datetime',
+        'provider'     => PaymentProviderEnum::class,
     ];
 
 

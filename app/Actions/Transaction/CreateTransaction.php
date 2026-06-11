@@ -127,6 +127,7 @@ class CreateTransaction
                 'currency'                => $currency,
                 'method'                  => $method,
                 'provider_transaction_id' => $providerResult->providerTransactionId,
+                'provider'                => $providerResult->provider,
                 'processed_at'            => $status === TransactionStatusEnum::COMPLETED ? now() : null,
             ])->fresh();
             $transaction->checkout_url = $providerResult->checkoutUrl;
