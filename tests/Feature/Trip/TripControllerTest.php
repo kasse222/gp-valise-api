@@ -127,3 +127,30 @@ it('bloque la création de trajet si traveler sans KYC', function (): void {
     ])->assertStatus(422)
         ->assertJsonPath('errors.kyc.0', "Vous devez compléter votre vérification d'identité (KYC) avant de publier un trajet.");
 });
+
+it('filtre les trajets par departure', function (): void {
+    Trip::factory()->create(['user_id' => $this->user->id, 'departure' => 'Paris, FR', 'destination' => 'Dakar, SN']);
+    Trip::factory()->create(['user_id' => $this->user->id, 'departure' => 'Casablanca, MA', 'destination' => 'Paris, FR']);
+
+    getJson('/api/v1/trips?departure=Paris')
+        ->assertOk()
+        ->assertJsonCount(1, 'data');
+});
+
+it('filtre les trajets par destination', function (): void {
+    Trip::factory()->create(['user_id' => $this->user->id, 'departure' => 'Paris, FR', 'destination' => 'Dakar, SN']);
+    Trip::factory()->create(['user_id' => $this->user->id, 'departure' => 'Paris, FR', 'destination' => 'Casablanca, MA']);
+
+    getJson('/api/v1/trips?destination=Dakar')
+        ->assertOk()
+        ->assertJsonCount(1, 'data');
+});
+
+it('filtre les trajets par price_max', function (): void {
+    Trip::factory()->create(['user_id' => $this->user->id, 'price_per_kg' => 1000]);
+    Trip::factory()->create(['user_id' => $this->user->id, 'price_per_kg' => 3000]);
+
+    getJson('/api/v1/trips?price_max=1500')
+        ->assertOk()
+        ->assertJsonCount(1, 'data');
+});
