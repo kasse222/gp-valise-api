@@ -19,9 +19,11 @@ class TripController extends Controller
     use AuthorizesRequests;
 
 
-    public function index(ListTrips $action)
+    public function index(Request $request, ListTrips $action)
     {
-        $trips = $action->execute();
+        $trips = $action->execute(
+            filters: $request->only(['departure', 'destination', 'date', 'price_max', 'capacity_min']),
+        );
 
         return TripResource::collection($trips);
     }
