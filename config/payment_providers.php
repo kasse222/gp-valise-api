@@ -66,6 +66,7 @@ return [
     ],
 
     'paydunya' => [
+        'enabled'      => env('PAYDUNYA_ENABLED', true),
         'env'          => env('PAYDUNYA_ENV', 'sandbox'),
         'master_key'   => env('PAYDUNYA_MASTER_KEY'),
         'private_key'  => env('PAYDUNYA_PRIVATE_KEY'),
@@ -77,6 +78,7 @@ return [
     ],
 
     'naboopay' => [
+        'enabled'      => env('NABOOPAY_ENABLED', false),
         'api_key'        => env('NABOOPAY_API_KEY'),
         'webhook_secret' => env('NABOOPAY_WEBHOOK_SECRET'),
         'sandbox'        => env('NABOOPAY_SANDBOX', true),

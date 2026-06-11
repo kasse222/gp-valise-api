@@ -40,33 +40,27 @@ final class AfricaAggregatorDriver implements AggregatorDriver
 
     public function charge(PaymentRequestData $request): PaymentResponseData
     {
-        try {
-            $response = $this->paydunya->charge($request);
+        if ($this->isPaydunyaAvailable()) {
             $this->activeProvider = PaymentProviderEnum::PAYDUNYA->value;
-            return $response;
-        } catch (RuntimeException $e) {
-            Log::warning('AfricaAggregator: PayDunya charge failed — switching to Naboopay', [
-                'booking_id' => $request->metadata['booking_id'] ?? null,
-                'error'      => $e->getMessage(),
-            ]);
+            return $this->paydunya->charge($request);
         }
 
-        try {
-            $response = $this->naboopay->charge($request);
+        Log::warning('AfricaAggregator: PayDunya indisponible — basculement sur Naboopay', [
+            'booking_id' => $request->metadata['booking_id'] ?? null,
+        ]);
+
+        if ($this->isNaboopayAvailable()) {
             $this->activeProvider = PaymentProviderEnum::NABOOPAY->value;
-            return $response;
-        } catch (RuntimeException $e) {
-            Log::error('AfricaAggregator: Naboopay charge also failed — all providers exhausted', [
-                'booking_id' => $request->metadata['booking_id'] ?? null,
-                'error'      => $e->getMessage(),
-            ]);
-
-            throw new RuntimeException(
-                'All Africa payment providers failed. Please try again later.',
-                previous: $e,
-            );
+            return $this->naboopay->charge($request);
         }
+
+        Log::error('AfricaAggregator: tous les providers Africa indisponibles', [
+            'booking_id' => $request->metadata['booking_id'] ?? null,
+        ]);
+
+        throw new RuntimeException('No Africa payment provider available.');
     }
+
 
     public function refund(RefundRequestData $request): PaymentResponseData
     {
@@ -82,7 +76,7 @@ final class AfricaAggregatorDriver implements AggregatorDriver
 
     public function isAvailable(): bool
     {
-        return $this->naboopay->ping() || $this->isPaydunyaAvailable();
+        return $this->isNaboopayAvailable() || $this->isPaydunyaAvailable();
     }
 
     public function getProviders(): array
@@ -98,10 +92,18 @@ final class AfricaAggregatorDriver implements AggregatorDriver
         return $this->activeProvider;
     }
 
+
     private function isPaydunyaAvailable(): bool
     {
-        // PayDunya n'expose pas de health endpoint public.
-        // On considère disponible par défaut — la charge révèle la vraie disponibilité.
-        return true;
+        // Phase 1 : PayDunya primaire forcé.
+        // Phase 2 : remplacer par circuit breaker basé sur taux d'échec réels.
+        return (bool) config('payment_providers.paydunya.enabled', true);
+    }
+
+    private function isNaboopayAvailable(): bool
+    {
+        // Naboopay désactivé par défaut — activable sans redéploiement via NABOOPAY_ENABLED=true
+        return (bool) config('payment_providers.naboopay.enabled', false)
+            && $this->naboopay->ping();
     }
 }
