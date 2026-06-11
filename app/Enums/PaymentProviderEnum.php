@@ -6,10 +6,11 @@ namespace App\Enums;
 
 enum PaymentProviderEnum: string
 {
-    case FAKE = 'fake';
-    case KKIAPAY = 'kkiapay';
-    case STRIPE = 'stripe';
+    case FAKE     = 'fake';
+    case KKIAPAY  = 'kkiapay';
+    case STRIPE   = 'stripe';
     case PAYDUNYA = 'paydunya';
+    case NABOOPAY = 'naboopay';
 
     public static function values(): array
     {
@@ -19,10 +20,11 @@ enum PaymentProviderEnum: string
     public function label(): string
     {
         return match ($this) {
-            self::FAKE => 'Fake Provider',
-            self::KKIAPAY => 'Kkiapay',
-            self::STRIPE => 'Stripe',
-            self::PAYDUNYA => 'paydunya'
+            self::FAKE     => 'Fake Provider',
+            self::KKIAPAY  => 'Kkiapay',
+            self::STRIPE   => 'Stripe',
+            self::PAYDUNYA => 'PayDunya',
+            self::NABOOPAY => 'Naboopay',
         };
     }
 
@@ -36,10 +38,11 @@ enum PaymentProviderEnum: string
         $country = strtoupper($country);
 
         return match ($this) {
-            self::KKIAPAY => in_array($country, ['SN', 'CI', 'TG', 'BJ'], true),
+            self::KKIAPAY  => in_array($country, ['SN', 'CI', 'TG', 'BJ'], true),
             self::PAYDUNYA => in_array($country, ['SN', 'CI', 'BJ', 'TG'], true),
-            self::STRIPE => in_array($country, ['FR', 'BE', 'DE', 'ES', 'MA'], true),
-            self::FAKE => true,
+            self::NABOOPAY => in_array($country, ['SN', 'CI', 'BJ', 'TG', 'GW', 'ML', 'BF'], true),
+            self::STRIPE   => in_array($country, ['FR', 'BE', 'DE', 'ES', 'MA'], true),
+            self::FAKE     => true,
         };
     }
 }

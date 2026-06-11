@@ -55,8 +55,10 @@ beforeEach(function () {
             rawPayload: [],
         ));
 
-    app()->forgetInstance(PaymentProvider::class);
-    app()->instance(PaymentProvider::class, $this->provider);
+    $resolver = mock(\App\Contracts\Payments\PaymentProviderResolverContract::class);
+    $resolver->shouldReceive('resolve')->andReturn($this->provider);
+    $resolver->shouldReceive('resolveByKey')->andReturn($this->provider);
+    app()->instance(\App\Contracts\Payments\PaymentProviderResolverContract::class, $resolver);
 });
 
 function createPayableBookingForTransactionController(User $sender, Trip $trip): Booking
