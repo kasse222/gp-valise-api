@@ -68,6 +68,7 @@ class BookingController extends Controller
 
     public function approve(Request $request, Booking $booking, ApproveBooking $action): JsonResponse
     {
+        $booking->loadMissing('trip');
         $this->authorize('approve', $booking);
 
         $booking = $action->execute($booking, $request->user());
@@ -80,6 +81,7 @@ class BookingController extends Controller
 
     public function decline(Request $request, Booking $booking, DeclineBooking $action): JsonResponse
     {
+        $booking->loadMissing('trip');
         $this->authorize('decline', $booking);
 
         $booking = $action->execute($booking, $request->user());
@@ -112,6 +114,7 @@ class BookingController extends Controller
 
     public function complete(Request $request, Booking $booking, CompleteBooking $action)
     {
+        $booking->loadMissing('trip');
         $this->authorize('complete', $booking);
 
         $booking = $action->execute($booking, $request->user());

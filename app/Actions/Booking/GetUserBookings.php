@@ -25,6 +25,11 @@ class GetUserBookings
         if ($user->isVoyageur()) {
             return $query
                 ->whereHas('trip', fn($q) => $q->where('user_id', $user->id))
+                ->where(function ($q) {
+                    $q->where('status', '!=', \App\Enums\BookingStatusEnum::PENDING_APPROVAL)
+                        ->orWhereNull('payment_expires_at')
+                        ->orWhere('payment_expires_at', '>', now());
+                })
                 ->get();
         }
 
