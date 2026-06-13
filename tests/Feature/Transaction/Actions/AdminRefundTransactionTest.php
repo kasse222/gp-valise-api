@@ -46,8 +46,9 @@ beforeEach(function (): void {
             rawPayload: [],
         ));
 
-    app()->forgetInstance(PaymentProvider::class);
-    app()->instance(PaymentProvider::class, $this->provider);
+    $resolver = mock(\App\Contracts\Payments\PaymentProviderResolverContract::class);
+    $resolver->shouldReceive('resolveByKey')->andReturn($this->provider);
+    app()->instance(\App\Contracts\Payments\PaymentProviderResolverContract::class, $resolver);
 
     $this->action = app(AdminRefundTransaction::class);
 });

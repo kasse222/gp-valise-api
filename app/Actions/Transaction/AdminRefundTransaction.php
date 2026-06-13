@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions\Transaction;
 
-use App\Contracts\Payments\PaymentProvider;
+use App\Contracts\Payments\PaymentProviderResolverContract;
+use App\Data\Payments\PaymentResponseData;
 use App\Data\Payments\RefundRequestData;
 use App\Enums\BookingStatusEnum;
 use App\Enums\PaymentProviderEnum;
@@ -18,13 +19,14 @@ use App\Models\User;
 use App\Services\AuditLogIntegrityService;
 use App\Services\TransactionAmountCalculator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
 class AdminRefundTransaction
 {
     public function __construct(
-        private readonly PaymentProvider $paymentProvider,
+        private readonly PaymentProviderResolverContract $resolver,
         private readonly TransactionAmountCalculator $calculator,
         private readonly AuditLogIntegrityService $auditLogIntegrityService,
     ) {}
@@ -76,9 +78,9 @@ class AdminRefundTransaction
                 ->get();
 
             if ($transactions->contains(
-                fn(Transaction $transaction) =>
-                $transaction->type === TransactionTypeEnum::PAYOUT
-                    && in_array($transaction->status, [
+                fn(Transaction $t) =>
+                $t->type === TransactionTypeEnum::PAYOUT
+                    && in_array($t->status, [
                         TransactionStatusEnum::PENDING,
                         TransactionStatusEnum::COMPLETED,
                     ], true)
@@ -89,7 +91,7 @@ class AdminRefundTransaction
             }
 
             $existingRefund = $transactions->first(
-                fn(Transaction $transaction) => $transaction->type === TransactionTypeEnum::REFUND
+                fn(Transaction $t) => $t->type === TransactionTypeEnum::REFUND
             );
 
             if ($existingRefund) {
@@ -104,29 +106,20 @@ class AdminRefundTransaction
                 ]);
             }
 
-            $providerResult = $this->paymentProvider->refund(
-                new RefundRequestData(
-                    provider: PaymentProviderEnum::FAKE,
-                    providerTransactionId: (string) $charge->provider_transaction_id,
-                    amount: (int) round((float) $refundAmount * 100),
-                    currency: $charge->currency,
-                    idempotencyKey: 'admin-refund-' . $charge->id,
-                    reason: $reason,
-                    metadata: [
-                        'booking_id' => $booking->id,
-                        'user_id' => $charge->user_id,
-                        'admin_id' => $admin->id,
-                        'correlation_id' => $correlationId,
-                    ],
-                )
+            $providerResult = $this->callProviderRefund(
+                charge: $charge,
+                refundAmount: $refundAmount,
+                idempotencyKey: 'admin-refund-' . $charge->id,
+                reason: $reason,
+                metadata: [
+                    'booking_id'     => $booking->id,
+                    'user_id'        => $charge->user_id,
+                    'admin_id'       => $admin->id,
+                    'correlation_id' => $correlationId,
+                ],
             );
 
-            $status = match ($providerResult->providerStatus) {
-                'completed' => TransactionStatusEnum::COMPLETED,
-                'pending' => TransactionStatusEnum::PENDING,
-                'failed' => TransactionStatusEnum::FAILED,
-                default => throw new InvalidArgumentException("Statut provider inconnu : {$providerResult->providerStatus}"),
-            };
+            $status = $this->resolveStatus($providerResult->providerStatus);
 
             if ($status === TransactionStatusEnum::FAILED) {
                 throw ValidationException::withMessages([
@@ -135,44 +128,36 @@ class AdminRefundTransaction
             }
 
             $refund = Transaction::query()->create([
-                'user_id' => $charge->user_id,
-                'booking_id' => $booking->id,
-                'type' => TransactionTypeEnum::REFUND,
-                'amount' => $refundAmount,
-                'currency' => $charge->currency,
-                'method' => $charge->method,
-                'status' => $status,
+                'user_id'                 => $charge->user_id,
+                'booking_id'              => $booking->id,
+                'type'                    => TransactionTypeEnum::REFUND,
+                'amount'                  => $refundAmount,
+                'currency'                => $charge->currency,
+                'method'                  => $charge->method,
+                'status'                  => $status,
+                'provider'                => $charge->provider,
                 'provider_transaction_id' => $providerResult->providerTransactionId,
-                'processed_at' => $status === TransactionStatusEnum::COMPLETED ? now() : null,
+                'processed_at'            => $status === TransactionStatusEnum::COMPLETED ? now() : null,
             ]);
 
             $snapshot = [
-                'reason' => $reason,
-                'admin' => [
-                    'id' => $admin->id,
-                    'email' => $admin->email,
-                ],
-                'booking' => [
-                    'id' => $booking->id,
-                    'status' => $booking->status->value,
-                ],
-                'charge' => [
-                    'id' => $charge->id,
-                    'amount' => (float) $charge->amount,
+                'reason'  => $reason,
+                'admin'   => ['id' => $admin->id, 'email' => $admin->email],
+                'booking' => ['id' => $booking->id, 'status' => $booking->status->value],
+                'charge'  => [
+                    'id'       => $charge->id,
+                    'amount'   => (float) $charge->amount,
                     'currency' => $charge->currency?->value,
-                    'status' => $charge->status?->value,
+                    'status'   => $charge->status?->value,
+                    'provider' => $charge->provider?->value,
                 ],
-                'transactions' => $transactions->map(fn(Transaction $transaction) => [
-                    'id' => $transaction->id,
-                    'type' => $transaction->type?->value,
-                    'status' => $transaction->status?->value,
-                    'amount' => (float) $transaction->amount,
+                'transactions' => $transactions->map(fn(Transaction $t) => [
+                    'id'     => $t->id,
+                    'type'   => $t->type?->value,
+                    'status' => $t->status?->value,
+                    'amount' => (float) $t->amount,
                 ])->values()->all(),
-                'refund' => [
-                    'id' => $refund->id,
-                    'amount' => (float) $refund->amount,
-                    'status' => $refund->status?->value,
-                ],
+                'refund'     => ['id' => $refund->id, 'amount' => (float) $refund->amount, 'status' => $refund->status?->value],
                 'created_at' => now()->toISOString(),
             ];
 
@@ -195,5 +180,57 @@ class AdminRefundTransaction
         event(new TransactionRefunded($refund, $reason));
 
         return $refund;
+    }
+
+    private function callProviderRefund(
+        Transaction $charge,
+        int $refundAmount,
+        string $idempotencyKey,
+        string $reason,
+        array $metadata,
+    ): PaymentResponseData {
+        $providerKey = $charge->provider?->value ?? PaymentProviderEnum::PAYDUNYA->value;
+
+        $refundRequest = new RefundRequestData(
+            provider: $charge->provider ?? PaymentProviderEnum::PAYDUNYA,
+            providerTransactionId: (string) $charge->provider_transaction_id,
+            amount: $refundAmount,
+            currency: $charge->currency,
+            idempotencyKey: $idempotencyKey,
+            reason: $reason,
+            metadata: $metadata,
+        );
+
+        try {
+            return $this->resolver->resolveByKey($providerKey)->refund($refundRequest);
+        } catch (\RuntimeException $e) {
+            Log::warning('AdminRefund provider non supporté — traitement manuel requis', [
+                'provider'   => $providerKey,
+                'charge_id'  => $charge->id,
+                'booking_id' => $charge->booking_id,
+                'error'      => $e->getMessage(),
+            ]);
+
+            return new PaymentResponseData(
+                provider: $charge->provider ?? PaymentProviderEnum::PAYDUNYA,
+                providerTransactionId: 'manual-refund-' . $charge->id,
+                providerStatus: 'pending',
+                amount: $refundAmount,
+                currency: $charge->currency,
+                checkoutUrl: null,
+                eventId: null,
+                rawPayload: ['manual' => true, 'reason' => $e->getMessage()],
+            );
+        }
+    }
+
+    private function resolveStatus(string $providerStatus): TransactionStatusEnum
+    {
+        return match ($providerStatus) {
+            'completed' => TransactionStatusEnum::COMPLETED,
+            'pending'   => TransactionStatusEnum::PENDING,
+            'failed'    => TransactionStatusEnum::FAILED,
+            default     => throw new InvalidArgumentException("Statut provider inconnu : {$providerStatus}"),
+        };
     }
 }

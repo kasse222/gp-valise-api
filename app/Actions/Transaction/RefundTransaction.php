@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions\Transaction;
 
-use App\Contracts\Payments\PaymentProvider;
+use App\Contracts\Payments\PaymentProviderResolverContract;
+use App\Data\Payments\PaymentResponseData;
 use App\Data\Payments\RefundRequestData;
 use App\Enums\PaymentProviderEnum;
 use App\Enums\TransactionStatusEnum;
@@ -15,15 +16,16 @@ use App\Models\Transaction;
 use App\Services\TransactionAmountCalculator;
 use App\Services\TransactionEligibilityService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
 class RefundTransaction
 {
     public function __construct(
-        private readonly PaymentProvider $paymentProvider,
-        private readonly TransactionEligibilityService $eligibility,
-        private readonly TransactionAmountCalculator $calculator,
+        protected readonly PaymentProviderResolverContract $resolver,
+        protected readonly TransactionEligibilityService $eligibility,
+        protected readonly TransactionAmountCalculator $calculator,
     ) {}
 
     public function execute(Transaction $charge, ?string $reason = null): Transaction
@@ -68,27 +70,18 @@ class RefundTransaction
                 ]);
             }
 
-            $providerResult = $this->paymentProvider->refund(
-                new RefundRequestData(
-                    provider: PaymentProviderEnum::FAKE,
-                    providerTransactionId: (string) $charge->provider_transaction_id,
-                    amount: (int) round((float) $refundAmount * 100),
-                    currency: $charge->currency,
-                    idempotencyKey: 'refund-' . $charge->id,
-                    reason: $reason ?? 'Refund requested',
-                    metadata: [
-                        'booking_id' => $booking->id,
-                        'user_id' => $charge->user_id,
-                    ],
-                )
+            $providerResult = $this->callProviderRefund(
+                charge: $charge,
+                refundAmount: $refundAmount,
+                idempotencyKey: 'refund-' . $charge->id,
+                reason: $reason ?? 'Refund requested',
+                metadata: [
+                    'booking_id' => $booking->id,
+                    'user_id'    => $charge->user_id,
+                ],
             );
 
-            $status = match ($providerResult->providerStatus) {
-                'completed' => TransactionStatusEnum::COMPLETED,
-                'pending' => TransactionStatusEnum::PENDING,
-                'failed' => TransactionStatusEnum::FAILED,
-                default => throw new InvalidArgumentException("Statut provider inconnu : {$providerResult->providerStatus}"),
-            };
+            $status = $this->resolveStatus($providerResult->providerStatus);
 
             if ($status === TransactionStatusEnum::FAILED) {
                 throw ValidationException::withMessages([
@@ -97,20 +90,78 @@ class RefundTransaction
             }
 
             return Transaction::query()->create([
-                'user_id' => $charge->user_id,
-                'booking_id' => $booking->id,
-                'type' => TransactionTypeEnum::REFUND,
-                'amount' => $refundAmount,
-                'currency' => $charge->currency,
-                'method' => $charge->method,
-                'status' => $status,
+                'user_id'                 => $charge->user_id,
+                'booking_id'              => $booking->id,
+                'type'                    => TransactionTypeEnum::REFUND,
+                'amount'                  => $refundAmount,
+                'currency'                => $charge->currency,
+                'method'                  => $charge->method,
+                'status'                  => $status,
+                'provider'                => $charge->provider,
                 'provider_transaction_id' => $providerResult->providerTransactionId,
-                'processed_at' => $status === TransactionStatusEnum::COMPLETED ? now() : null,
+                'processed_at'            => $status === TransactionStatusEnum::COMPLETED ? now() : null,
             ]);
         });
 
         event(new TransactionRefunded($result, $reason));
 
         return $result;
+    }
+
+    // ─── Shared helpers ────────────────────────────────────────────────────────
+
+    protected function callProviderRefund(
+        Transaction $charge,
+        int $refundAmount,
+        string $idempotencyKey,
+        string $reason,
+        array $metadata,
+    ): PaymentResponseData {
+        $providerKey = $charge->provider?->value ?? PaymentProviderEnum::PAYDUNYA->value;
+
+        $refundRequest = new RefundRequestData(
+            provider: $charge->provider ?? PaymentProviderEnum::PAYDUNYA,
+            providerTransactionId: (string) $charge->provider_transaction_id,
+            amount: $refundAmount,
+            currency: $charge->currency,
+            idempotencyKey: $idempotencyKey,
+            reason: $reason,
+            metadata: $metadata,
+        );
+
+        try {
+            $provider = $this->resolver->resolveByKey($providerKey);
+            return $provider->refund($refundRequest);
+        } catch (\RuntimeException $e) {
+            // Provider ne supporte pas le refund automatique (ex: PayDunya)
+            // → PENDING pour traitement manuel admin
+            Log::warning('Refund provider non supporté — traitement manuel requis', [
+                'provider'   => $providerKey,
+                'charge_id'  => $charge->id,
+                'booking_id' => $charge->booking_id,
+                'error'      => $e->getMessage(),
+            ]);
+
+            return new PaymentResponseData(
+                provider: $charge->provider ?? PaymentProviderEnum::PAYDUNYA,
+                providerTransactionId: 'manual-refund-' . $charge->id,
+                providerStatus: 'pending',
+                amount: $refundAmount,
+                currency: $charge->currency,
+                checkoutUrl: null,
+                eventId: null,
+                rawPayload: ['manual' => true, 'reason' => $e->getMessage()],
+            );
+        }
+    }
+
+    protected function resolveStatus(string $providerStatus): TransactionStatusEnum
+    {
+        return match ($providerStatus) {
+            'completed' => TransactionStatusEnum::COMPLETED,
+            'pending'   => TransactionStatusEnum::PENDING,
+            'failed'    => TransactionStatusEnum::FAILED,
+            default     => throw new InvalidArgumentException("Statut provider inconnu : {$providerStatus}"),
+        };
     }
 }
