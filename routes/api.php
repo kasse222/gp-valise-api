@@ -29,8 +29,13 @@ use App\Http\Middleware\EnsureRole;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->name('api.v1.')->group(function (): void {
-    Route::post('/register', [AuthController::class, 'register'])->name('auth.register');
-    Route::post('/login', [AuthController::class, 'login'])->name('auth.login');
+
+    Route::post('/register', [AuthController::class, 'register'])
+        ->middleware('throttle:register')
+        ->name('auth.register');
+    Route::post('/login', [AuthController::class, 'login'])
+        ->middleware('throttle:login')
+        ->name('auth.login');
 
     Route::get('/trips', [TripController::class, 'index'])->name('trips.index');
     Route::get('/trips/{trip}', [TripController::class, 'show'])->name('trips.show');
