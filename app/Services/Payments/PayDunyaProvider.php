@@ -30,10 +30,8 @@ final class PayDunyaProvider implements PaymentProvider
                 'name' => 'Safe Move',
             ],
             'actions' => [
-                'cancel_url'   => config('payment_providers.paydunya.cancel_url')
-                    . '?booking_id=' . ($meta['booking_id'] ?? ''),
-                'return_url'   => config('payment_providers.paydunya.success_url')
-                    . '?booking_id=' . ($meta['booking_id'] ?? ''),
+                'cancel_url'   => config('payment_providers.paydunya.cancel_url') . '?booking_id=' . ($meta['booking_id'] ?? ''),
+                'return_url'   => config('payment_providers.paydunya.success_url') . '?booking_id=' . ($meta['booking_id'] ?? ''),
                 'callback_url' => config('payment_providers.paydunya.callback_url'),
             ],
             'custom_data' => [
@@ -49,7 +47,7 @@ final class PayDunyaProvider implements PaymentProvider
 
             $response->throw();
             $body = $response->json();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             throw new RuntimeException("PayDunya charge failed: {$e->getMessage()}", previous: $e);
         }
 
@@ -62,7 +60,6 @@ final class PayDunyaProvider implements PaymentProvider
         $checkoutUrl = $this->isSandbox()
             ? "https://app.paydunya.com/sandbox/checkout/invoice/{$token}"
             : "https://app.paydunya.com/checkout/invoice/{$token}";
-
 
         return new PaymentResponseData(
             provider: PaymentProviderEnum::PAYDUNYA,
@@ -78,14 +75,26 @@ final class PayDunyaProvider implements PaymentProvider
 
     public function refund(RefundRequestData $request): PaymentResponseData
     {
-        // PayDunya ne supporte pas le refund API automatique
-        throw new RuntimeException('PayDunya refund must be processed manually via dashboard.');
+        return new PaymentResponseData(
+            provider: PaymentProviderEnum::PAYDUNYA,
+            providerTransactionId: $request->providerTransactionId,
+            providerStatus: 'pending_manual',
+            amount: $request->amount,
+            currency: $request->currency,
+            checkoutUrl: null,
+            eventId: 'manual-refund-' . $request->idempotencyKey,
+            rawPayload: [
+                'manual_required' => true,
+                'provider' => PaymentProviderEnum::PAYDUNYA->value,
+                'reason' => $request->reason,
+            ],
+        );
     }
 
     public function verifyWebhook(WebhookVerificationData $webhook): bool
     {
-        $payload = $webhook->payload;
-        $hash    = (string) ($payload['hash'] ?? '');
+        $payload = $this->extractPayload($webhook->payload);
+        $hash = (string) ($payload['hash'] ?? '');
 
         if ($hash === '') {
             return false;
@@ -93,14 +102,16 @@ final class PayDunyaProvider implements PaymentProvider
 
         $masterKey = (string) config('payment_providers.paydunya.master_key');
 
-        return hash_equals(sha1($masterKey), $hash);
+        return hash_equals(hash('sha512', $masterKey), $hash);
     }
 
     public function normalizeWebhook(WebhookVerificationData $webhook): PaymentEventData
     {
-        $payload = $webhook->payload;
-        $status  = strtolower((string) ($payload['status'] ?? ''));
-        $token   = (string) ($payload['token'] ?? '');
+        $payload = $this->extractPayload($webhook->payload);
+
+        $status = strtolower((string) ($payload['status'] ?? ''));
+        $invoice = (array) ($payload['invoice'] ?? []);
+        $token = (string) ($payload['token'] ?? $invoice['token'] ?? '');
 
         if ($token === '') {
             throw new RuntimeException('PayDunya webhook missing token.');
@@ -118,15 +129,13 @@ final class PayDunyaProvider implements PaymentProvider
             default     => 'transaction.pending',
         };
 
-        $amount = (int) ($payload['invoice']['total_amount'] ?? 0);
-
         return new PaymentEventData(
             provider: PaymentProviderEnum::PAYDUNYA,
             eventId: $token,
             eventType: $eventType,
             providerTransactionId: $token,
             providerStatus: $providerStatus,
-            amount: $amount,
+            amount: (int) ($invoice['total_amount'] ?? 0),
             currency: CurrencyEnum::XOF,
             metadata: (array) ($payload['custom_data'] ?? []),
             rawPayload: $payload,
@@ -136,6 +145,13 @@ final class PayDunyaProvider implements PaymentProvider
     public function name(): string
     {
         return PaymentProviderEnum::PAYDUNYA->value;
+    }
+
+    private function extractPayload(array $payload): array
+    {
+        return isset($payload['data']) && is_array($payload['data'])
+            ? $payload['data']
+            : $payload;
     }
 
     private function headers(): array

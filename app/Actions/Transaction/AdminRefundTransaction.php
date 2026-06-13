@@ -214,7 +214,7 @@ class AdminRefundTransaction
             return new PaymentResponseData(
                 provider: $charge->provider ?? PaymentProviderEnum::PAYDUNYA,
                 providerTransactionId: 'manual-refund-' . $charge->id,
-                providerStatus: 'pending',
+                providerStatus: 'pending_manual',
                 amount: $refundAmount,
                 currency: $charge->currency,
                 checkoutUrl: null,
@@ -227,10 +227,11 @@ class AdminRefundTransaction
     private function resolveStatus(string $providerStatus): TransactionStatusEnum
     {
         return match ($providerStatus) {
-            'completed' => TransactionStatusEnum::COMPLETED,
-            'pending'   => TransactionStatusEnum::PENDING,
-            'failed'    => TransactionStatusEnum::FAILED,
-            default     => throw new InvalidArgumentException("Statut provider inconnu : {$providerStatus}"),
+            'completed'      => TransactionStatusEnum::COMPLETED,
+            'pending',
+            'pending_manual' => TransactionStatusEnum::PENDING,
+            'failed'         => TransactionStatusEnum::FAILED,
+            default          => throw new InvalidArgumentException("Statut provider inconnu : {$providerStatus}"),
         };
     }
 }
