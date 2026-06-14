@@ -24,19 +24,22 @@ beforeEach(function (): void {
 });
 
 it('livre une réservation avec succès', function (): void {
-    $voyageur = User::factory()->traveler()->verified()->create();
-    $trip     = Trip::factory()->create(['user_id' => $voyageur->id]);
+    $voyageur   = User::factory()->traveler()->verified()->create();
+    $trip       = Trip::factory()->create(['user_id' => $voyageur->id]);
     $expediteur = User::factory()->sender()->verified()->create();
 
     $booking = Booking::factory()->create([
-        'user_id' => $expediteur->id,
-        'trip_id' => $trip->id,
-        'status'  => BookingStatusEnum::CONFIRMEE,
+        'user_id'            => $expediteur->id,
+        'trip_id'            => $trip->id,
+        'status'             => BookingStatusEnum::EN_TRANSIT,
+        'delivery_code'      => '123456',
+        'delivery_qr_token'  => 'test-qr-token-uuid',
+        'handed_over_at'     => now()->subHour(),
     ]);
 
     actingAs($voyageur);
 
-    $result = app(CompleteBooking::class)->execute($booking, $voyageur);
+    $result = app(CompleteBooking::class)->execute($booking, $voyageur, '123456');
     $result->load('statusHistories');
 
     expect($result->status)->toBe(BookingStatusEnum::LIVREE)
@@ -51,29 +54,36 @@ it('dispatch BookingDelivered lorsqu une réservation est livrée', function ():
     $expediteur = User::factory()->sender()->verified()->create();
 
     $booking = Booking::factory()->create([
-        'user_id' => $expediteur->id,
-        'trip_id' => $trip->id,
-        'status'  => BookingStatusEnum::CONFIRMEE,
+        'user_id'            => $expediteur->id,
+        'trip_id'            => $trip->id,
+        'status'             => BookingStatusEnum::EN_TRANSIT,
+        'delivery_code'      => '654321',
+        'delivery_qr_token'  => 'test-qr-token-uuid-2',
+        'handed_over_at'     => now()->subHour(),
     ]);
 
     actingAs($voyageur);
 
-    $result = app(CompleteBooking::class)->execute($booking, $voyageur);
+    $result = app(CompleteBooking::class)->execute($booking, $voyageur, '654321');
 
     Event::assertDispatched(BookingDelivered::class, function (BookingDelivered $event) use ($result): bool {
         return $event->booking->id === $result->id
             && $event->booking->status === BookingStatusEnum::LIVREE;
     });
 });
+
 it('crée automatiquement un payout pending et une commission lorsqu une réservation est livrée', function (): void {
     $voyageur   = User::factory()->traveler()->verified()->create();
     $trip       = Trip::factory()->create(['user_id' => $voyageur->id]);
     $expediteur = User::factory()->sender()->verified()->create();
 
     $booking = Booking::factory()->create([
-        'user_id' => $expediteur->id,
-        'trip_id' => $trip->id,
-        'status'  => BookingStatusEnum::CONFIRMEE,
+        'user_id'            => $expediteur->id,
+        'trip_id'            => $trip->id,
+        'status'             => BookingStatusEnum::EN_TRANSIT,
+        'delivery_code'      => '999888',
+        'delivery_qr_token'  => 'test-qr-token-uuid-3',
+        'handed_over_at'     => now()->subHour(),
     ]);
 
     Transaction::factory()->create([
@@ -87,8 +97,7 @@ it('crée automatiquement un payout pending et une commission lorsqu une réserv
 
     actingAs($voyageur);
 
-    $result = app(CompleteBooking::class)->execute($booking, $voyageur);
-
+    $result = app(CompleteBooking::class)->execute($booking, $voyageur, '999888');
     $result->refresh();
 
     // Payout NON créé immédiatement — escrow en attente

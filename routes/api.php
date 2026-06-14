@@ -79,6 +79,7 @@ Route::prefix('v1')
             Route::get('/', [KycRequestController::class, 'show'])->name('show');
             Route::post('/', [KycRequestController::class, 'store'])->name('store');
         });
+
         Route::post('/uploads', [UploadController::class, 'store'])
             ->middleware('auth:sanctum')
             ->name('uploads.store');
@@ -108,32 +109,31 @@ Route::prefix('v1')
                 ->name('store');
         });
 
+        // ── Bookings ───────────────────────────────────────────────────────────
         Route::get('/bookings', [BookingController::class, 'index'])->name('bookings.index');
         Route::get('/bookings/{booking}', [BookingController::class, 'show'])->name('bookings.show');
-
-        Route::post('/bookings/{booking}/pay', [BookingController::class, 'pay'])
-            ->middleware(EnsureRole::class . ':' . UserRoleEnum::SENDER->value)
-            ->name('bookings.pay');
 
         Route::middleware(EnsureRole::class . ':' . UserRoleEnum::SENDER->value)->group(function (): void {
             Route::post('/bookings', [BookingController::class, 'store'])->name('bookings.store');
             Route::delete('/bookings/{booking}', [BookingController::class, 'destroy'])->name('bookings.destroy');
+            Route::post('/bookings/{booking}/pay', [BookingController::class, 'pay'])->name('bookings.pay');
         });
 
-        Route::middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)->group(function (): void {
-            Route::post('/bookings/{booking}/approve', [BookingController::class, 'approve'])
-                ->name('bookings.approve');
-            Route::post('/bookings/{booking}/decline', [BookingController::class, 'decline'])
-                ->name('bookings.decline');
-            Route::post('/bookings/{booking}/confirm', [BookingController::class, 'confirm'])
-                ->name('bookings.confirm');
-            Route::post('/bookings/{booking}/complete', [BookingController::class, 'complete'])
-                ->name('bookings.complete');
-        });
-
+        // Annulation : sender OU traveler
         Route::post('/bookings/{booking}/cancel', [BookingController::class, 'cancel'])
             ->middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value . ',' . UserRoleEnum::SENDER->value)
             ->name('bookings.cancel');
+
+        // Instant Booking — actions traveler
+        Route::middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)->group(function (): void {
+            // Remise physique sender → traveler (CONFIRMEE → EN_TRANSIT)
+            Route::post('/bookings/{booking}/handover', [BookingController::class, 'handover'])
+                ->name('bookings.handover');
+            // Scan QR / code secret destinataire (EN_TRANSIT → LIVREE)
+            Route::post('/bookings/{booking}/deliver', [BookingController::class, 'deliver'])
+                ->name('bookings.deliver');
+        });
+        // ──────────────────────────────────────────────────────────────────────
 
         // ── Dispute public API ─────────────────────────────────────────────────
         Route::post('/bookings/{booking}/dispute', [DisputeController::class, 'open'])
@@ -141,12 +141,9 @@ Route::prefix('v1')
             ->name('bookings.dispute.open');
 
         Route::prefix('disputes')->name('disputes.')->group(function (): void {
-            Route::get('/{dispute}', [DisputeController::class, 'show'])
-                ->name('show');
-            Route::get('/{dispute}/messages', [DisputeController::class, 'messages'])
-                ->name('messages.index');
-            Route::post('/{dispute}/messages', [DisputeController::class, 'addMessage'])
-                ->name('messages.store');
+            Route::get('/{dispute}', [DisputeController::class, 'show'])->name('show');
+            Route::get('/{dispute}/messages', [DisputeController::class, 'messages'])->name('messages.index');
+            Route::post('/{dispute}/messages', [DisputeController::class, 'addMessage'])->name('messages.store');
         });
         // ──────────────────────────────────────────────────────────────────────
 

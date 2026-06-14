@@ -14,9 +14,9 @@ use Illuminate\Validation\ValidationException;
 
 class CancelBooking
 {
-    public function execute(Booking $booking, ?User $actor = null): Booking
+    public function execute(Booking $booking, ?User $actor = null, string $cancelledBy = 'sender'): Booking
     {
-        $booking = DB::transaction(function () use ($booking, $actor) {
+        $booking = DB::transaction(function () use ($booking, $actor, $cancelledBy) {
             $booking = Booking::query()
                 ->with(['bookingItems.luggage', 'trip', 'user'])
                 ->lockForUpdate()
@@ -28,10 +28,21 @@ class CancelBooking
                 ]);
             }
 
+            // Calcul taux remboursement selon règles métier
+            $refundRate = $booking->computeRefundRate($cancelledBy);
+
+            $booking->cancel_reason = match ($cancelledBy) {
+                'traveler' => 'Annulation par le voyageur',
+                'admin'    => 'Annulation administrative',
+                default    => 'Annulation par l\'expéditeur',
+            };
+            $booking->refund_rate = $refundRate;
+            $booking->save();
+
             $booking->transitionTo(
                 BookingStatusEnum::ANNULE,
                 $actor,
-                'Annulation manuelle de la réservation'
+                $booking->cancel_reason
             );
 
             foreach ($booking->bookingItems as $item) {

@@ -4,18 +4,23 @@ namespace App\Enums;
 
 enum BookingStatusEnum: string
 {
-    case EN_ATTENTE           = 'en_attente';
+    case EN_ATTENTE       = 'en_attente';
+    case EN_PAIEMENT      = 'en_paiement';
+    case PAIEMENT_ECHOUE  = 'paiement_echoue';
+    case CONFIRMEE        = 'confirmee';
+    case EN_TRANSIT       = 'en_transit';      // ← NOUVEAU : remise physique faite
+    case LIVREE           = 'livree';
+    case TERMINE          = 'termine';
+    case ANNULE           = 'annule';
+    case REMBOURSEE       = 'remboursee';
+    case EXPIREE          = 'expiree';
+    case EN_LITIGE        = 'en_litige';
+    case SUSPENDUE        = 'suspendue';
+
+    // Conservés pour compatibilité données existantes — JAMAIS utilisés dans le nouveau flow
+    /** @deprecated Instant Booking — ne plus créer de bookings dans ces états */
     case PENDING_APPROVAL     = 'pending_approval';
-    case EN_PAIEMENT          = 'en_paiement';
-    case PAIEMENT_ECHOUE      = 'paiement_echoue';
-    case CONFIRMEE            = 'confirmee';
-    case LIVREE               = 'livree';
-    case TERMINE              = 'termine';
-    case ANNULE               = 'annule';
-    case REMBOURSEE           = 'remboursee';
-    case EXPIREE              = 'expiree';
-    case EN_LITIGE            = 'en_litige';
-    case SUSPENDUE            = 'suspendue';
+    /** @deprecated Instant Booking */
     case DECLINED_BY_TRAVELER = 'declined_by_traveler';
 
     public function canTransitionTo(self $target): bool
@@ -26,14 +31,9 @@ enum BookingStatusEnum: string
     public function allowedTransitions(): array
     {
         return match ($this) {
+            // Instant Booking : EN_ATTENTE → EN_PAIEMENT directement
             self::EN_ATTENTE => [
-                self::PENDING_APPROVAL,
-                self::ANNULE,
-            ],
-
-            self::PENDING_APPROVAL => [
                 self::EN_PAIEMENT,
-                self::DECLINED_BY_TRAVELER,
                 self::ANNULE,
             ],
 
@@ -50,10 +50,15 @@ enum BookingStatusEnum: string
             ],
 
             self::CONFIRMEE => [
-                self::LIVREE,
+                self::EN_TRANSIT,   // ← remise physique sender → traveler
                 self::ANNULE,
                 self::EN_LITIGE,
                 self::REMBOURSEE,
+            ],
+
+            self::EN_TRANSIT => [
+                self::LIVREE,       // ← scan QR / code secret destinataire
+                self::EN_LITIGE,
             ],
 
             self::LIVREE => [
@@ -69,6 +74,13 @@ enum BookingStatusEnum: string
 
             self::SUSPENDUE => [
                 self::EN_LITIGE,
+                self::ANNULE,
+            ],
+
+            // Légacy — aucune transition sortante active
+            self::PENDING_APPROVAL => [
+                self::EN_PAIEMENT,
+                self::DECLINED_BY_TRAVELER,
                 self::ANNULE,
             ],
 
@@ -96,14 +108,14 @@ enum BookingStatusEnum: string
         return $this === self::EN_PAIEMENT;
     }
 
-    public function isPendingApproval(): bool
-    {
-        return $this === self::PENDING_APPROVAL;
-    }
-
     public function isConfirmed(): bool
     {
         return $this === self::CONFIRMEE;
+    }
+
+    public function isInTransit(): bool
+    {
+        return $this === self::EN_TRANSIT;
     }
 
     public function isDelivered(): bool
@@ -116,16 +128,20 @@ enum BookingStatusEnum: string
         return $this === self::EN_PAIEMENT;
     }
 
-    public function canBeDelivered(): bool
+    public function canBeTransited(): bool
     {
         return $this === self::CONFIRMEE;
+    }
+
+    public function canBeDelivered(): bool
+    {
+        return $this === self::EN_TRANSIT;
     }
 
     public function canBeCancelled(): bool
     {
         return in_array($this, [
             self::EN_ATTENTE,
-            self::PENDING_APPROVAL,
             self::EN_PAIEMENT,
             self::CONFIRMEE,
         ], true);
@@ -140,6 +156,7 @@ enum BookingStatusEnum: string
     {
         return in_array($this, [
             self::CONFIRMEE,
+            self::EN_TRANSIT,
             self::LIVREE,
         ], true);
     }
@@ -149,14 +166,22 @@ enum BookingStatusEnum: string
         return $this === self::EN_LITIGE;
     }
 
-    public function canBeApprovedByTraveler(): bool
+    /** @deprecated Instant Booking — toujours false dans le nouveau flow */
+    public function isPendingApproval(): bool
     {
         return $this === self::PENDING_APPROVAL;
     }
 
+    /** @deprecated Instant Booking */
+    public function canBeApprovedByTraveler(): bool
+    {
+        return false;
+    }
+
+    /** @deprecated Instant Booking */
     public function canBeDeclinedByTraveler(): bool
     {
-        return $this === self::PENDING_APPROVAL;
+        return false;
     }
 
     public function label(): string
@@ -167,6 +192,7 @@ enum BookingStatusEnum: string
             self::EN_PAIEMENT          => 'En paiement',
             self::PAIEMENT_ECHOUE      => 'Paiement échoué',
             self::CONFIRMEE            => 'Confirmée',
+            self::EN_TRANSIT           => 'En transit',
             self::LIVREE               => 'Livrée',
             self::TERMINE              => 'Terminée',
             self::ANNULE               => 'Annulée',
@@ -186,6 +212,7 @@ enum BookingStatusEnum: string
             self::EN_PAIEMENT          => 'yellow',
             self::PAIEMENT_ECHOUE      => 'red',
             self::CONFIRMEE            => 'blue',
+            self::EN_TRANSIT           => 'indigo',
             self::LIVREE               => 'green',
             self::TERMINE              => 'green',
             self::ANNULE               => 'red',

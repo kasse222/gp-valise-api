@@ -22,31 +22,45 @@ class Booking extends Model
         'user_id',
         'trip_id',
         'status',
+        'comment',
+
+        // Destinataire (obligatoire à la réservation — Instant Booking)
+        'recipient_name',
+        'recipient_phone',
+        'recipient_email',
+
+        // Remise / livraison
+        'handed_over_at',
+        'delivery_code',
+        'delivery_qr_token',
+
+        // Annulation
+        'cancel_reason',
+        'refund_rate',
+
+        // Timestamps financiers / logistiques
         'confirmed_at',
         'completed_at',
         'cancelled_at',
         'expired_at',
         'payment_expires_at',
-        'comment',
         'delivered_at',
         'escrow_releasable_at',
         'disputed_at',
-        'approved_at',
-        'declined_at',
     ];
 
     protected $casts = [
-        'status' => BookingStatusEnum::class,
-        'confirmed_at' => 'datetime',
-        'completed_at' => 'datetime',
-        'cancelled_at' => 'datetime',
-        'expired_at' => 'datetime',
-        'payment_expires_at' => 'datetime',
-        'delivered_at' => 'datetime',
+        'status'               => BookingStatusEnum::class,
+        'confirmed_at'         => 'datetime',
+        'completed_at'         => 'datetime',
+        'cancelled_at'         => 'datetime',
+        'expired_at'           => 'datetime',
+        'payment_expires_at'   => 'datetime',
+        'delivered_at'         => 'datetime',
         'escrow_releasable_at' => 'datetime',
-        'disputed_at' => 'datetime',
-        'approved_at' => 'datetime',
-        'declined_at' => 'datetime',
+        'disputed_at'          => 'datetime',
+        'handed_over_at'       => 'datetime',
+        'refund_rate'          => 'integer',
     ];
 
     protected static bool $disableStatusAutoCreate = false;
@@ -67,10 +81,12 @@ class Booking extends Model
                 'old_status' => null,
                 'new_status' => $booking->status,
                 'changed_by' => $booking->user_id,
-                'reason' => 'Création initiale',
+                'reason'     => 'Création initiale',
             ]);
         });
     }
+
+    // ── Relations ─────────────────────────────────────────────────────────────
 
     public function user(): BelongsTo
     {
@@ -123,6 +139,8 @@ class Booking extends Model
         return $this->hasOne(PickupLocation::class);
     }
 
+    // ── Transitions ───────────────────────────────────────────────────────────
+
     public function transitionTo(
         BookingStatusEnum $newStatus,
         ?User $changer = null,
@@ -135,24 +153,24 @@ class Booking extends Model
         }
 
         $oldStatus = $this->status;
-        $now = now();
+        $now       = now();
 
         match ($newStatus) {
-            BookingStatusEnum::EN_PAIEMENT => $this->markApprovedAndAwaitingPayment($now),
-            BookingStatusEnum::CONFIRMEE => $this->confirmed_at = $now,
-            BookingStatusEnum::TERMINE => $this->completed_at = $now,
-            BookingStatusEnum::ANNULE => $this->cancelled_at = $now,
-            BookingStatusEnum::EXPIREE => $this->expired_at = $now,
-            BookingStatusEnum::DECLINED_BY_TRAVELER => $this->declined_at = $now,
-            default => null,
+            BookingStatusEnum::EN_PAIEMENT => $this->markAwaitingPayment($now),
+            BookingStatusEnum::CONFIRMEE   => $this->confirmed_at = $now,
+            BookingStatusEnum::EN_TRANSIT  => $this->handed_over_at = $now,
+            BookingStatusEnum::TERMINE     => $this->completed_at = $now,
+            BookingStatusEnum::ANNULE      => $this->cancelled_at = $now,
+            BookingStatusEnum::EXPIREE     => $this->expired_at = $now,
+            default                        => null,
         };
 
+        // Nettoyer payment_expires_at dès que le paiement est résolu
         if (in_array($newStatus, [
             BookingStatusEnum::CONFIRMEE,
             BookingStatusEnum::ANNULE,
             BookingStatusEnum::EXPIREE,
             BookingStatusEnum::PAIEMENT_ECHOUE,
-            BookingStatusEnum::DECLINED_BY_TRAVELER,
         ], true)) {
             $this->payment_expires_at = null;
         }
@@ -164,27 +182,79 @@ class Booking extends Model
             'old_status' => $oldStatus,
             'new_status' => $newStatus,
             'changed_by' => $changer?->id,
-            'reason' => $reason ?? 'Changement programmatique',
+            'reason'     => $reason ?? 'Changement programmatique',
         ]);
     }
 
-    private function markApprovedAndAwaitingPayment($now): void
+    private function markAwaitingPayment(\Illuminate\Support\Carbon $now): void
     {
-        $this->approved_at = $now;
         $this->payment_expires_at = $now->copy()->addMinutes(
             config('gpvalise.payment_expiration_minutes', 30)
         );
     }
 
+    // ── Lifecycle helpers ─────────────────────────────────────────────────────
+
+    /**
+     * Appelé lors de la remise physique (CONFIRMEE → EN_TRANSIT).
+     * Génère le code secret et le QR token envoyés au destinataire.
+     */
+    public function markHandedOver(): void
+    {
+        $this->delivery_code      = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $this->delivery_qr_token  = \Illuminate\Support\Str::uuid()->toString();
+        $this->handed_over_at     = now();
+        $this->save();
+    }
+
+    /**
+     * Appelé lors du scan QR / saisie code par le destinataire (EN_TRANSIT → LIVREE).
+     */
     public function markDelivered(): void
     {
-        $now = now();
-        $delayHours = config('gpvalise.escrow_delay_hours', 48);
+        $now         = now();
+        $delayHours  = config('gpvalise.escrow_delay_hours', 48);
 
-        $this->delivered_at = $now;
+        $this->delivered_at         = $now;
         $this->escrow_releasable_at = $now->copy()->addHours($delayHours);
         $this->save();
     }
+
+    // ── Annulation avec règle de remboursement ────────────────────────────────
+
+    /**
+     * Détermine le taux de remboursement selon les règles métier.
+     * Appelé avant transitionTo(ANNULE) pour enregistrer refund_rate.
+     */
+    public function computeRefundRate(string $cancelledBy): int
+    {
+        // Annulation par le traveler → 100% toujours
+        if ($cancelledBy === 'traveler') {
+            return 100;
+        }
+
+        // Pas encore confirmé (paiement en cours) → 100%
+        if ($this->status === BookingStatusEnum::EN_PAIEMENT) {
+            return 100;
+        }
+
+        // Annulation sender depuis CONFIRMEE
+        $trip = $this->trip;
+
+        if ($trip === null || $trip->date === null) {
+            return 100; // cas défensif
+        }
+
+        $hoursUntilDeparture = now()->diffInHours($trip->date, false);
+
+        return match (true) {
+            $hoursUntilDeparture > 48  => 100,
+            $hoursUntilDeparture >= 0  => 70,
+            default                    => 0,  // no-show (date passée)
+        };
+    }
+
+    // ── Predicates ────────────────────────────────────────────────────────────
 
     public function statusIs(BookingStatusEnum $expected): bool
     {
@@ -206,29 +276,14 @@ class Booking extends Model
         return $this->status === BookingStatusEnum::CONFIRMEE;
     }
 
+    public function isInTransit(): bool
+    {
+        return $this->status === BookingStatusEnum::EN_TRANSIT;
+    }
+
     public function isCancelled(): bool
     {
         return $this->status === BookingStatusEnum::ANNULE;
-    }
-
-    public function isPendingApproval(): bool
-    {
-        return $this->status === BookingStatusEnum::PENDING_APPROVAL;
-    }
-
-    public function isDeclinedByTraveler(): bool
-    {
-        return $this->status === BookingStatusEnum::DECLINED_BY_TRAVELER;
-    }
-
-    public function canBeApprovedByTraveler(): bool
-    {
-        return $this->status->canBeApprovedByTraveler();
-    }
-
-    public function canBeDeclinedByTraveler(): bool
-    {
-        return $this->status->canBeDeclinedByTraveler();
     }
 
     public function isPaymentExpired(): bool
@@ -259,10 +314,7 @@ class Booking extends Model
 
     public function canEnterDispute(): bool
     {
-        return in_array($this->status, [
-            BookingStatusEnum::CONFIRMEE,
-            BookingStatusEnum::LIVREE,
-        ], true);
+        return $this->status->canEnterDispute();
     }
 
     public function hasPayoutTransaction(): bool
@@ -290,5 +342,49 @@ class Booking extends Model
     public function hasSuccessfulChargeTransaction(): bool
     {
         return $this->hasCompletedChargeTransaction();
+    }
+
+    /**
+     * Vérifie que le code secret présenté par le destinataire est valide.
+     */
+    public function verifyDeliveryCode(string $code): bool
+    {
+        return $this->delivery_code !== null
+            && hash_equals($this->delivery_code, $code);
+    }
+
+    /**
+     * Vérifie que le QR token présenté par le destinataire est valide.
+     */
+    public function verifyDeliveryQrToken(string $token): bool
+    {
+        return $this->delivery_qr_token !== null
+            && hash_equals($this->delivery_qr_token, $token);
+    }
+
+    // ── @deprecated — conservés pour compat tests legacy ─────────────────────
+
+    /** @deprecated Instant Booking */
+    public function isPendingApproval(): bool
+    {
+        return $this->status === BookingStatusEnum::PENDING_APPROVAL;
+    }
+
+    /** @deprecated Instant Booking */
+    public function isDeclinedByTraveler(): bool
+    {
+        return $this->status === BookingStatusEnum::DECLINED_BY_TRAVELER;
+    }
+
+    /** @deprecated Instant Booking */
+    public function canBeApprovedByTraveler(): bool
+    {
+        return false;
+    }
+
+    /** @deprecated Instant Booking */
+    public function canBeDeclinedByTraveler(): bool
+    {
+        return false;
     }
 }

@@ -13,6 +13,7 @@ use App\Models\Trip;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class DemoDataSeeder extends Seeder
 {
@@ -77,23 +78,33 @@ class DemoDataSeeder extends Seeder
             'date'         => now()->addDays(20),
         ]);
 
-        // ── Helper ────────────────────────────────────────────────────────────
+        // ── Helpers ───────────────────────────────────────────────────────────
         $makeLuggage = function (User $user, Trip $trip, LuggageStatusEnum $status) {
             return Luggage::factory()->create([
-                'user_id'             => $user->id,
-                'trip_id'             => $trip->id,
-                'status'              => $status,
-                'pickup_city'         => $trip->departure,
-                'delivery_city'       => $trip->destination,
-                'pickup_date'         => $trip->date,
-                'delivery_date'       => $trip->date->copy()->addDay(),
+                'user_id'       => $user->id,
+                'trip_id'       => $trip->id,
+                'status'        => $status,
+                'pickup_city'   => $trip->departure,
+                'delivery_city' => $trip->destination,
+                'pickup_date'   => $trip->date,
+                'delivery_date' => $trip->date->copy()->addDay(),
             ]);
         };
 
+        // Destinataire demo partagé
+        $recipient = [
+            'recipient_name'  => 'Fatou Diallo',
+            'recipient_phone' => '+221771234567',
+            'recipient_email' => 'fatou.diallo@demo.com',
+        ];
+
         // ── Bookings ──────────────────────────────────────────────────────────
+
+        // EN_PAIEMENT — paiement en attente
         $bookingEnPaiement = Booking::factory()->for($sender)->for($tripCasaParis)->create([
             'status'             => BookingStatusEnum::EN_PAIEMENT,
             'payment_expires_at' => now()->addMinutes(30),
+            ...$recipient,
         ]);
         $bookingEnPaiement->bookingItems()->create([
             'luggage_id'  => $makeLuggage($sender, $tripCasaParis, LuggageStatusEnum::RESERVEE)->id,
@@ -102,9 +113,11 @@ class DemoDataSeeder extends Seeder
             'price'       => 4000,
         ]);
 
+        // CONFIRMEE — paiement reçu, en attente de remise
         $bookingConfirmee = Booking::factory()->for($sender)->for($tripCasaParis)->create([
             'status'       => BookingStatusEnum::CONFIRMEE,
             'confirmed_at' => now()->subDays(2),
+            ...$recipient,
         ]);
         $bookingConfirmee->bookingItems()->create([
             'luggage_id'  => $makeLuggage($sender, $tripCasaParis, LuggageStatusEnum::RESERVEE)->id,
@@ -113,10 +126,30 @@ class DemoDataSeeder extends Seeder
             'price'       => 6400,
         ]);
 
+        // EN_TRANSIT — colis remis au voyageur, QR envoyé au destinataire
+        $bookingEnTransit = Booking::factory()->for($sender)->for($tripCasaParis)->create([
+            'status'            => BookingStatusEnum::EN_TRANSIT,
+            'confirmed_at'      => now()->subDays(3),
+            'handed_over_at'    => now()->subHours(6),
+            'delivery_code'     => '482917',
+            'delivery_qr_token' => Str::uuid()->toString(),
+            ...$recipient,
+        ]);
+        $bookingEnTransit->bookingItems()->create([
+            'luggage_id'  => $makeLuggage($sender, $tripCasaParis, LuggageStatusEnum::RESERVEE)->id,
+            'trip_id'     => $tripCasaParis->id,
+            'kg_reserved' => 3000,
+            'price'       => 2400,
+        ]);
+
+        // LIVREE — destinataire a scanné le QR
         $bookingLivree = Booking::factory()->for($sender)->for($tripCasaParis)->create([
-            'status'       => BookingStatusEnum::LIVREE,
-            'confirmed_at' => now()->subDays(5),
-            'completed_at' => now()->subDays(1),
+            'status'               => BookingStatusEnum::LIVREE,
+            'confirmed_at'         => now()->subDays(5),
+            'handed_over_at'       => now()->subDays(4),
+            'delivered_at'         => now()->subDays(1),
+            'escrow_releasable_at' => now()->addHours(47),
+            ...$recipient,
         ]);
         $bookingLivree->bookingItems()->create([
             'luggage_id'  => $makeLuggage($sender, $tripCasaParis, LuggageStatusEnum::LIVREE)->id,
@@ -125,10 +158,12 @@ class DemoDataSeeder extends Seeder
             'price'       => 8000,
         ]);
 
+        // EN_LITIGE
         $bookingLitige = Booking::factory()->for($sender)->for($tripDakarAbidjan)->create([
             'status'       => BookingStatusEnum::EN_LITIGE,
             'disputed_at'  => now()->subHours(3),
             'confirmed_at' => now()->subDays(4),
+            ...$recipient,
         ]);
         $bookingLitige->bookingItems()->create([
             'luggage_id'  => $makeLuggage($sender, $tripDakarAbidjan, LuggageStatusEnum::RESERVEE)->id,
@@ -137,10 +172,15 @@ class DemoDataSeeder extends Seeder
             'price'       => 4200,
         ]);
 
+        // TERMINE
         $bookingTermine = Booking::factory()->for($sender)->for($tripDakarAbidjan)->create([
-            'status'       => BookingStatusEnum::TERMINE,
-            'confirmed_at' => now()->subDays(10),
-            'completed_at' => now()->subDays(7),
+            'status'               => BookingStatusEnum::TERMINE,
+            'confirmed_at'         => now()->subDays(10),
+            'handed_over_at'       => now()->subDays(9),
+            'delivered_at'         => now()->subDays(8),
+            'escrow_releasable_at' => now()->subDays(6),
+            'completed_at'         => now()->subDays(7),
+            ...$recipient,
         ]);
         $bookingTermine->bookingItems()->create([
             'luggage_id'  => $makeLuggage($sender, $tripDakarAbidjan, LuggageStatusEnum::LIVREE)->id,
@@ -149,9 +189,13 @@ class DemoDataSeeder extends Seeder
             'price'       => 7200,
         ]);
 
+        // REMBOURSEE
         $bookingRemboursee = Booking::factory()->for($sender)->for($tripCasaParis)->create([
-            'status'       => BookingStatusEnum::REMBOURSEE,
-            'confirmed_at' => now()->subDays(8),
+            'status'        => BookingStatusEnum::REMBOURSEE,
+            'confirmed_at'  => now()->subDays(8),
+            'cancel_reason' => 'Remboursement suite à litige',
+            'refund_rate'   => 100,
+            ...$recipient,
         ]);
         $bookingRemboursee->bookingItems()->create([
             'luggage_id'  => $makeLuggage($sender, $tripCasaParis, LuggageStatusEnum::ANNULEE)->id,

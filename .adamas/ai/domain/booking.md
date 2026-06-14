@@ -15,7 +15,7 @@ Il représente :
 Il garantit la cohérence entre :
 
 ```txt
-Expéditeur ↔ Trip ↔ Luggage ↔ Transaction
+Expéditeur ↔ Trip ↔ Luggage ↔ Transaction ↔ Destinataire
 ```
 
 ---
@@ -32,17 +32,44 @@ Le Booking :
 
 ---
 
+# 🏗️ Modèle Instant Booking
+
+GP-Valise utilise un modèle **Instant Booking** : dès que le paiement est confirmé, la réservation est automatiquement `CONFIRMEE`. Il n'y a pas d'approbation manuelle du voyageur.
+
+Le voyageur définit ses conditions au moment de la publication du trajet (capacité, prix/kg, point de rendez-vous). L'acceptation est implicite dès publication.
+
+---
+
 # 🧱 Structure
 
 ## Relations principales
 
-| Relation          | Description                |
-| ----------------- | -------------------------- |
-| `user_id`         | expéditeur                 |
-| `trip_id`         | trajet associé             |
-| `bookingItems`    | bagages réservés           |
-| `transactions`    | flux financiers            |
-| `statusHistories` | historique des transitions |
+| Relation          | Description                        |
+| ----------------- | ---------------------------------- |
+| `user_id`         | expéditeur                         |
+| `trip_id`         | trajet associé                     |
+| `bookingItems`    | bagages réservés                   |
+| `transactions`    | flux financiers                    |
+| `statusHistories` | historique des transitions         |
+| `recipient`       | destinataire désigné par le sender |
+
+## Champs destinataire (obligatoires à la réservation)
+
+| Champ               | Type    | Description                        |
+| ------------------- | ------- | ---------------------------------- |
+| `recipient_name`    | string  | nom du destinataire                |
+| `recipient_phone`   | string  | téléphone du destinataire          |
+| `recipient_email`   | string  | email du destinataire              |
+
+## Champs remise / livraison
+
+| Champ               | Type      | Description                                      |
+| ------------------- | --------- | ------------------------------------------------ |
+| `handed_over_at`    | timestamp | moment de remise physique sender → traveler      |
+| `delivery_code`     | string    | code secret 6 chiffres généré à EN_TRANSIT       |
+| `delivery_qr_token` | string    | UUID unique généré à EN_TRANSIT                  |
+| `cancel_reason`     | string    | raison d'annulation                              |
+| `refund_rate`       | integer   | taux remboursement appliqué (100 \| 70 \| 0)     |
 
 ---
 
@@ -52,9 +79,9 @@ Le Booking :
 
 ```txt
 EN_ATTENTE
-→ PENDING_APPROVAL
 → EN_PAIEMENT
 → CONFIRMEE
+→ EN_TRANSIT
 → LIVREE
 → TERMINE
 ```
@@ -63,14 +90,14 @@ EN_ATTENTE
 
 ## États alternatifs
 
-| Statut               | Description                          |
-| -------------------- | ------------------------------------ |
-| PENDING_APPROVAL     | en attente d'acceptation du voyageur |
-| DECLINED_BY_TRAVELER | refusé explicitement par le voyageur |
-| EXPIREE              | paiement non effectué                |
-| ANNULE               | annulé avant confirmation            |
-| REMBOURSEE           | refund effectué                      |
-| EN_LITIGE            | problème déclaré                     |
+| Statut      | Description                                |
+| ----------- | ------------------------------------------ |
+| EXPIREE     | paiement non effectué dans le délai        |
+| ANNULE      | annulé par sender ou traveler              |
+| REMBOURSEE  | refund effectué                            |
+| EN_LITIGE   | problème déclaré pendant ou après livraison|
+
+> **Supprimés :** `PENDING_APPROVAL` et `DECLINED_BY_TRAVELER` — obsolètes avec le modèle Instant Booking.
 
 ---
 
@@ -87,7 +114,6 @@ TERMINE
 REMBOURSEE
 ANNULE
 EXPIREE
-DECLINED_BY_TRAVELER
 ```
 
 Une fois finalisé :
@@ -116,9 +142,7 @@ Le Booking dépend toujours des Transactions pour :
 PAYOUT ⊕ REFUND
 ```
 
-Un booking ne peut jamais avoir :
-
-- payout ET refund
+Un booking ne peut jamais avoir payout ET refund.
 
 ---
 
@@ -127,7 +151,7 @@ Un booking ne peut jamais avoir :
 Toujours garantir :
 
 ```txt
-Booking ↔ BookingItem ↔ Luggage ↔ Trip
+Booking ↔ BookingItem ↔ Luggage ↔ Trip ↔ Recipient
 ```
 
 ---
@@ -152,23 +176,15 @@ Le payout devient éligible uniquement après :
 
 ---
 
-## Approbation traveler
+## Création (Instant Booking)
 
-Un booking passe à `EN_PAIEMENT` uniquement si :
+Un booking est créé directement en `EN_PAIEMENT` si :
 
-- statut actuel = `PENDING_APPROVAL`
-- le voyageur du trip a explicitement accepté
+- le trip est actif et a la capacité suffisante
+- le sender a renseigné : poids, nature du contenu, destinataire (nom + tel + email)
+- la capacité est verrouillée (`lockForUpdate`) pendant la création
 
-Si le voyageur refuse :
-
-- statut → `DECLINED_BY_TRAVELER`
-- capacité libérée
-- bagages remis disponibles
-
-Si le sender annule depuis `PENDING_APPROVAL` :
-
-- statut → `ANNULE`
-- capacité libérée
+Il n'y a pas d'étape `PENDING_APPROVAL`. Le paiement doit être effectué immédiatement.
 
 ---
 
@@ -176,8 +192,42 @@ Si le sender annule depuis `PENDING_APPROVAL` :
 
 Un booking devient `CONFIRMEE` uniquement si :
 
-- transaction `CHARGE` existe
-- status = `COMPLETED`
+- transaction `CHARGE` existe et status = `COMPLETED`
+- capacité trip déduite définitivement : `kg_disponibles -= kg_réservés`
+
+À ce moment, les notifications sont envoyées :
+
+**Sender reçoit :**
+- nom et téléphone du traveler
+- point de rendez-vous remise
+
+**Traveler reçoit :**
+- nature et poids du colis
+- téléphone du sender
+- point de rendez-vous remise
+
+---
+
+## Remise physique (EN_TRANSIT)
+
+Lorsque le sender remet le colis au traveler :
+
+- `handed_over_at` = now()
+- `delivery_code` = code secret 6 chiffres généré
+- `delivery_qr_token` = UUID unique généré
+- Booking → `EN_TRANSIT`
+- QR code + code secret envoyés au **destinataire** (email + SMS)
+
+---
+
+## Livraison à destination
+
+Le traveler scanne le QR ou saisit le code secret présenté par le destinataire.
+
+- `delivered_at` = now()
+- `escrow_releasable_at` = `delivered_at + 48h`
+- Booking → `LIVREE`
+- Fonds maintenus en escrow plateforme
 
 ---
 
@@ -189,21 +239,40 @@ Un booking `EN_PAIEMENT` devient `EXPIREE` si :
 
 Effets :
 
-- libération de capacité
+- libération de capacité trip
 - bagages remis disponibles
 
 ---
 
-## Livraison
+## Annulation
 
-Lors du passage à `LIVREE` :
+### Sender annule
 
-- `delivered_at` est renseigné
-- `escrow_releasable_at` est calculé
-- les fonds restent détenus par la plateforme
-- aucun payout immédiat n'est créé
+| Timing                        | Remboursement  | Compensation traveler |
+| ----------------------------- | -------------- | --------------------- |
+| > 48h avant départ du trip    | 100%           | 0%                    |
+| < 48h avant départ du trip    | 70%            | 30% retenu            |
+| No-show (non présentation RDV)| 0%             | 100% payout traveler  |
 
-Le payout devient éligible après la période escrow.
+- `refund_rate` enregistré sur le booking
+- capacité trip libérée dans tous les cas
+
+### Traveler annule
+
+- Remboursement 100% sender
+- Notation traveler dégradée (-1)
+- capacité trip libérée
+
+### Conditions
+
+Annulation possible uniquement depuis :
+
+```txt
+EN_PAIEMENT → ANNULE (avant confirmation paiement)
+CONFIRMEE   → ANNULE (selon règles timing ci-dessus)
+```
+
+Impossible depuis `EN_TRANSIT`, `LIVREE`, `TERMINE`.
 
 ---
 
@@ -225,15 +294,6 @@ Le scheduler escrow est responsable de la libération.
 
 ---
 
-## Annulation
-
-Possible uniquement si :
-
-- booking en `PENDING_APPROVAL` ou non confirmé
-- aucun engagement financier irréversible
-
----
-
 ## Litige
 
 Un litige :
@@ -242,6 +302,8 @@ Un litige :
 - interdit le payout
 - peut mener à refund admin
 - nécessite résolution explicite
+
+Ouverture possible depuis `CONFIRMEE`, `EN_TRANSIT` ou `LIVREE`.
 
 ---
 
@@ -256,13 +318,7 @@ Un booking devient `REMBOURSEE` uniquement si :
 Le refund est déclenché via :
 
 ```txt
-HandlePaymentWebhook::handleSuccess()
-```
-
-sur :
-
-```txt
-refund.completed
+HandlePaymentWebhook::handleSuccess() sur refund.completed
 ```
 
 ---
@@ -308,13 +364,11 @@ EN_ATTENTE
 → LIVREE
 ```
 
----
-
 ## Règles
 
 - un bagage ne peut être réservé qu'une seule fois
 - dépend toujours d'un Booking
-- libéré si booking expire, annulé ou refusé par le voyageur
+- libéré si booking expire ou annulé
 
 ---
 
@@ -326,29 +380,25 @@ EN_ATTENTE
 grams integer
 ```
 
-Exemple :
-
-```txt
-25000 = 25kg
-```
-
----
+Exemple : `25000 = 25kg`
 
 ## Calcul capacité utilisée
 
 Comptabilisés :
 
-- CONFIRMEE
-- EN_PAIEMENT non expiré
-- PENDING_APPROVAL (capacité réservée dès la demande)
+- `CONFIRMEE`
+- `EN_PAIEMENT` non expiré
+- `EN_TRANSIT`
 
----
+> **Supprimé :** `PENDING_APPROVAL` n'existe plus.
 
 ## Règle
 
 ```txt
 capacity_used ≤ capacity_trip
 ```
+
+Lock obligatoire (`lockForUpdate`) lors de toute réservation.
 
 ---
 
@@ -360,13 +410,7 @@ capacity_used ≤ capacity_trip
 minor integer units
 ```
 
-Exemple :
-
-```txt
-1500 = 15.00€
-```
-
----
+Exemple : `1500 = 15.00€`
 
 ## Règles
 
@@ -387,14 +431,11 @@ Autorisés :
 
 ## Cas critiques
 
-- réservation
-- approbation traveler
-- confirmation
+- réservation (déduction capacité)
+- confirmation paiement
 - expiration
 - payout release
 - ouverture litige
-
----
 
 ## Stratégie
 
@@ -408,9 +449,9 @@ Autorisés :
 
 Doit être garantie pour :
 
-- approbation / refus traveler
-- confirmation
+- confirmation paiement
 - expiration
+- génération QR / code secret
 - payout release
 - refund
 - webhook handling
@@ -419,13 +460,7 @@ Doit être garantie pour :
 
 # 🔄 Transitions
 
-Centralisées dans :
-
-```php
-BookingStatusEnum
-```
-
----
+Centralisées dans `BookingStatusEnum`.
 
 ## Règles
 
@@ -433,26 +468,26 @@ BookingStatusEnum
 - toujours via Enum
 - validation via `canTransitionTo()`
 
----
-
 ## Table des transitions autorisées
 
-| De → Vers                               | Déclencheur                 |
-| --------------------------------------- | --------------------------- |
-| EN_ATTENTE → PENDING_APPROVAL           | booking créé par sender     |
-| PENDING_APPROVAL → EN_PAIEMENT          | traveler accepte            |
-| PENDING_APPROVAL → DECLINED_BY_TRAVELER | traveler refuse             |
-| PENDING_APPROVAL → ANNULE               | sender annule ou expiration |
-| EN_PAIEMENT → CONFIRMEE                 | charge completed            |
-| EN_PAIEMENT → EXPIREE                   | expiration paiement         |
-| EN_PAIEMENT → ANNULE                    | annulation avant paiement   |
-| CONFIRMEE → LIVREE                      | livraison confirmée         |
-| CONFIRMEE → EN_LITIGE                   | ouverture litige            |
-| CONFIRMEE → REMBOURSEE                  | refund completed            |
-| LIVREE → EN_LITIGE                      | dispute post-livraison      |
-| LIVREE → TERMINE                        | payout completed            |
-| EN_LITIGE → REMBOURSEE                  | refund admin                |
-| EN_LITIGE → LIVREE                      | résolution litige           |
+| De → Vers                  | Déclencheur                              |
+| -------------------------- | ---------------------------------------- |
+| EN_ATTENTE → EN_PAIEMENT   | booking créé, paiement initié            |
+| EN_PAIEMENT → CONFIRMEE    | charge COMPLETED (webhook)               |
+| EN_PAIEMENT → EXPIREE      | payment_expires_at dépassé               |
+| EN_PAIEMENT → ANNULE       | annulation avant paiement                |
+| CONFIRMEE → EN_TRANSIT     | remise physique confirmée par traveler   |
+| CONFIRMEE → ANNULE         | annulation sender ou traveler            |
+| CONFIRMEE → EN_LITIGE      | ouverture litige                         |
+| CONFIRMEE → REMBOURSEE     | refund completed                         |
+| EN_TRANSIT → LIVREE        | destinataire scanne QR / saisit code     |
+| EN_TRANSIT → EN_LITIGE     | dispute pendant transit                  |
+| LIVREE → EN_LITIGE         | dispute post-livraison (< 48h escrow)    |
+| LIVREE → TERMINE           | payout completed                         |
+| EN_LITIGE → REMBOURSEE     | refund admin                             |
+| EN_LITIGE → LIVREE         | résolution litige favorable              |
+
+> **Supprimées :** transitions `PENDING_APPROVAL`, `DECLINED_BY_TRAVELER`.
 
 ---
 
@@ -462,10 +497,10 @@ Chaque changement de statut doit :
 
 - être historisé
 - contenir :
-    - ancien statut
-    - nouveau statut
-    - acteur
-    - raison éventuelle
+  - ancien statut
+  - nouveau statut
+  - acteur
+  - raison éventuelle
 
 ---
 
@@ -494,6 +529,7 @@ Le Booking ne :
 - ne calcule pas les fees
 - ne connaît pas les PSP
 - ne gère pas la trésorerie
+- ne génère pas le QR code (délégué à un service dédié)
 
 ---
 
@@ -507,16 +543,21 @@ Accès via Policies :
 | Voyageur   | bookings de ses trips |
 | Admin      | accès global          |
 
+Le QR token et le code secret ne sont jamais exposés dans les réponses API standard — uniquement via les canaux de notification (email/SMS destinataire).
+
 ---
 
 # 🧪 Testabilité
 
 Le domaine doit être testé pour :
 
-- transitions
-- approbation / refus traveler
-- capacité
-- concurrence
+- transitions (nouvelle table)
+- création instant booking
+- déduction capacité avec lock
+- confirmation paiement → notifications
+- génération QR/code à EN_TRANSIT
+- scan QR → LIVREE
+- règles annulation (3 cas timing)
 - escrow
 - payout guards
 - refund guards
@@ -534,14 +575,15 @@ Le domaine doit être testé pour :
 - float pour money/weight
 - réservation sans lock
 - payout immédiat à LIVREE
-- paiement sans approbation traveler
+- coordonnées traveler/sender partagées avant `CONFIRMEE`
+- QR/code secret partagé avant `EN_TRANSIT`
 
 ---
 
 # 🔮 Extensions futures
 
 - dispute resolution workflow
-- escrow configurable
+- escrow configurable par corridor
 - reserve balances
 - payout batching
 - reconciliation engine
@@ -549,6 +591,7 @@ Le domaine doit être testé pour :
 - multi-currency treasury
 - volume-based booking
 - risk scoring
+- re-booking automatique si annulation traveler
 
 ---
 
@@ -557,23 +600,11 @@ Le domaine doit être testé pour :
 ```txt
 Booking = pivot métier transactionnel
 
-- orchestre logistique
-- dépend de la finance
-- protège les invariants
+- Instant Booking : pas d'approbation manuelle
+- paiement immédiat → CONFIRMEE → notifications mutuelles
+- remise physique → EN_TRANSIT → QR/code envoyé au destinataire
+- scan destinataire → LIVREE → escrow 48h → payout traveler
+- annulation : règles timing strictes côté sender
 - reste découplé des PSP
 - évolue vers un système treasury complet
 ```
-
----
-
-# 🧠 Design intention
-
-Le Booking est conçu pour :
-
-- centraliser la logique métier
-- garantir cohérence transactionnelle
-- préserver auditabilité et traçabilité
-- supporter escrow et treasury
-- évoluer vers un backend marketplace robuste
-
-> Un Booking mal conçu casse tout le système.
