@@ -12,7 +12,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class BookingCanceledMail extends Mailable implements ShouldQueue
+class BookingCanceledTravelerMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -23,21 +23,19 @@ class BookingCanceledMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Réservation annulée — #' . $this->booking->id,
+            subject: 'Réservation annulée sur votre trajet — #' . $this->booking->id,
         );
     }
 
     public function content(): Content
     {
-        $refundRate = $this->booking->refund_rate ?? 100;
-
         return new Content(
-            markdown: 'emails.booking.canceled',
+            markdown: 'emails.booking.canceled-traveler',
             with: [
-                'booking'    => $this->booking,
-                'trip'       => $this->booking->trip,
-                'refundRate' => $refundRate,
-                'searchUrl'  => config('app.frontend_url') . '/trips',
+                'booking'      => $this->booking,
+                'trip'         => $this->booking->trip,
+                'sender'       => $this->booking->user,
+                'dashboardUrl' => config('app.frontend_url') . '/dashboard',
             ],
         );
     }

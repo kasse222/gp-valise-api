@@ -5,22 +5,18 @@ declare(strict_types=1);
 namespace App\Listeners;
 
 use App\Events\BookingHandedOver;
+use App\Mail\Booking\DeliveryCodeMail;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Support\Facades\Mail;
 
-/**
- * Envoie le QR code et le code secret au destinataire du colis.
- * Déclenché lors de la remise physique (CONFIRMEE → EN_TRANSIT).
- *
- * TODO : implémenter l'envoi email + SMS via Resend / Twilio.
- */
 class SendDeliveryCodeNotification implements ShouldQueue
 {
     public function handle(BookingHandedOver $event): void
     {
-        $booking = $event->booking;
+        $booking = $event->booking->loadMissing(['user', 'trip']);
 
-        // Email destinataire avec QR token + code secret
-        // Mail::to($booking->recipient_email)
-        //     ->send(new DeliveryCodeMail($booking));
+        // Email au destinataire du colis (pas au sender)
+        Mail::to($booking->recipient_email)
+            ->queue(new DeliveryCodeMail($booking));
     }
 }

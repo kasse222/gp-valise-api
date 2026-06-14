@@ -26,7 +26,10 @@ use App\Listeners\LogTransactionCreated;
 use App\Listeners\LogTransactionRefunded;
 use App\Listeners\SendBookingApprovedNotification;
 use App\Listeners\SendBookingCanceledNotification;
+use App\Listeners\SendBookingCanceledTravelerNotification;
 use App\Listeners\SendBookingConfirmedNotification;
+use App\Listeners\SendBookingConfirmedTravelerNotification;
+use App\Listeners\SendBookingConfirmedRecipientNotification;
 use App\Listeners\SendBookingDeclinedNotification;
 use App\Listeners\SendBookingDeliveredNotification;
 use App\Listeners\SendBookingExpiredNotification;
@@ -53,16 +56,18 @@ class EventServiceProvider extends ServiceProvider
 
         BookingConfirmed::class => [
             LogBookingConfirmed::class,
-            SendBookingConfirmedNotification::class,
+            SendBookingConfirmedNotification::class,         // sender : infos traveler + RDV
+            SendBookingConfirmedTravelerNotification::class,  // traveler : infos colis + tel sender
+            SendBookingConfirmedRecipientNotification::class, // destinataire : colis en route
         ],
 
         BookingCanceled::class => [
             LogBookingCanceled::class,
-            SendBookingCanceledNotification::class,
+            SendBookingCanceledNotification::class,         // sender : remboursement + taux
+            SendBookingCanceledTravelerNotification::class, // traveler : capacité libérée
         ],
 
-        // Instant Booking — remise physique sender → traveler
-        // Envoie QR code + code secret au destinataire (email + SMS)
+        // Instant Booking — remise physique → QR + code au destinataire
         BookingHandedOver::class => [
             SendDeliveryCodeNotification::class,
         ],
