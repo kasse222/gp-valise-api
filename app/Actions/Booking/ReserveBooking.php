@@ -29,6 +29,8 @@ class ReserveBooking
 
             $this->validator->validateReservation($user, $trip, $data);
 
+            $this->validateRecipient($data);
+
             $luggageIds = collect($data['items'] ?? [])
                 ->pluck('luggage_id')
                 ->filter()
@@ -47,11 +49,23 @@ class ReserveBooking
                 ]);
             }
 
+            // Instant Booking : statut initial EN_PAIEMENT (pas PENDING_APPROVAL)
             $booking = Booking::query()->create([
-                'user_id' => $user->id,
-                'trip_id' => $trip->id,
-                'status'  => BookingStatusEnum::PENDING_APPROVAL,
-                'comment' => $data['comment'] ?? null,
+                'user_id'          => $user->id,
+                'trip_id'          => $trip->id,
+                'status'           => BookingStatusEnum::EN_PAIEMENT,
+                'comment'          => $data['comment'] ?? null,
+
+                // Destinataire obligatoire
+                'recipient_name'   => $data['recipient_name'],
+                'recipient_phone'  => $data['recipient_phone'],
+                'recipient_email'  => $data['recipient_email'],
+
+                // payment_expires_at calculé dans transitionTo,
+                // mais ici on crée directement EN_PAIEMENT donc on le set manuellement
+                'payment_expires_at' => now()->addMinutes(
+                    config('gpvalise.payment_expiration_minutes', 30)
+                ),
             ]);
 
             foreach ($data['items'] as $itemData) {
@@ -65,7 +79,7 @@ class ReserveBooking
 
                 if ($luggage->status !== LuggageStatusEnum::EN_ATTENTE) {
                     throw ValidationException::withMessages([
-                        'items' => "La valise {$luggage->id} n’est plus disponible.",
+                        'items' => "La valise {$luggage->id} n'est plus disponible.",
                     ]);
                 }
 
@@ -85,5 +99,25 @@ class ReserveBooking
 
             return $booking->fresh(['bookingItems.luggage', 'trip', 'user']);
         });
+    }
+
+    private function validateRecipient(array $data): void
+    {
+        $missing = array_filter(
+            ['recipient_name', 'recipient_phone', 'recipient_email'],
+            fn(string $field) => empty($data[$field])
+        );
+
+        if (! empty($missing)) {
+            throw ValidationException::withMessages(
+                array_fill_keys($missing, 'Ce champ destinataire est obligatoire.')
+            );
+        }
+
+        if (! filter_var($data['recipient_email'], FILTER_VALIDATE_EMAIL)) {
+            throw ValidationException::withMessages([
+                'recipient_email' => 'Email destinataire invalide.',
+            ]);
+        }
     }
 }

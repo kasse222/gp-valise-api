@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Actions\Booking\ApproveBooking;
 use App\Actions\Booking\CancelBooking;
-use App\Actions\Booking\CompleteBooking;
 use App\Actions\Booking\ConfirmBooking;
-use App\Actions\Booking\DeclineBooking;
+use App\Actions\Booking\ConfirmDelivery;
 use App\Actions\Booking\DeleteBooking;
 use App\Actions\Booking\GetBookingDetails;
 use App\Actions\Booking\GetUserBookings;
+use App\Actions\Booking\HandOverBooking;
 use App\Actions\Booking\ReserveBooking;
 use App\Actions\Transaction\CreateTransaction;
 use App\Http\Requests\Booking\PayBookingRequest;
@@ -66,62 +65,54 @@ class BookingController extends Controller
         ]);
     }
 
-    public function approve(Request $request, Booking $booking, ApproveBooking $action): JsonResponse
-    {
-        $booking->loadMissing('trip');
-        $this->authorize('approve', $booking);
-
-        $booking = $action->execute($booking, $request->user());
-
-        return response()->json([
-            'message' => 'Réservation approuvée.',
-            'data'    => new BookingResource($booking),
-        ]);
-    }
-
-    public function decline(Request $request, Booking $booking, DeclineBooking $action): JsonResponse
-    {
-        $booking->loadMissing('trip');
-        $this->authorize('decline', $booking);
-
-        $booking = $action->execute($booking, $request->user());
-
-        return response()->json([
-            'message' => 'Réservation refusée.',
-            'data'    => new BookingResource($booking),
-        ]);
-    }
-
-    public function confirm(Request $request, Booking $booking, ConfirmBooking $action)
-    {
-        $this->authorize('confirm', $booking);
-
-        $booking = $action->execute($booking, $request->user());
-
-        return new BookingResource($booking->load('bookingItems.luggage'));
-    }
-
     public function cancel(Request $request, Booking $booking, CancelBooking $action)
     {
         $this->authorize('cancel', $booking);
 
-        $booking = $action->execute($booking, $request->user());
+        $cancelledBy = $request->user()->id === $booking->trip?->user_id
+            ? 'traveler'
+            : 'sender';
+
+        $booking = $action->execute($booking, $request->user(), $cancelledBy);
 
         return new BookingResource(
             $booking->loadMissing('bookingItems.luggage')
         );
     }
 
-    public function complete(Request $request, Booking $booking, CompleteBooking $action)
+    /**
+     * Remise physique sender → traveler au point de RDV.
+     * CONFIRMEE → EN_TRANSIT + génère QR/code secret envoyé au destinataire.
+     */
+    public function handover(Request $request, Booking $booking, HandOverBooking $action): JsonResponse
     {
         $booking->loadMissing('trip');
-        $this->authorize('complete', $booking);
+        $this->authorize('handover', $booking);
 
         $booking = $action->execute($booking, $request->user());
 
         return response()->json([
-            'message' => 'Réservation livrée avec succès.',
-            'booking' => new BookingResource($booking->load('bookingItems.luggage')),
+            'message' => 'Remise du colis confirmée.',
+            'data'    => new BookingResource($booking),
+        ]);
+    }
+
+    /**
+     * Scan QR ou saisie code secret par le destinataire.
+     * EN_TRANSIT → LIVREE + escrow 48h.
+     */
+    public function deliver(Request $request, Booking $booking, ConfirmDelivery $action): JsonResponse
+    {
+        $booking->loadMissing('trip');
+        $this->authorize('deliver', $booking);
+
+        $codeOrToken = $request->input('code') ?? $request->input('qr_token', '');
+
+        $booking = $action->execute($booking, $request->user(), $codeOrToken);
+
+        return response()->json([
+            'message' => 'Livraison confirmée avec succès.',
+            'data'    => new BookingResource($booking->load('bookingItems.luggage')),
         ]);
     }
 
@@ -131,7 +122,7 @@ class BookingController extends Controller
 
         if ($request->user()->isExpeditor() && ! $request->user()->hasKyc()) {
             return response()->json([
-                'message' => 'Vérification d\'identité (KYC) requise avant de procéder au paiement.',
+                'message'      => 'Vérification d\'identité (KYC) requise avant de procéder au paiement.',
                 'kyc_required' => true,
             ], 403);
         }
@@ -149,7 +140,7 @@ class BookingController extends Controller
 
         $transaction = $action->execute($request->user(), [
             'booking_id'     => $booking->id,
-            'amount'         => $totalCentimes,  // ← centimes entiers, pas de division
+            'amount'         => $totalCentimes,
             'currency'       => 'EUR',
             'method'         => $method,
             'country'        => $country,
@@ -159,8 +150,7 @@ class BookingController extends Controller
 
         if ($transaction->status === \App\Enums\TransactionStatusEnum::COMPLETED) {
             $bookingFresh = $booking->fresh(['trip']);
-            app(\App\Actions\Booking\ConfirmBooking::class)
-                ->execute($bookingFresh, $bookingFresh->trip->user);
+            app(ConfirmBooking::class)->execute($bookingFresh, $bookingFresh->trip->user);
         }
 
         return response()->json([

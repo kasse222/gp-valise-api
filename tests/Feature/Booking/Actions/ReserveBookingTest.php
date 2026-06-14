@@ -15,9 +15,16 @@ uses(Tests\TestCase::class, RefreshDatabase::class);
 beforeEach(function () {
     $this->expediteur = User::factory()->sender()->verified()->create();
     $this->actingAs($this->expediteur);
+
+    // Données destinataire obligatoires — Instant Booking
+    $this->recipient = [
+        'recipient_name'  => 'Fatou Diallo',
+        'recipient_phone' => '+221771234567',
+        'recipient_email' => 'fatou@example.com',
+    ];
 });
 
-it('crée une réservation en attente d\'approbation', function () {
+it('crée une réservation directement en paiement (Instant Booking)', function () {
     $trip = Trip::factory()->create([
         'capacity' => 30,
         'user_id'  => User::factory()->traveler()->create()->id,
@@ -36,6 +43,7 @@ it('crée une réservation en attente d\'approbation', function () {
                 'price'       => 50,
             ],
         ],
+        ...$this->recipient,
     ];
 
     $booking = app(ReserveBooking::class)->execute($this->expediteur, $validated);
@@ -43,14 +51,43 @@ it('crée une réservation en attente d\'approbation', function () {
     expect($booking)->toBeInstanceOf(Booking::class)
         ->and($booking->trip_id)->toBe($trip->id)
         ->and($booking->user_id)->toBe($this->expediteur->id)
-        ->and($booking->status)->toBe(BookingStatusEnum::PENDING_APPROVAL)
-        ->and($booking->payment_expires_at)->toBeNull()
-        ->and($booking->approved_at)->toBeNull()
+        ->and($booking->status)->toBe(BookingStatusEnum::EN_PAIEMENT)
+        ->and($booking->payment_expires_at)->not->toBeNull()
+        ->and($booking->payment_expires_at->isFuture())->toBeTrue()
+        ->and($booking->recipient_name)->toBe('Fatou Diallo')
+        ->and($booking->recipient_phone)->toBe('+221771234567')
+        ->and($booking->recipient_email)->toBe('fatou@example.com')
         ->and($booking->bookingItems)->toHaveCount(1)
         ->and($booking->bookingItems->first()->luggage_id)->toBe($luggage->id);
 
     $luggage->refresh();
     expect($luggage->status)->toBe(LuggageStatusEnum::RESERVEE);
+});
+
+it('rejette si recipient_* manquants', function () {
+    $trip = Trip::factory()->create([
+        'capacity' => 30,
+        'user_id'  => User::factory()->traveler()->create()->id,
+    ]);
+
+    $luggage = Luggage::factory()->for($this->expediteur)->create([
+        'status' => LuggageStatusEnum::EN_ATTENTE,
+    ]);
+
+    $validated = [
+        'trip_id' => $trip->id,
+        'items'   => [
+            [
+                'luggage_id'  => $luggage->id,
+                'kg_reserved' => 10,
+                'price'       => 50,
+            ],
+        ],
+        // recipient_* intentionnellement absents
+    ];
+
+    expect(fn() => app(ReserveBooking::class)->execute($this->expediteur, $validated))
+        ->toThrow(ValidationException::class);
 });
 
 it('rejette une valise déjà réservée', function () {
@@ -72,6 +109,7 @@ it('rejette une valise déjà réservée', function () {
                 'price'       => 50,
             ],
         ],
+        ...$this->recipient,
     ];
 
     expect(fn() => app(ReserveBooking::class)->execute($this->expediteur, $validated))
@@ -97,6 +135,7 @@ it('rejette si la capacité est dépassée', function () {
                 'price'       => 50,
             ],
         ],
+        ...$this->recipient,
     ];
 
     expect(fn() => app(ReserveBooking::class)->execute($this->expediteur, $validated))

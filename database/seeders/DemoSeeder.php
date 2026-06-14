@@ -6,15 +6,16 @@ namespace Database\Seeders;
 
 use App\Enums\BookingStatusEnum;
 use App\Enums\CurrencyEnum;
+use App\Enums\LocationPositionEnum;
+use App\Enums\LocationTypeEnum;
+use App\Enums\LuggageStatusEnum;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Enums\TripStatusEnum;
 use App\Enums\TripTypeEnum;
 use App\Enums\UserRoleEnum;
-use App\Enums\LocationPositionEnum;
-use App\Enums\LocationTypeEnum;
-use App\Enums\LuggageStatusEnum;
+use App\Enums\WebhookLogStatusEnum;
 use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Luggage;
@@ -23,7 +24,6 @@ use App\Models\Transaction;
 use App\Models\Trip;
 use App\Models\User;
 use App\Models\WebhookLog;
-use App\Enums\WebhookLogStatusEnum;
 use App\Services\AuditLogIntegrityService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -32,24 +32,18 @@ use Illuminate\Support\Str;
 /**
  * DemoSeeder — GP-Valise
  *
- * Crée un flow complet traçable pour la démo LinkedIn :
- *
- * FLOW A — Refund standard via webhook (correlation_id visible partout)
- *   SENDER → booking → CHARGE completed → CONFIRMEE
- *   → webhook refund.completed → Transaction COMPLETED → Booking REMBOURSEE
- *   → WebhookLog avec correlation_id
- *
- * FLOW B — Admin refund override sur booking EN_LITIGE
- *   booking EN_LITIGE → AdminRefund → AuditLog sellé (integrity_hash)
- *   → AuditLog avec correlation_id
- *
- * Credentials fixes pour la démo :
- *   admin@gpvalise.demo     / Demo1234!
- *   voyageur@gpvalise.demo  / Demo1234!
- *   expediteur@gpvalise.demo / Demo1234!
+ * Flow A — Refund standard via webhook
+ * Flow B — Admin refund override sur booking EN_LITIGE
  */
 class DemoSeeder extends Seeder
 {
+    // Destinataire demo partagé — Instant Booking
+    private const RECIPIENT = [
+        'recipient_name'  => 'Fatou Diallo',
+        'recipient_phone' => '+221771234567',
+        'recipient_email' => 'fatou.diallo@demo.com',
+    ];
+
     public function __construct(
         private readonly AuditLogIntegrityService $integrityService,
     ) {}
@@ -77,7 +71,7 @@ class DemoSeeder extends Seeder
         $this->printSummary($correlationIdA, $correlationIdB, $admin, $traveler, $sender);
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────
 
     private function ensurePlan(): Plan
     {
@@ -100,15 +94,14 @@ class DemoSeeder extends Seeder
             [
                 'verified_user'     => true,
                 'email_verified_at' => now(),
-                'first_name'      => 'Lamine',
-                'last_name'       => 'Admin',
-                'phone'           => '+212600000010',
-                'country'         => 'MA',
-                'password'        => Hash::make('Demo1234!'),
-                'role'            => UserRoleEnum::ADMIN->value,
-                'verified_user'   => true,
-                'plan_id'         => $plan->id,
-                'plan_expires_at' => now()->addYear(),
+                'first_name'        => 'Lamine',
+                'last_name'         => 'Admin',
+                'phone'             => '+212600000010',
+                'country'           => 'MA',
+                'password'          => Hash::make('Demo1234!'),
+                'role'              => UserRoleEnum::ADMIN->value,
+                'plan_id'           => $plan->id,
+                'plan_expires_at'   => now()->addYear(),
             ]
         );
 
@@ -117,15 +110,14 @@ class DemoSeeder extends Seeder
             [
                 'verified_user'     => true,
                 'email_verified_at' => now(),
-                'first_name'      => 'Marie',
-                'last_name'       => 'Dupont',
-                'phone'           => '+212600000011',
-                'country'         => 'FR',
-                'password'        => Hash::make('Demo1234!'),
-                'role'            => UserRoleEnum::TRAVELER->value,
-                'verified_user'   => true,
-                'plan_id'         => $plan->id,
-                'plan_expires_at' => now()->addYear(),
+                'first_name'        => 'Marie',
+                'last_name'         => 'Dupont',
+                'phone'             => '+212600000011',
+                'country'           => 'FR',
+                'password'          => Hash::make('Demo1234!'),
+                'role'              => UserRoleEnum::TRAVELER->value,
+                'plan_id'           => $plan->id,
+                'plan_expires_at'   => now()->addYear(),
             ]
         );
 
@@ -134,15 +126,14 @@ class DemoSeeder extends Seeder
             [
                 'verified_user'     => true,
                 'email_verified_at' => now(),
-                'first_name'      => 'Karim',
-                'last_name'       => 'Expéditeur',
-                'phone'           => '+212600000012',
-                'country'         => 'MA',
-                'password'        => Hash::make('Demo1234!'),
-                'role'            => UserRoleEnum::SENDER->value,
-                'verified_user'   => true,
-                'plan_id'         => $plan->id,
-                'plan_expires_at' => now()->addYear(),
+                'first_name'        => 'Karim',
+                'last_name'         => 'Expéditeur',
+                'phone'             => '+212600000012',
+                'country'           => 'MA',
+                'password'          => Hash::make('Demo1234!'),
+                'role'              => UserRoleEnum::SENDER->value,
+                'plan_id'           => $plan->id,
+                'plan_expires_at'   => now()->addYear(),
             ]
         );
 
@@ -194,14 +185,13 @@ class DemoSeeder extends Seeder
         Booking::disableAutoStatusCreation();
 
         $booking = Booking::create([
-            'user_id'  => $sender->id,
-            'trip_id'  => $trip->id,
-            'status'   => BookingStatusEnum::CONFIRMEE->value,
-            'comment'  => 'Démo — flow refund standard webhook',
+            'user_id'      => $sender->id,
+            'trip_id'      => $trip->id,
+            'status'       => BookingStatusEnum::CONFIRMEE->value,
+            'comment'      => 'Démo — flow refund standard webhook',
             'confirmed_at' => now()->subDay(),
+            ...self::RECIPIENT,
         ]);
-
-        Booking::disableAutoStatusCreation();
 
         $luggage = Luggage::create([
             'user_id'             => $sender->id,
@@ -235,14 +225,14 @@ class DemoSeeder extends Seeder
     private function createBookingEnLitige(User $sender, Trip $trip): Booking
     {
         Booking::disableAutoStatusCreation();
+
         $booking = Booking::create([
             'user_id'  => $sender->id,
             'trip_id'  => $trip->id,
             'status'   => BookingStatusEnum::EN_LITIGE->value,
             'comment'  => 'Démo — flow admin refund override',
+            ...self::RECIPIENT,
         ]);
-
-        Booking::disableAutoStatusCreation();
 
         $luggage = Luggage::create([
             'user_id'             => $sender->id,
@@ -276,15 +266,15 @@ class DemoSeeder extends Seeder
     private function createCharge(User $sender, Booking $booking): Transaction
     {
         $charge = Transaction::create([
-            'user_id'                => $sender->id,
-            'booking_id'             => $booking->id,
-            'type'                   => TransactionTypeEnum::CHARGE->value,
-            'amount'                 => 100.00,
-            'currency'               => CurrencyEnum::EUR->value,
-            'method'                 => PaymentMethodEnum::CARD->value,
-            'status'                 => TransactionStatusEnum::COMPLETED->value,
+            'user_id'                 => $sender->id,
+            'booking_id'              => $booking->id,
+            'type'                    => TransactionTypeEnum::CHARGE->value,
+            'amount'                  => 10000,
+            'currency'                => CurrencyEnum::EUR->value,
+            'method'                  => PaymentMethodEnum::CARD->value,
+            'status'                  => TransactionStatusEnum::COMPLETED->value,
             'provider_transaction_id' => 'demo-charge-' . Str::random(8),
-            'processed_at'           => now()->subHours(2),
+            'processed_at'            => now()->subHours(2),
         ]);
 
         $this->command->info('  → CHARGE 100.00 EUR créée (id: ' . $charge->id . ')');
@@ -297,37 +287,32 @@ class DemoSeeder extends Seeder
         Transaction $charge,
         string $correlationId
     ): void {
-        // Créer la transaction REFUND PENDING
         $refund = Transaction::create([
-            'user_id'                => $charge->user_id,
-            'booking_id'             => $booking->id,
-            'type'                   => TransactionTypeEnum::REFUND->value,
-            'amount'                 => 90.00,
-            'currency'               => CurrencyEnum::EUR->value,
-            'method'                 => PaymentMethodEnum::CARD->value,
-            'status'                 => TransactionStatusEnum::COMPLETED->value,
+            'user_id'                 => $charge->user_id,
+            'booking_id'              => $booking->id,
+            'type'                    => TransactionTypeEnum::REFUND->value,
+            'amount'                  => 9000,
+            'currency'                => CurrencyEnum::EUR->value,
+            'method'                  => PaymentMethodEnum::CARD->value,
+            'status'                  => TransactionStatusEnum::COMPLETED->value,
             'provider_transaction_id' => 'demo-refund-' . Str::random(8),
-            'processed_at'           => now(),
-            'correlation_id'         => $correlationId,
+            'processed_at'            => now(),
+            'correlation_id'          => $correlationId,
         ]);
 
-        // Passer le booking à REMBOURSEE
         Booking::disableAutoStatusCreation();
-
         $booking->update(['status' => BookingStatusEnum::REMBOURSEE->value]);
-        Booking::disableAutoStatusCreation();
 
-        // Créer le WebhookLog avec correlation_id
         WebhookLog::create([
-            'event_id'               => 'demo-evt-' . Str::random(10),
-            'event'                  => 'refund.completed',
+            'event_id'                => 'demo-evt-' . Str::random(10),
+            'event'                   => 'refund.completed',
             'provider_transaction_id' => $refund->provider_transaction_id,
-            'status'                 => WebhookLogStatusEnum::PROCESSED->value,
-            'payload'                => [
-                'event'                  => 'refund.completed',
+            'status'                  => WebhookLogStatusEnum::PROCESSED->value,
+            'payload'                 => [
+                'event'                   => 'refund.completed',
                 'provider_transaction_id' => $refund->provider_transaction_id,
-                'amount'                 => 90.00,
-                'currency'               => 'EUR',
+                'amount'                  => 9000,
+                'currency'                => 'EUR',
             ],
             'processed_at'   => now(),
             'correlation_id' => $correlationId,
@@ -347,31 +332,28 @@ class DemoSeeder extends Seeder
         string $correlationId
     ): void {
         $refund = Transaction::create([
-            'user_id'                => $charge->user_id,
-            'booking_id'             => $booking->id,
-            'type'                   => TransactionTypeEnum::REFUND->value,
-            'amount'                 => 90.00,
-            'currency'               => CurrencyEnum::EUR->value,
-            'method'                 => PaymentMethodEnum::CARD->value,
-            'status'                 => TransactionStatusEnum::COMPLETED->value,
+            'user_id'                 => $charge->user_id,
+            'booking_id'              => $booking->id,
+            'type'                    => TransactionTypeEnum::REFUND->value,
+            'amount'                  => 9000,
+            'currency'                => CurrencyEnum::EUR->value,
+            'method'                  => PaymentMethodEnum::CARD->value,
+            'status'                  => TransactionStatusEnum::COMPLETED->value,
             'provider_transaction_id' => 'demo-admin-refund-' . Str::random(8),
-            'processed_at'           => now(),
-            'correlation_id'         => $correlationId,
+            'processed_at'            => now(),
+            'correlation_id'          => $correlationId,
         ]);
 
-        // Passer le booking à REMBOURSEE
         Booking::disableAutoStatusCreation();
-
         $booking->update(['status' => BookingStatusEnum::REMBOURSEE->value]);
-        Booking::disableAutoStatusCreation();
 
         $snapshot = [
             'reason'         => 'Démo — remboursement admin override. Bagage endommagé confirmé.',
             'correlation_id' => $correlationId,
             'admin'          => ['id' => $admin->id, 'email' => $admin->email],
             'booking'        => ['id' => $booking->id, 'status' => 'en_litige'],
-            'charge'         => ['id' => $charge->id, 'amount' => 100.00, 'currency' => 'EUR'],
-            'refund'         => ['id' => $refund->id, 'amount' => 90.00, 'status' => 'completed'],
+            'charge'         => ['id' => $charge->id, 'amount' => 10000, 'currency' => 'EUR'],
+            'refund'         => ['id' => $refund->id, 'amount' => 9000, 'status' => 'completed'],
             'created_at'     => now()->toISOString(),
         ];
         $snapshot['hash'] = hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR));
@@ -386,7 +368,6 @@ class DemoSeeder extends Seeder
         ]);
 
         $this->integrityService->seal($auditLog);
-
         $auditLog->refresh();
 
         $this->command->info('✔ Flow B — Admin refund override créé');

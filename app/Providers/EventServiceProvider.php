@@ -9,6 +9,7 @@ use App\Events\BookingDeclined;
 use App\Events\BookingDelivered;
 use App\Events\BookingDisputed;
 use App\Events\BookingExpired;
+use App\Events\BookingHandedOver;
 use App\Events\DisputeMessageAdded;
 use App\Events\DisputeStatusChanged;
 use App\Events\KycApproved;
@@ -29,6 +30,7 @@ use App\Listeners\SendBookingConfirmedNotification;
 use App\Listeners\SendBookingDeclinedNotification;
 use App\Listeners\SendBookingDeliveredNotification;
 use App\Listeners\SendBookingExpiredNotification;
+use App\Listeners\SendDeliveryCodeNotification;
 use App\Listeners\SendDisputeMessageAddedNotification;
 use App\Listeners\SendDisputeOpenedNotification;
 use App\Listeners\SendDisputeStatusChangedNotification;
@@ -57,6 +59,12 @@ class EventServiceProvider extends ServiceProvider
         BookingCanceled::class => [
             LogBookingCanceled::class,
             SendBookingCanceledNotification::class,
+        ],
+
+        // Instant Booking — remise physique sender → traveler
+        // Envoie QR code + code secret au destinataire (email + SMS)
+        BookingHandedOver::class => [
+            SendDeliveryCodeNotification::class,
         ],
 
         BookingDelivered::class => [
@@ -89,6 +97,7 @@ class EventServiceProvider extends ServiceProvider
         DisputeMessageAdded::class => [
             SendDisputeMessageAddedNotification::class,
         ],
+
         KycSubmitted::class => [
             SendKycSubmittedNotification::class,
         ],

@@ -15,6 +15,12 @@ use Illuminate\Validation\ValidationException;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
+/**
+ * @deprecated Instant Booking — DeclineBooking n'existe plus dans le flow principal.
+ * PENDING_APPROVAL → DECLINED_BY_TRAVELER supprimé. Ces tests sont conservés pour
+ * documenter le comportement legacy et seront supprimés en Phase 2.
+ */
+
 beforeEach(function (): void {
     $this->traveler = User::factory()->traveler()->verified()->create();
     $this->sender   = User::factory()->sender()->verified()->create();
@@ -29,15 +35,14 @@ beforeEach(function (): void {
 it('le voyageur peut refuser une réservation en attente', function (): void {
     $booking = app(DeclineBooking::class)->execute($this->booking, $this->traveler);
 
-    expect($booking->status)->toBe(BookingStatusEnum::DECLINED_BY_TRAVELER)
-        ->and($booking->declined_at)->not->toBeNull();
+    expect($booking->status)->toBe(BookingStatusEnum::DECLINED_BY_TRAVELER);
 
     $this->assertDatabaseHas('booking_status_histories', [
         'booking_id' => $booking->id,
         'old_status' => BookingStatusEnum::PENDING_APPROVAL->value,
         'new_status' => BookingStatusEnum::DECLINED_BY_TRAVELER->value,
     ]);
-});
+})->skip('Legacy flow — PENDING_APPROVAL supprimé par Instant Booking');
 
 it('libère les bagages après refus', function (): void {
     $luggage = Luggage::factory()->create([
@@ -55,34 +60,34 @@ it('libère les bagages après refus', function (): void {
 
     $luggage->refresh();
     expect($luggage->status)->toBe(LuggageStatusEnum::EN_ATTENTE);
-});
+})->skip('Legacy flow — PENDING_APPROVAL supprimé par Instant Booking');
 
 it('refuse le déclin si l\'acteur n\'est pas le voyageur du trajet', function (): void {
     $autreUser = User::factory()->traveler()->create();
 
     expect(fn() => app(DeclineBooking::class)->execute($this->booking, $autreUser))
         ->toThrow(ValidationException::class);
-});
+})->skip('Legacy flow — PENDING_APPROVAL supprimé par Instant Booking');
 
 it('refuse le déclin si le booking n\'est pas en PENDING_APPROVAL', function (): void {
     $this->booking->update(['status' => BookingStatusEnum::EN_PAIEMENT]);
 
     expect(fn() => app(DeclineBooking::class)->execute($this->booking, $this->traveler))
         ->toThrow(ValidationException::class);
-});
+})->skip('Legacy flow — PENDING_APPROVAL supprimé par Instant Booking');
 
 it('refuse le déclin si le booking est final', function (): void {
     $this->booking->update(['status' => BookingStatusEnum::ANNULE]);
 
     expect(fn() => app(DeclineBooking::class)->execute($this->booking, $this->traveler))
         ->toThrow(ValidationException::class);
-});
+})->skip('Legacy flow — PENDING_APPROVAL supprimé par Instant Booking');
 
 it('DECLINED_BY_TRAVELER est un statut final', function (): void {
     $booking = app(DeclineBooking::class)->execute($this->booking, $this->traveler);
 
     expect($booking->isFinal())->toBeTrue();
-});
+})->skip('Legacy flow — PENDING_APPROVAL supprimé par Instant Booking');
 
 it('dispatch l\'event BookingDeclined', function (): void {
     \Illuminate\Support\Facades\Event::fake();
@@ -90,4 +95,4 @@ it('dispatch l\'event BookingDeclined', function (): void {
     app(DeclineBooking::class)->execute($this->booking, $this->traveler);
 
     \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\BookingDeclined::class);
-});
+})->skip('Legacy flow — PENDING_APPROVAL supprimé par Instant Booking');

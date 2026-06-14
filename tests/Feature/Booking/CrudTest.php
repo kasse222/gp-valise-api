@@ -19,6 +19,13 @@ beforeEach(function (): void {
     $expediteur = User::factory()->create(['role' => UserRoleEnum::SENDER->value]);
     Sanctum::actingAs($expediteur);
     test()->expediteur = $expediteur;
+
+    // Destinataire obligatoire — Instant Booking
+    test()->recipient = [
+        'recipient_name'  => 'Fatou Diallo',
+        'recipient_phone' => '+221771234567',
+        'recipient_email' => 'fatou@example.com',
+    ];
 });
 
 it('retourne la liste des bookings (index)', function (): void {
@@ -75,13 +82,13 @@ it('crée une réservation (store)', function (): void {
                 'price'       => 10000,
             ],
         ],
+        ...test()->recipient,
     ];
 
     $this->postJson('/api/v1/bookings', $data)
         ->assertCreated()
-        ->assertJsonPath('data.status', BookingStatusEnum::PENDING_APPROVAL->value)
-        ->assertJsonPath('data.items.0.luggage.id', $luggage->id)
-        ->assertJsonPath('data.payment_expires_at', null);
+        ->assertJsonPath('data.status', BookingStatusEnum::EN_PAIEMENT->value)
+        ->assertJsonPath('data.items.0.luggage.id', $luggage->id);
 });
 
 it('supprime une réservation (destroy)', function (): void {
@@ -125,8 +132,9 @@ it('autorise la création de réservation à un SENDER (201)', function (): void
                 'price'       => 5000,
             ],
         ],
+        ...test()->recipient,
     ])->assertCreated()
-        ->assertJsonPath('data.status', BookingStatusEnum::PENDING_APPROVAL->value);
+        ->assertJsonPath('data.status', BookingStatusEnum::EN_PAIEMENT->value);
 });
 
 it('refuse la création de réservation à un ADMIN (403)', function (): void {
