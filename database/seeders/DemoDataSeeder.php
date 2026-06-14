@@ -60,11 +60,12 @@ class DemoDataSeeder extends Seeder
         );
 
         // ── Trips ─────────────────────────────────────────────────────────────
+        // Capacité 60kg pour absorber tous les bookings demo sans overflow
         $tripCasaParis = Trip::factory()->create([
             'user_id'      => $traveler->id,
             'departure'    => 'Casablanca',
             'destination'  => 'Paris',
-            'capacity'     => 20000,
+            'capacity'     => 60000, // 60kg — largement suffisant
             'price_per_kg' => 800,
             'date'         => now()->addDays(30),
         ]);
@@ -73,7 +74,7 @@ class DemoDataSeeder extends Seeder
             'user_id'      => $traveler->id,
             'departure'    => 'Dakar',
             'destination'  => 'Abidjan',
-            'capacity'     => 15000,
+            'capacity'     => 40000, // 40kg
             'price_per_kg' => 600,
             'date'         => now()->addDays(20),
         ]);
@@ -91,14 +92,14 @@ class DemoDataSeeder extends Seeder
             ]);
         };
 
-        // Destinataire demo partagé
         $recipient = [
             'recipient_name'  => 'Fatou Diallo',
             'recipient_phone' => '+221771234567',
             'recipient_email' => 'fatou.diallo@demo.com',
         ];
 
-        // ── Bookings ──────────────────────────────────────────────────────────
+        // ── Bookings — Casablanca → Paris ─────────────────────────────────────
+        // Total actif (EN_PAIEMENT + CONFIRMEE + EN_TRANSIT) = 5+8+3 = 16kg < 60kg ✅
 
         // EN_PAIEMENT — paiement en attente
         $bookingEnPaiement = Booking::factory()->for($sender)->for($tripCasaParis)->create([
@@ -126,7 +127,7 @@ class DemoDataSeeder extends Seeder
             'price'       => 6400,
         ]);
 
-        // EN_TRANSIT — colis remis au voyageur, QR envoyé au destinataire
+        // EN_TRANSIT — colis remis, QR envoyé au destinataire
         $bookingEnTransit = Booking::factory()->for($sender)->for($tripCasaParis)->create([
             'status'            => BookingStatusEnum::EN_TRANSIT,
             'confirmed_at'      => now()->subDays(3),
@@ -142,13 +143,14 @@ class DemoDataSeeder extends Seeder
             'price'       => 2400,
         ]);
 
-        // LIVREE — destinataire a scanné le QR
+        // LIVREE — destinataire a scanné le QR, escrow en cours
+        // delivered_at J-2 → escrow_releasable_at J-2+48h = aujourd'hui ~maintenant
         $bookingLivree = Booking::factory()->for($sender)->for($tripCasaParis)->create([
             'status'               => BookingStatusEnum::LIVREE,
             'confirmed_at'         => now()->subDays(5),
             'handed_over_at'       => now()->subDays(4),
-            'delivered_at'         => now()->subDays(1),
-            'escrow_releasable_at' => now()->addHours(47),
+            'delivered_at'         => now()->subDays(2),
+            'escrow_releasable_at' => now()->subDays(2)->addHours(48),
             ...$recipient,
         ]);
         $bookingLivree->bookingItems()->create([
@@ -156,37 +158,6 @@ class DemoDataSeeder extends Seeder
             'trip_id'     => $tripCasaParis->id,
             'kg_reserved' => 10000,
             'price'       => 8000,
-        ]);
-
-        // EN_LITIGE
-        $bookingLitige = Booking::factory()->for($sender)->for($tripDakarAbidjan)->create([
-            'status'       => BookingStatusEnum::EN_LITIGE,
-            'disputed_at'  => now()->subHours(3),
-            'confirmed_at' => now()->subDays(4),
-            ...$recipient,
-        ]);
-        $bookingLitige->bookingItems()->create([
-            'luggage_id'  => $makeLuggage($sender, $tripDakarAbidjan, LuggageStatusEnum::RESERVEE)->id,
-            'trip_id'     => $tripDakarAbidjan->id,
-            'kg_reserved' => 7000,
-            'price'       => 4200,
-        ]);
-
-        // TERMINE
-        $bookingTermine = Booking::factory()->for($sender)->for($tripDakarAbidjan)->create([
-            'status'               => BookingStatusEnum::TERMINE,
-            'confirmed_at'         => now()->subDays(10),
-            'handed_over_at'       => now()->subDays(9),
-            'delivered_at'         => now()->subDays(8),
-            'escrow_releasable_at' => now()->subDays(6),
-            'completed_at'         => now()->subDays(7),
-            ...$recipient,
-        ]);
-        $bookingTermine->bookingItems()->create([
-            'luggage_id'  => $makeLuggage($sender, $tripDakarAbidjan, LuggageStatusEnum::LIVREE)->id,
-            'trip_id'     => $tripDakarAbidjan->id,
-            'kg_reserved' => 12000,
-            'price'       => 7200,
         ]);
 
         // REMBOURSEE
@@ -202,6 +173,72 @@ class DemoDataSeeder extends Seeder
             'trip_id'     => $tripCasaParis->id,
             'kg_reserved' => 6000,
             'price'       => 4800,
+        ]);
+
+        // ── Bookings — Dakar → Abidjan ────────────────────────────────────────
+
+        // EN_LITIGE
+        $bookingLitige = Booking::factory()->for($sender)->for($tripDakarAbidjan)->create([
+            'status'       => BookingStatusEnum::EN_LITIGE,
+            'disputed_at'  => now()->subHours(3),
+            'confirmed_at' => now()->subDays(4),
+            ...$recipient,
+        ]);
+        $bookingLitige->bookingItems()->create([
+            'luggage_id'  => $makeLuggage($sender, $tripDakarAbidjan, LuggageStatusEnum::RESERVEE)->id,
+            'trip_id'     => $tripDakarAbidjan->id,
+            'kg_reserved' => 7000,
+            'price'       => 4200,
+        ]);
+
+        // TERMINE — timeline complète cohérente
+        // delivered_at J-8 → escrow_releasable_at J-8+48h = J-6 → completed_at J-7 ✅
+        $bookingTermine = Booking::factory()->for($sender)->for($tripDakarAbidjan)->create([
+            'status'               => BookingStatusEnum::TERMINE,
+            'confirmed_at'         => now()->subDays(10),
+            'handed_over_at'       => now()->subDays(9),
+            'delivered_at'         => now()->subDays(8),
+            'escrow_releasable_at' => now()->subDays(8)->addHours(48), // = J-6
+            'completed_at'         => now()->subDays(7),
+            ...$recipient,
+        ]);
+        $bookingTermine->bookingItems()->create([
+            'luggage_id'  => $makeLuggage($sender, $tripDakarAbidjan, LuggageStatusEnum::LIVREE)->id,
+            'trip_id'     => $tripDakarAbidjan->id,
+            'kg_reserved' => 12000,
+            'price'       => 7200,
+        ]);
+
+        // ANNULE refund 100% — annulation >48h avant départ
+        $bookingAnnule100 = Booking::factory()->for($sender)->for($tripDakarAbidjan)->create([
+            'status'        => BookingStatusEnum::ANNULE,
+            'confirmed_at'  => now()->subDays(5),
+            'cancelled_at'  => now()->subDays(4),
+            'cancel_reason' => 'Annulation par l\'expéditeur',
+            'refund_rate'   => 100,
+            ...$recipient,
+        ]);
+        $bookingAnnule100->bookingItems()->create([
+            'luggage_id'  => $makeLuggage($sender, $tripDakarAbidjan, LuggageStatusEnum::ANNULEE)->id,
+            'trip_id'     => $tripDakarAbidjan->id,
+            'kg_reserved' => 4000,
+            'price'       => 2400,
+        ]);
+
+        // ANNULE refund 70% — annulation <48h avant départ
+        $bookingAnnule70 = Booking::factory()->for($sender)->for($tripDakarAbidjan)->create([
+            'status'        => BookingStatusEnum::ANNULE,
+            'confirmed_at'  => now()->subDays(2),
+            'cancelled_at'  => now()->subHours(12),
+            'cancel_reason' => 'Annulation par l\'expéditeur',
+            'refund_rate'   => 70,
+            ...$recipient,
+        ]);
+        $bookingAnnule70->bookingItems()->create([
+            'luggage_id'  => $makeLuggage($sender, $tripDakarAbidjan, LuggageStatusEnum::ANNULEE)->id,
+            'trip_id'     => $tripDakarAbidjan->id,
+            'kg_reserved' => 3000,
+            'price'       => 1800,
         ]);
 
         $this->command->info('✅ DemoDataSeeder — users + trips + bookings créés');
