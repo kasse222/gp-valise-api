@@ -6,38 +6,39 @@ namespace App\Mail\Booking;
 
 use App\Models\Booking;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class BookingCanceledMail extends Mailable implements ShouldQueue
+class BookingConfirmedRecipientMail extends Mailable
 {
     use Queueable, SerializesModels;
 
     public function __construct(
-        public readonly Booking $booking
+        public readonly Booking $booking,
     ) {}
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Réservation annulée — #' . $this->booking->id,
+            subject: "📦 Un colis est en route pour vous — Safe Move",
         );
     }
 
     public function content(): Content
     {
-        $refundRate = $this->booking->refund_rate ?? 100;
+        $trip    = $this->booking->trip;
+        $sender  = $this->booking->user;
+        $totalKg = $this->booking->bookingItems->sum('kg_reserved') / 1000;
 
         return new Content(
-            markdown: 'emails.booking.canceled',
+            markdown: 'emails.booking.confirmed-recipient',
             with: [
-                'booking'    => $this->booking,
-                'trip'       => $this->booking->trip,
-                'refundRate' => $refundRate,
-                'searchUrl'  => config('app.frontend_url') . '/trips',
+                'booking'  => $this->booking,
+                'trip'     => $trip,
+                'sender'   => $sender,
+                'totalKg'  => $totalKg,
             ],
         );
     }
