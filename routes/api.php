@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\{
     PickupLocationController,
     PlanController,
     ReportController,
+    TrackingController,
     TransactionController,
     TripController,
     UploadController,
@@ -88,6 +89,8 @@ Route::prefix('v1')
             Route::post('/trips', [TripController::class, 'store'])->name('trips.store');
             Route::put('/trips/{trip}', [TripController::class, 'update'])->name('trips.update');
             Route::delete('/trips/{trip}', [TripController::class, 'destroy'])->name('trips.destroy');
+            Route::get('/track/{trackingId}', TrackingController::class)
+                ->name('track.show');
         });
 
         Route::get('/plans', [PlanController::class, 'index'])->name('plans.index');
