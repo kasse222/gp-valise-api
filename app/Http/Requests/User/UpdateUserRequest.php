@@ -22,8 +22,6 @@ class UpdateUserRequest extends FormRequest
             'email'      => ['sometimes', 'email', 'unique:users,email,' . $this->user?->id],
             'phone'      => ['sometimes', 'string', 'max:20'],
             'country'    => ['sometimes', 'string', 'max:255'],
-            'role'       => ['sometimes', new Enum(UserRoleEnum::class)],
-            'plan_id'    => ['nullable', 'exists:plans,id'],
         ];
     }
 }
