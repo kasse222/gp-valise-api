@@ -41,18 +41,10 @@ class ProcessPaymentWebhook implements ShouldQueue
     {
         $this->withCorrelationContext();
 
-        try {
-            $action->execute($this->payload, $this->correlationId);
-        } catch (RetryableWebhookException $exception) {
-            if ($this->attempts() < 3) {
-                throw $exception;
-            }
-
-            Log::warning('Webhook abandonné après plusieurs tentatives retryables', $this->logContext([
-                'attempts' => $this->attempts(),
-                'error' => $exception->getMessage(),
-            ]));
-        }
+        // F-011 — ne jamais avaler une exception retryable silencieusement.
+        // On laisse Laravel gérer les retries via tries/backoff.
+        // Le failed() ci-dessous est appelé une fois les tries épuisés.
+        $action->execute($this->payload, $this->correlationId);
     }
 
     public function failed(Throwable $exception): void
@@ -86,8 +78,8 @@ class ProcessPaymentWebhook implements ShouldQueue
     private function logContext(array $extra = []): array
     {
         return array_merge([
-            'payload' => $this->payload,
-            'job' => static::class,
+            'payload'        => $this->payload,
+            'job'            => static::class,
             'correlation_id' => $this->correlationId,
         ], $extra);
     }

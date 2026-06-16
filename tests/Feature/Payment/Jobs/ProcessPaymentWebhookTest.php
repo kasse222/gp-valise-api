@@ -12,8 +12,8 @@ uses(Tests\TestCase::class, RefreshDatabase::class);
 
 it('appelle HandlePaymentWebhook avec le payload fourni', function () {
     $payload = [
-        'event_id' => 'evt_job_123',
-        'event' => 'refund.completed',
+        'event_id'                => 'evt_job_123',
+        'event'                   => 'refund.completed',
         'provider_transaction_id' => 'fake_refund_job_123',
     ];
 
@@ -23,14 +23,15 @@ it('appelle HandlePaymentWebhook avec le payload fourni', function () {
         ->with($payload, null);
 
     $job = new ProcessPaymentWebhook($payload);
-
     $job->handle($actionMock);
 });
 
-it('relance une exception retryable si le nombre de tentatives est inférieur au seuil', function () {
+// F-011 — le job laisse toujours remonter l'exception retryable
+// Laravel gère les retries via tries/backoff ; on ne l'avale plus jamais
+it('relance toujours une exception retryable quelle que soit la tentative', function () {
     $payload = [
-        'event_id' => 'evt_retry_job',
-        'event' => 'refund.completed',
+        'event_id'                => 'evt_retry_job',
+        'event'                   => 'refund.completed',
         'provider_transaction_id' => 'missing_tx_job',
     ];
 
@@ -40,26 +41,17 @@ it('relance une exception retryable si le nombre de tentatives est inférieur au
         ->with($payload, null)
         ->andThrow(new RetryableWebhookException('Transaction introuvable'));
 
-    $job = new class($payload, 1) extends ProcessPaymentWebhook {
-        public function __construct(array $payload, private int $fakeAttempts)
-        {
-            parent::__construct($payload);
-        }
-
-        public function attempts(): int
-        {
-            return $this->fakeAttempts;
-        }
-    };
+    $job = new ProcessPaymentWebhook($payload);
 
     expect(fn() => $job->handle($actionMock))
-        ->toThrow(RetryableWebhookException::class);
+        ->toThrow(RetryableWebhookException::class, 'Transaction introuvable');
 });
 
-it('n’échoue plus après plusieurs tentatives retryables et journalise un warning', function () {
+// F-011 — même au 3ème essai, l'exception remonte (failed() sera appelé par Laravel)
+it('relance l\'exception retryable même à la 3ème tentative (F-011)', function () {
     $payload = [
-        'event_id' => 'evt_retry_job_stop',
-        'event' => 'refund.completed',
+        'event_id'                => 'evt_retry_job_stop',
+        'event'                   => 'refund.completed',
         'provider_transaction_id' => 'missing_tx_job_stop',
     ];
 
@@ -69,31 +61,11 @@ it('n’échoue plus après plusieurs tentatives retryables et journalise un war
         ->with($payload, null)
         ->andThrow(new RetryableWebhookException('Transaction introuvable'));
 
-    Log::shouldReceive('warning')
-        ->once()
-        ->withArgs(function (string $message, array $context) use ($payload) {
-            return $message === 'Webhook abandonné après plusieurs tentatives retryables'
-                && $context['payload'] === $payload
-                && $context['attempts'] === 3
-                && str_contains($context['job'], ProcessPaymentWebhook::class)
-                && $context['error'] === 'Transaction introuvable';
-        });
+    $job = new ProcessPaymentWebhook($payload);
 
-    $job = new class($payload, 3) extends ProcessPaymentWebhook {
-        public function __construct(array $payload, private int $fakeAttempts)
-        {
-            parent::__construct($payload);
-        }
-
-        public function attempts(): int
-        {
-            return $this->fakeAttempts;
-        }
-    };
-
-    $job->handle($actionMock);
-
-    expect(true)->toBeTrue();
+    // Doit toujours lever l'exception — plus de Log::warning silencieux
+    expect(fn() => $job->handle($actionMock))
+        ->toThrow(RetryableWebhookException::class, 'Transaction introuvable');
 });
 
 it('transmet le correlationId à HandlePaymentWebhook::execute()', function () {
@@ -117,8 +89,8 @@ it('journalise une erreur critique et dispatch une alerte Slack quand le job éc
     Queue::fake();
 
     $payload = [
-        'event_id' => 'evt_failed_job',
-        'event' => 'refund.completed',
+        'event_id'                => 'evt_failed_job',
+        'event'                   => 'refund.completed',
         'provider_transaction_id' => 'missing_tx_failed',
     ];
 
@@ -139,7 +111,6 @@ it('journalise une erreur critique et dispatch une alerte Slack quand le job éc
         });
 
     $job = new ProcessPaymentWebhook($payload);
-
     $job->failed($exception);
 
     Queue::assertPushed(SendSlackAlert::class, function (SendSlackAlert $alertJob) use ($payload) {

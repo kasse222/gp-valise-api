@@ -24,25 +24,27 @@ class HandlePaymentWebhook
 
     public function execute(array $payload, ?string $correlationId = null): void
     {
-        DB::transaction(function () use ($payload, $correlationId): void {
-            $eventId    = $payload['event_id'] ?? null;
-            $eventType  = $payload['event_type'] ?? null;
-            $providerId = $payload['provider_transaction_id'] ?? null;
+        $eventId    = $payload['event_id'] ?? null;
+        $eventType  = $payload['event_type'] ?? null;
+        $providerId = $payload['provider_transaction_id'] ?? null;
 
-            if (! $eventId || ! $eventType || ! $providerId) {
-                return;
-            }
+        if (! $eventId || ! $eventType || ! $providerId) {
+            return;
+        }
 
-            $existingLog = WebhookLog::query()
+        // F-011 — ÉTAPE 1 : journaliser la réception HORS de la transaction métier.
+        // Si le traitement rollback, le log de réception/échec reste durable.
+        $log = DB::transaction(function () use ($eventId, $eventType, $providerId, $correlationId, $payload): ?WebhookLog {
+            $existing = WebhookLog::query()
                 ->where('event_id', $eventId)
                 ->lockForUpdate()
                 ->first();
 
-            if ($existingLog) {
-                return;
+            if ($existing) {
+                return null; // doublon — déjà traité
             }
 
-            $log = WebhookLog::query()->create([
+            return WebhookLog::query()->create([
                 'event_id'                => $eventId,
                 'correlation_id'          => $correlationId,
                 'event'                   => $eventType,
@@ -50,8 +52,16 @@ class HandlePaymentWebhook
                 'status'                  => WebhookLogStatusEnum::RECEIVED,
                 'payload'                 => $payload,
             ]);
+        });
 
-            try {
+        if ($log === null) {
+            return; // idempotence — événement déjà traité
+        }
+
+        // F-011 — ÉTAPE 2 : traitement métier dans sa propre transaction.
+        // Un rollback ici ne supprime pas le log créé à l'étape 1.
+        try {
+            DB::transaction(function () use ($payload, $eventId, $eventType, $providerId, $log): void {
                 $transaction = Transaction::query()
                     ->where('provider_transaction_id', $providerId)
                     ->lockForUpdate()
@@ -80,22 +90,15 @@ class HandlePaymentWebhook
                     default
                     => $this->markIgnored($log, "Event non supporté: {$eventType}"),
                 };
-            } catch (RetryableWebhookException $e) {
-                $log->update([
-                    'status'        => WebhookLogStatusEnum::FAILED,
-                    'error_message' => $e->getMessage(),
-                    'processed_at'  => now(),
-                ]);
-                throw $e;
-            } catch (Throwable $e) {
-                $log->update([
-                    'status'        => WebhookLogStatusEnum::FAILED,
-                    'error_message' => $e->getMessage(),
-                    'processed_at'  => now(),
-                ]);
-                throw $e;
-            }
-        });
+            });
+        } catch (RetryableWebhookException $e) {
+            // F-011 — persister l'échec hors rollback
+            $this->markFailed($log, $e->getMessage());
+            throw $e;
+        } catch (Throwable $e) {
+            $this->markFailed($log, $e->getMessage());
+            throw $e;
+        }
     }
 
     private function handleChargeSuccess(
@@ -113,10 +116,8 @@ class HandlePaymentWebhook
             'processed_at' => now(),
         ]);
 
-        // ── Ledger : fonds reçus, bloqués en escrow ───────────────────────────
         $transaction->refresh();
         $this->ledger->writeCharge($transaction);
-        // ─────────────────────────────────────────────────────────────────────
 
         if ($booking) {
             $booking->transitionTo(
@@ -165,7 +166,6 @@ class HandlePaymentWebhook
             'processed_at' => now(),
         ]);
 
-        // ── Ledger : remboursement — escrow → PSP ─────────────────────────────
         $charge = $transaction->booking?->transactions()
             ->where('type', TransactionTypeEnum::CHARGE)
             ->where('status', TransactionStatusEnum::COMPLETED)
@@ -175,7 +175,6 @@ class HandlePaymentWebhook
         if ($charge) {
             $this->ledger->writeRefund($charge, $transaction);
         }
-        // ─────────────────────────────────────────────────────────────────────
 
         if ($booking) {
             $booking->transitionTo(
@@ -216,5 +215,17 @@ class HandlePaymentWebhook
             'error_message' => $reason,
             'processed_at'  => now(),
         ]);
+    }
+
+    // F-011 — écriture de l'échec dans une transaction courte indépendante
+    private function markFailed(WebhookLog $log, string $reason): void
+    {
+        DB::transaction(function () use ($log, $reason): void {
+            $log->update([
+                'status'        => WebhookLogStatusEnum::FAILED,
+                'error_message' => $reason,
+                'processed_at'  => now(),
+            ]);
+        });
     }
 }
