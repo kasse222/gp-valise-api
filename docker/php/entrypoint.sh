@@ -7,6 +7,18 @@ echo "APP_ENV=$APP_ENV"
 echo "DB_HOST=$DB_HOST"
 echo "DB_USERNAME=$DB_USERNAME"
 
+# ── Guard production (F-022) ──────────────────────────────────────────────
+if [ "${APP_ENV:-local}" = "production" ]; then
+  if [ "${APP_DEBUG:-false}" = "true" ]; then
+    echo "❌ APP_DEBUG=true interdit en production. Abandon."
+    exit 1
+  fi
+  if [ "${FAKE_PAYMENT_MODE:-}" != "" ]; then
+    echo "❌ FAKE_PAYMENT_MODE défini en production. Abandon."
+    exit 1
+  fi
+fi
+
 echo "📡 Attente de PostgreSQL sur $DB_HOST:$DB_PORT..."
 max_try=30
 try=0
@@ -54,8 +66,22 @@ echo "🔐 Vérification des permissions..."
 mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache
 chmod -R ug+rwX storage bootstrap/cache || true
 
+# F-024 — retirer || true : une migration échouée doit bloquer le déploiement
 echo "🗃️ Exécution des migrations Laravel..."
-php artisan migrate --force || true
+php artisan migrate --force
+if [ $? -ne 0 ]; then
+  echo "❌ Migration échouée — arrêt du déploiement."
+  exit 1
+fi
+
+# F-018 — seed comptes ledger idempotent (obligatoire avant tout webhook financier)
+echo "📒 Initialisation des comptes ledger..."
+php artisan db:seed --class=LedgerAccountSeeder --force
+if [ $? -ne 0 ]; then
+  echo "❌ Seed comptes ledger échoué — arrêt du déploiement."
+  exit 1
+fi
+echo "✅ Comptes ledger initialisés."
 
 if [ "$#" -gt 0 ]; then
   echo "🚀 Lancement de la commande fournie : $*"
