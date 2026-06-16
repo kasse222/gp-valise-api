@@ -4,26 +4,38 @@ services:
     environment:
       POSTGRES_DB: gpvalise
       POSTGRES_USER: gpvalise
-      POSTGRES_PASSWORD: secret123
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret123}
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gpvalise -d gpvalise"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
     restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   app:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
     env_file:
-      - .env
+      - .env.docker  # F-022 — était .env (local/debug/sandbox)
     volumes:
       - .:/var/www
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: always
 
   horizon:
@@ -32,12 +44,31 @@ services:
       dockerfile: docker/php/Dockerfile
     command: php artisan horizon
     env_file:
-      - .env
+      - .env.docker  # F-022
     volumes:
       - .:/var/www
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+
+  scheduler:
+    # F-023 — service scheduler absent du compose prod
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    command: sh -c "while true; do php artisan schedule:run --no-interaction 2>&1; sleep 60; done"
+    env_file:
+      - .env.docker
+    volumes:
+      - .:/var/www
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: always
 
   nginx:
