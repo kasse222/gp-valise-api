@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Filament\Resources\KycRequestResource\Pages;
 
 use App\Filament\Resources\KycRequestResource;
-use Filament\Actions\Action;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\ImageEntry;
@@ -40,9 +39,19 @@ class ViewKycRequest extends ViewRecord
                 TextEntry::make('rejection_reason')->label('Raison du rejet')->placeholder('—'),
             ])->columns(2),
 
-            Section::make('Photos')->schema([
-                ImageEntry::make('id_photo_path')->label("Photo d'identité"),
-                ImageEntry::make('parcel_photo_path')->label('Photo du colis'),
+            // F-028 — champs corrigés : id_front_path / id_back_path
+            // disk('private') + visibility('private') pour servir depuis le disque privé
+            Section::make('Pièces d\'identité')->schema([
+                ImageEntry::make('id_front_path')
+                    ->label('Recto pièce d\'identité')
+                    ->disk('private')
+                    ->visibility('private')
+                    ->placeholder('Non fourni'),
+                ImageEntry::make('id_back_path')
+                    ->label('Verso pièce d\'identité')
+                    ->disk('private')
+                    ->visibility('private')
+                    ->placeholder('Non fourni'),
             ])->columns(2),
         ]);
     }
