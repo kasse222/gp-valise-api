@@ -7,7 +7,6 @@ namespace App\Filament\Resources\KycRequestResource\Pages;
 use App\Filament\Resources\KycRequestResource;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Pages\ViewRecord;
 
@@ -39,19 +38,26 @@ class ViewKycRequest extends ViewRecord
                 TextEntry::make('rejection_reason')->label('Raison du rejet')->placeholder('—'),
             ])->columns(2),
 
-            // F-028 — champs corrigés : id_front_path / id_back_path
-            // disk('private') + visibility('private') pour servir depuis le disque privé
+            // F-028 — endpoint sécurisé admin pour servir les fichiers privés
             Section::make('Pièces d\'identité')->schema([
-                ImageEntry::make('id_front_path')
+                TextEntry::make('id_front_path')
                     ->label('Recto pièce d\'identité')
-                    ->disk('private')
-                    ->visibility('private')
-                    ->placeholder('Non fourni'),
-                ImageEntry::make('id_back_path')
+                    ->placeholder('Non fourni')
+                    ->formatStateUsing(
+                        fn($state, $record) => $state
+                            ? '<a href="' . route('admin.kyc-files.show', [$record->id, 'id_front_path']) . '" target="_blank" class="text-primary-600 underline font-medium">📄 Voir le recto</a>'
+                            : '<span class="text-gray-400">Non fourni</span>'
+                    )
+                    ->html(),
+                TextEntry::make('id_back_path')
                     ->label('Verso pièce d\'identité')
-                    ->disk('private')
-                    ->visibility('private')
-                    ->placeholder('Non fourni'),
+                    ->placeholder('Non fourni')
+                    ->formatStateUsing(
+                        fn($state, $record) => $state
+                            ? '<a href="' . route('admin.kyc-files.show', [$record->id, 'id_back_path']) . '" target="_blank" class="text-primary-600 underline font-medium">📄 Voir le verso</a>'
+                            : '<span class="text-gray-400">Non fourni</span>'
+                    )
+                    ->html(),
             ])->columns(2),
         ]);
     }
