@@ -226,12 +226,21 @@ class AdminRefundTransaction
 
     private function resolveStatus(string $providerStatus): TransactionStatusEnum
     {
-        return match ($providerStatus) {
+        $status = match ($providerStatus) {
             'completed'      => TransactionStatusEnum::COMPLETED,
             'pending',
             'pending_manual' => TransactionStatusEnum::PENDING,
             'failed'         => TransactionStatusEnum::FAILED,
-            default          => throw new InvalidArgumentException("Statut provider inconnu : {$providerStatus}"),
+            default          => null,
         };
+
+        if ($status === null) {
+            Log::warning('AdminRefund resolveStatus : statut provider inconnu — PENDING par défaut', [
+                'provider_status' => $providerStatus,
+            ]);
+            return TransactionStatusEnum::PENDING;
+        }
+
+        return $status;
     }
 }

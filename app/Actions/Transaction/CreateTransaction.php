@@ -71,9 +71,16 @@ class CreateTransaction
                 ]);
             }
 
-            $currency = $data['currency'] instanceof CurrencyEnum
-                ? $data['currency']
-                : CurrencyEnum::from((string) ($data['currency'] ?? CurrencyEnum::EUR->value));
+            // F-007 — résoudre la devise depuis le pays si non fournie explicitement
+            // Évite le fallback EUR hardcodé qui serait incorrect pour SN (XOF) ou MA (MAD)
+            $currency = match (true) {
+                isset($data['currency']) && $data['currency'] instanceof CurrencyEnum
+                => $data['currency'],
+                isset($data['currency'])
+                => CurrencyEnum::from((string) $data['currency']),
+                default
+                => CurrencyEnum::forCountry((string) ($data['country'] ?? 'FR')),
+            };
 
             $method = $data['method'] instanceof PaymentMethodEnum
                 ? $data['method']
