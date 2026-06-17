@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\PaymentMethodEnum;
 use App\Enums\PaymentProviderEnum;
+use App\Services\Payments\AfricaAggregatorDriver;
 use App\Services\Payments\FakePaymentProvider;
 use App\Services\Payments\KkiapayProvider;
 use App\Services\Payments\NaboopayProvider;
@@ -19,13 +20,15 @@ return [
         PaymentProviderEnum::PAYDUNYA->value => PayDunyaProvider::class,
         PaymentProviderEnum::STRIPE->value   => StripeProvider::class,
         PaymentProviderEnum::NABOOPAY->value => NaboopayProvider::class,
+        // F-020 — clé réservée pour l'agrégateur Africa (failover PayDunya → Naboopay)
+        'africa_aggregator'                  => AfricaAggregatorDriver::class,
     ],
 
-    // Routing primaire — le fallback multi-PSP est géré par AfricaAggregatorDriver
+    // F-020 — corridors Africa routés via l'agrégateur (failover automatique)
     'routing' => [
         'SN' => [
-            PaymentMethodEnum::MOBILE_MONEY->value => PaymentProviderEnum::PAYDUNYA->value,
-            PaymentMethodEnum::CARD->value         => PaymentProviderEnum::PAYDUNYA->value,
+            PaymentMethodEnum::MOBILE_MONEY->value => 'africa_aggregator',
+            PaymentMethodEnum::CARD->value         => 'africa_aggregator',
         ],
         'BJ' => [
             PaymentMethodEnum::MOBILE_MONEY->value => PaymentProviderEnum::KKIAPAY->value,
@@ -43,10 +46,10 @@ return [
         ],
     ],
 
-    // Routing agrégateur Africa — fallback automatique si provider primaire down
+    // Config agrégateur Africa
     'africa_aggregator' => [
-        'primary'  => PaymentProviderEnum::PAYDUNYA->value,
-        'fallback' => PaymentProviderEnum::NABOOPAY->value,
+        'primary'   => PaymentProviderEnum::PAYDUNYA->value,
+        'fallback'  => PaymentProviderEnum::NABOOPAY->value,
         'countries' => ['SN', 'CI', 'BJ', 'TG', 'GW', 'ML', 'BF'],
     ],
 
@@ -78,7 +81,7 @@ return [
     ],
 
     'naboopay' => [
-        'enabled'      => env('NABOOPAY_ENABLED', false),
+        'enabled'        => env('NABOOPAY_ENABLED', false),
         'api_key'        => env('NABOOPAY_API_KEY'),
         'webhook_secret' => env('NABOOPAY_WEBHOOK_SECRET'),
         'sandbox'        => env('NABOOPAY_SANDBOX', true),
