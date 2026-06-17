@@ -12,18 +12,17 @@ use App\Data\Payments\RefundRequestData;
 use App\Data\Payments\WebhookVerificationData;
 use App\Enums\CurrencyEnum;
 use App\Enums\PaymentProviderEnum;
+use App\Payments\Mappers\NaboopayStatusMapper;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
-/**
- * Naboopay — agrégateur West Africa (Wave, Orange Money, Free Money)
- *
- * Doc : https://docs.naboopay.com
- * Auth : Bearer token (API key)
- * Webhook : HMAC-SHA256 sur le raw body avec x-naboopay-signature header
- */
 final class NaboopayProvider implements PaymentProvider
 {
+    public function __construct(
+        private readonly NaboopayStatusMapper $statusMapper,
+    ) {}
+
     public function charge(PaymentRequestData $request): PaymentResponseData
     {
         $meta = $request->metadata;
@@ -33,18 +32,13 @@ final class NaboopayProvider implements PaymentProvider
             'currency'     => $request->currency->value,
             'order_id'     => $request->idempotencyKey,
             'description'  => 'SafeMove — Réservation #' . ($meta['booking_id'] ?? ''),
-            'success_url'  => config('payment_providers.naboopay.success_url')
-                . '?booking_id=' . ($meta['booking_id'] ?? ''),
-            'cancel_url'   => config('payment_providers.naboopay.cancel_url')
-                . '?booking_id=' . ($meta['booking_id'] ?? ''),
+            'success_url'  => config('payment_providers.naboopay.success_url') . '?booking_id=' . ($meta['booking_id'] ?? ''),
+            'cancel_url'   => config('payment_providers.naboopay.cancel_url') . '?booking_id=' . ($meta['booking_id'] ?? ''),
             'callback_url' => config('payment_providers.naboopay.callback_url'),
             'customer'     => [
                 'phone' => (string) ($meta['customer_phone'] ?? ''),
                 'email' => (string) ($meta['customer_email'] ?? ''),
-                'name'  => trim(
-                    ($meta['customer_firstname'] ?? '') . ' ' .
-                        ($meta['customer_lastname'] ?? '')
-                ),
+                'name'  => trim(($meta['customer_firstname'] ?? '') . ' ' . ($meta['customer_lastname'] ?? '')),
             ],
             'metadata' => [
                 'booking_id' => $meta['booking_id'] ?? null,
@@ -64,20 +58,15 @@ final class NaboopayProvider implements PaymentProvider
             $response->throw();
             $body = $response->json();
         } catch (\Exception $e) {
-            throw new RuntimeException(
-                "Naboopay charge failed: {$e->getMessage()}",
-                previous: $e,
-            );
+            throw new RuntimeException("Naboopay charge failed: {$e->getMessage()}", previous: $e);
         }
 
         $transactionId = (string) ($body['transaction_id'] ?? $body['id'] ?? '');
-
         if ($transactionId === '') {
             throw new RuntimeException('Naboopay charge response missing transaction_id.');
         }
 
         $checkoutUrl = (string) ($body['payment_url'] ?? $body['checkout_url'] ?? '');
-
         if ($checkoutUrl === '') {
             throw new RuntimeException('Naboopay charge response missing payment_url.');
         }
@@ -110,22 +99,23 @@ final class NaboopayProvider implements PaymentProvider
             $response->throw();
             $body = $response->json();
         } catch (\Exception $e) {
-            throw new RuntimeException(
-                "Naboopay refund failed: {$e->getMessage()}",
-                previous: $e,
-            );
+            throw new RuntimeException("Naboopay refund failed: {$e->getMessage()}", previous: $e);
         }
 
-        $status = match (strtolower((string) ($body['status'] ?? ''))) {
-            'success', 'successful', 'completed' => 'completed',
-            'pending', 'processing'              => 'pending',
-            default                              => 'failed',
+        $rawStatus    = strtolower((string) ($body['status'] ?? ''));
+        $mappedStatus = $this->statusMapper->map($rawStatus);
+
+        $providerStatus = match (true) {
+            $mappedStatus->isSuccess() => 'completed',
+            $mappedStatus->isFailed()  => 'failed',
+            $mappedStatus->isUnknown() => 'failed', // statut inconnu → échec sécurisé
+            default                    => 'pending',
         };
 
         return new PaymentResponseData(
             provider: PaymentProviderEnum::NABOOPAY,
             providerTransactionId: $request->providerTransactionId,
-            providerStatus: $status,
+            providerStatus: $providerStatus,
             amount: $request->amount,
             currency: $request->currency,
             checkoutUrl: null,
@@ -161,7 +151,7 @@ final class NaboopayProvider implements PaymentProvider
         $payload = $webhook->payload;
 
         $transactionId = (string) ($payload['transaction_id'] ?? $payload['id'] ?? '');
-        $event         = (string) ($payload['event'] ?? $payload['event_type'] ?? '');
+        $rawEvent      = (string) ($payload['event'] ?? $payload['event_type'] ?? '');
         $amount        = (int) ($payload['amount'] ?? 0);
         $currency      = strtoupper((string) ($payload['currency'] ?? 'XOF'));
 
@@ -169,31 +159,49 @@ final class NaboopayProvider implements PaymentProvider
             throw new RuntimeException('Naboopay webhook missing transaction_id.');
         }
 
-        if ($event === '') {
+        if ($rawEvent === '') {
             throw new RuntimeException('Naboopay webhook missing event.');
         }
 
-        $providerStatus = match ($event) {
-            'transaction.success', 'payment.success', 'payment.completed' => 'completed',
-            'transaction.failed',  'payment.failed'                        => 'failed',
-            'refund.completed'                                              => 'completed',
-            'refund.failed'                                                 => 'failed',
-            default                                                         => 'pending',
-        };
+        // F-019 — eventId unique : provider + transactionId + rawEvent
+        // Sans event_id PSP fiable, on construit une clé déterministe
+        $eventId = 'naboopay_' . $transactionId . '_' . $rawEvent;
 
-        $eventType = match ($event) {
+        // Mapper branché
+        $mappedStatus = $this->statusMapper->map($rawEvent);
+
+        if ($mappedStatus->isUnknown()) {
+            Log::warning('Naboopay webhook event inconnu — ignoré', [
+                'event'          => $rawEvent,
+                'transaction_id' => $transactionId,
+                'payload'        => $payload,
+            ]);
+        }
+
+        // Normalisation vers events canoniques internes
+        $eventType = match ($rawEvent) {
             'transaction.success', 'payment.success', 'payment.completed' => 'transaction.success',
             'transaction.failed',  'payment.failed'                        => 'transaction.failed',
             'refund.completed'                                              => 'refund.completed',
             'refund.failed'                                                 => 'refund.failed',
-            default                                                         => $event,
+            default                                                         => $mappedStatus->isUnknown()
+                ? 'payment.unknown'
+                : $rawEvent,
+        };
+
+        $providerStatus = match ($rawEvent) {
+            'transaction.success', 'payment.success', 'payment.completed',
+            'refund.completed'  => 'completed',
+            'transaction.failed', 'payment.failed',
+            'refund.failed'     => 'failed',
+            default             => $mappedStatus->isUnknown() ? 'unknown' : 'pending',
         };
 
         $currencyEnum = CurrencyEnum::tryFrom($currency) ?? CurrencyEnum::XOF;
 
         return new PaymentEventData(
             provider: PaymentProviderEnum::NABOOPAY,
-            eventId: (string) ($payload['event_id'] ?? $transactionId),
+            eventId: $eventId,
             eventType: $eventType,
             providerTransactionId: $transactionId,
             providerStatus: $providerStatus,
@@ -209,10 +217,6 @@ final class NaboopayProvider implements PaymentProvider
         return PaymentProviderEnum::NABOOPAY->value;
     }
 
-    /**
-     * Ping l'API pour vérifier la disponibilité.
-     * Utilisé par AfricaAggregatorDriver pour le health check.
-     */
     public function ping(): bool
     {
         try {

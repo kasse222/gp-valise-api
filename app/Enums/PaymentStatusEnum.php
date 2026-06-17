@@ -4,13 +4,20 @@ namespace App\Enums;
 
 enum PaymentStatusEnum: int
 {
-    case EN_ATTENTE     = 0;
-    case EN_COURS       = 1;
-    case SUCCES         = 2;
-    case ECHEC          = 3;
-    case REMBOURSE      = 4;
-    case ANNULE         = 5;
-    case FRAUDE         = 6;
+    case EN_ATTENTE = 0;
+    case EN_COURS   = 1;
+    case SUCCES     = 2;
+    case ECHEC      = 3;
+    case REMBOURSE  = 4;
+    case ANNULE     = 5;
+    case FRAUDE     = 6;
+
+    /**
+     * Statut retourné quand le PSP envoie un statut non reconnu.
+     * Ne déclenche aucune transition métier — loggué et ignoré.
+     * Voir : PaymentStatusMapper::isKnown() + WebhookProcessor
+     */
+    case INCONNU    = 99;
 
     public static function values(): array
     {
@@ -27,22 +34,23 @@ enum PaymentStatusEnum: int
             self::REMBOURSE  => 'Remboursé',
             self::ANNULE     => 'Annulé',
             self::FRAUDE     => 'Fraude',
+            self::INCONNU    => 'Inconnu',
         };
     }
 
     public function color(): string
     {
         return match ($this) {
-            self::EN_ATTENTE  => 'gray',
-            self::EN_COURS    => 'blue',
-            self::SUCCES      => 'green',
-            self::ECHEC       => 'red',
-            self::REMBOURSE   => 'orange',
-            self::ANNULE      => 'dark',
-            self::FRAUDE      => 'black',
+            self::EN_ATTENTE => 'gray',
+            self::EN_COURS   => 'blue',
+            self::SUCCES     => 'green',
+            self::ECHEC      => 'red',
+            self::REMBOURSE  => 'orange',
+            self::ANNULE     => 'dark',
+            self::FRAUDE     => 'black',
+            self::INCONNU    => 'gray',
         };
     }
-
 
     public function isFinal(): bool
     {
@@ -73,5 +81,13 @@ enum PaymentStatusEnum: int
     public function isFailed(): bool
     {
         return in_array($this, [self::ECHEC, self::FRAUDE]);
+    }
+
+    /**
+     * Statut PSP non reconnu — aucune transition métier ne doit être déclenchée.
+     */
+    public function isUnknown(): bool
+    {
+        return $this === self::INCONNU;
     }
 }

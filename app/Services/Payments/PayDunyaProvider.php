@@ -12,11 +12,17 @@ use App\Data\Payments\RefundRequestData;
 use App\Data\Payments\WebhookVerificationData;
 use App\Enums\CurrencyEnum;
 use App\Enums\PaymentProviderEnum;
+use App\Payments\Mappers\PayDunyaStatusMapper;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 final class PayDunyaProvider implements PaymentProvider
 {
+    public function __construct(
+        private readonly PayDunyaStatusMapper $statusMapper,
+    ) {}
+
     public function charge(PaymentRequestData $request): PaymentResponseData
     {
         $meta = $request->metadata;
@@ -85,16 +91,16 @@ final class PayDunyaProvider implements PaymentProvider
             eventId: 'manual-refund-' . $request->idempotencyKey,
             rawPayload: [
                 'manual_required' => true,
-                'provider' => PaymentProviderEnum::PAYDUNYA->value,
-                'reason' => $request->reason,
+                'provider'        => PaymentProviderEnum::PAYDUNYA->value,
+                'reason'          => $request->reason,
             ],
         );
     }
 
     public function verifyWebhook(WebhookVerificationData $webhook): bool
     {
-        $payload = $this->extractPayload($webhook->payload);
-        $hash = (string) ($payload['hash'] ?? '');
+        $payload  = $this->extractPayload($webhook->payload);
+        $hash     = (string) ($payload['hash'] ?? '');
 
         if ($hash === '') {
             return false;
@@ -109,32 +115,44 @@ final class PayDunyaProvider implements PaymentProvider
     {
         $payload = $this->extractPayload($webhook->payload);
 
-        $status = strtolower((string) ($payload['status'] ?? ''));
-        $invoice = (array) ($payload['invoice'] ?? []);
-        $token = (string) ($payload['token'] ?? $invoice['token'] ?? '');
+        $rawStatus = strtolower((string) ($payload['status'] ?? ''));
+        $invoice   = (array) ($payload['invoice'] ?? []);
+        $token     = (string) ($payload['token'] ?? $invoice['token'] ?? '');
 
         if ($token === '') {
             throw new RuntimeException('PayDunya webhook missing token.');
         }
 
-        $providerStatus = match ($status) {
-            'completed' => 'completed',
-            'cancelled', 'failed' => 'failed',
-            default => 'pending',
-        };
+        // F-019 — eventId unique par événement : provider + token + status
+        // Le token seul n'est pas unique (pending et completed partagent le même token)
+        $eventId = 'paydunya_' . $token . '_' . $rawStatus;
 
-        $eventType = match ($providerStatus) {
-            'completed' => 'transaction.success',
-            'failed'    => 'transaction.failed',
-            default     => 'transaction.pending',
+        // Mapper branché — plus de match() inline
+        $mappedStatus = $this->statusMapper->map($rawStatus);
+
+        // Statut inconnu — loggué, aucune transition métier (conseil Pavel)
+        if ($mappedStatus->isUnknown()) {
+            Log::warning('PayDunya webhook status inconnu — ignoré', [
+                'raw_status' => $rawStatus,
+                'token'      => $token,
+                'payload'    => $payload,
+            ]);
+        }
+
+        $eventType = match ($rawStatus) {
+            'completed'            => 'transaction.success',
+            'cancelled', 'canceled',
+            'failed', 'expired',
+            'rejected'             => 'transaction.failed',
+            default                => 'transaction.pending',
         };
 
         return new PaymentEventData(
             provider: PaymentProviderEnum::PAYDUNYA,
-            eventId: $token,
+            eventId: $eventId,
             eventType: $eventType,
             providerTransactionId: $token,
-            providerStatus: $providerStatus,
+            providerStatus: $mappedStatus->value !== 99 ? $rawStatus : 'unknown',
             amount: (int) ($invoice['total_amount'] ?? 0),
             currency: CurrencyEnum::XOF,
             metadata: (array) ($payload['custom_data'] ?? []),

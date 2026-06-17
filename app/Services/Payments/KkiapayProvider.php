@@ -13,14 +13,15 @@ use App\Data\Payments\RefundRequestData;
 use App\Data\Payments\WebhookVerificationData;
 use App\Enums\CurrencyEnum;
 use App\Enums\PaymentProviderEnum;
-use Kkiapay\Kkiapay;
+use App\Payments\Mappers\KkiapayStatusMapper;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 final class KkiapayProvider implements PaymentProvider
 {
-
     public function __construct(
         private readonly KkiapayAdminClientContract $adminClient,
+        private readonly KkiapayStatusMapper        $statusMapper,
     ) {}
 
     public function charge(PaymentRequestData $request): PaymentResponseData
@@ -92,16 +93,20 @@ final class KkiapayProvider implements PaymentProvider
             );
         }
 
-        $status = match (strtolower((string) ($result['status'] ?? ''))) {
-            'success', 'successful', 'completed' => 'completed',
-            'pending', 'processing'              => 'pending',
-            default                              => 'failed',
+        $rawStatus = strtolower((string) ($result['status'] ?? ''));
+        $mapped    = $this->statusMapper->map($rawStatus);
+
+        $providerStatus = match (true) {
+            $mapped->isUnknown() => 'failed',
+            $mapped->isSuccess() => 'completed',
+            $mapped->isFailed()  => 'failed',
+            default              => 'pending',
         };
 
         return new PaymentResponseData(
             provider: PaymentProviderEnum::KKIAPAY,
             providerTransactionId: $request->providerTransactionId,
-            providerStatus: $status,
+            providerStatus: $providerStatus,
             amount: $request->amount,
             currency: $request->currency,
             checkoutUrl: null,
@@ -135,27 +140,48 @@ final class KkiapayProvider implements PaymentProvider
         $payload = $webhook->payload;
 
         $transactionId = (string) ($payload['transactionId'] ?? '');
-        $event         = (string) ($payload['event'] ?? '');
+        $rawEvent      = (string) ($payload['event'] ?? '');
         $amount        = (int) ($payload['amount'] ?? 0);
 
         if ($transactionId === '') {
             throw new RuntimeException('Kkiapay webhook missing transactionId.');
         }
 
-        if ($event === '') {
+        if ($rawEvent === '') {
             throw new RuntimeException('Kkiapay webhook missing event.');
         }
 
-        $providerStatus = match ($event) {
+        // F-019 — eventId unique par événement : provider + transactionId + event
+        // transactionId seul est partagé entre events d'une même transaction
+        $eventId = 'kkiapay_' . $transactionId . '_' . $rawEvent;
+
+        // Mapper branché — remplace le match() inline
+        $mappedStatus = $this->statusMapper->map($rawEvent);
+
+        if ($mappedStatus->isUnknown()) {
+            Log::warning('Kkiapay webhook event inconnu — ignoré', [
+                'event'          => $rawEvent,
+                'transaction_id' => $transactionId,
+                'payload'        => $payload,
+            ]);
+        }
+
+        $providerStatus = match ($rawEvent) {
             'transaction.success' => 'completed',
             'transaction.failed'  => 'failed',
-            default               => 'pending',
+            default               => $mappedStatus->isUnknown() ? 'unknown' : 'pending',
+        };
+
+        $eventType = match ($rawEvent) {
+            'transaction.success' => 'transaction.success',
+            'transaction.failed'  => 'transaction.failed',
+            default               => $mappedStatus->isUnknown() ? 'payment.unknown' : $rawEvent,
         };
 
         return new PaymentEventData(
             provider: PaymentProviderEnum::KKIAPAY,
-            eventId: $transactionId,
-            eventType: $event,
+            eventId: $eventId,
+            eventType: $eventType,
             providerTransactionId: $transactionId,
             providerStatus: $providerStatus,
             amount: $amount,

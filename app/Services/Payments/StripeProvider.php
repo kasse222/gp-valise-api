@@ -12,6 +12,8 @@ use App\Data\Payments\RefundRequestData;
 use App\Data\Payments\WebhookVerificationData;
 use App\Enums\CurrencyEnum;
 use App\Enums\PaymentProviderEnum;
+use App\Payments\Mappers\StripeStatusMapper;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Stripe\Checkout\Session;
 use Stripe\Exception\ApiErrorException;
@@ -22,6 +24,10 @@ use UnexpectedValueException;
 
 final class StripeProvider implements PaymentProvider
 {
+    public function __construct(
+        private readonly StripeStatusMapper $statusMapper,
+    ) {}
+
     public function charge(PaymentRequestData $request): PaymentResponseData
     {
         try {
@@ -284,13 +290,25 @@ final class StripeProvider implements PaymentProvider
 
     private function mapProviderStatus(string $stripeEventType, array $object): string
     {
-        return match ($stripeEventType) {
-            'payment_intent.succeeded' => 'completed',
+        $rawStatus = match ($stripeEventType) {
+            'payment_intent.succeeded'      => 'succeeded',
             'payment_intent.payment_failed' => 'failed',
-            'charge.refunded' => 'completed',
-            'refund.failed' => 'failed',
-            default => (string) ($object['status'] ?? $stripeEventType),
+            'charge.refunded'               => 'succeeded',
+            'refund.failed'                 => 'failed',
+            default                         => (string) ($object['status'] ?? $stripeEventType),
         };
+
+        $mapped = $this->statusMapper->map($rawStatus);
+
+        if ($mapped->isUnknown()) {
+            Log::warning('Stripe webhook status inconnu — ignoré', [
+                'stripe_event' => $stripeEventType,
+                'raw_status'   => $rawStatus,
+            ]);
+            return 'unknown';
+        }
+
+        return $rawStatus;
     }
 
     private function extractProviderTransactionIdFromWebhook(string $stripeEventType, array $object): string
