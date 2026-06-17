@@ -164,6 +164,140 @@ final class LedgerWriter
         );
     }
 
+    /**
+     * F-017 — REFUND AFTER PAYOUT RELEASE — remboursement après libération escrow.
+     *
+     * Cas : dispute résolue en faveur sender après que le payout release a déjà eu lieu.
+     * L'escrow est déjà vide — on reverse la dette voyageur et la fee.
+     *
+     * DEBIT  payable_voyageur_{currency}      +payout_amount
+     * DEBIT  revenue_fees_{currency}          +fee_amount
+     * CREDIT external_psp_clearing_{currency} +charge_amount
+     *
+     * Invariant : payout_amount + fee_amount = charge_amount (conservation de valeur)
+     */
+    public function writeRefundAfterPayoutRelease(
+        Transaction $refundTransaction,
+        Transaction $payoutTransaction,
+        Transaction $feeTransaction,
+    ): void {
+        if ($this->hasExistingEntries($refundTransaction)) {
+            return;
+        }
+
+        $currency     = $this->currencySlug($refundTransaction);
+        $refundAmount = $refundTransaction->amount;
+        $feeAmount    = $feeTransaction->amount;
+        $totalCredit  = $refundAmount + $feeAmount;
+
+        $this->assertBalanced($totalCredit, $totalCredit, 'REFUND_AFTER_PAYOUT_RELEASE');
+
+        DB::transaction(function () use (
+            $refundTransaction,
+            $payoutTransaction,
+            $feeTransaction,
+            $currency,
+            $refundAmount,
+            $feeAmount,
+            $totalCredit,
+        ): void {
+            // Reverse la dette voyageur
+            $this->writeEntry(
+                transaction: $refundTransaction,
+                slug: "payable_voyageur_{$currency}",
+                direction: LedgerDirectionEnum::DEBIT,
+                amount: $refundAmount,
+                description: "Refund post-release booking#{$refundTransaction->booking_id} — reverse voyageur",
+            );
+
+            // Reverse la commission
+            $this->writeEntry(
+                transaction: $feeTransaction,
+                slug: "revenue_fees_{$currency}",
+                direction: LedgerDirectionEnum::DEBIT,
+                amount: $feeAmount,
+                description: "Refund post-release booking#{$refundTransaction->booking_id} — reverse fee",
+            );
+
+            // Crédite PSP clearing (retour fonds vers sender)
+            $this->writeEntry(
+                transaction: $refundTransaction,
+                slug: "external_psp_clearing_{$currency}",
+                direction: LedgerDirectionEnum::CREDIT,
+                amount: $totalCredit,
+                description: "Refund post-release booking#{$refundTransaction->booking_id} — retour sender",
+            );
+        });
+    }
+
+    /**
+     * F-017 — PAYOUT REVERSAL — annulation d'un payout PENDING (jamais exécuté PSP).
+     *
+     * Cas : payout release effectué mais le virement PSP n'a pas encore eu lieu
+     * et doit être annulé (ex: dispute ouverte après release, avant payout paid).
+     *
+     * Reverse writePayoutRelease :
+     * DEBIT  payable_voyageur_{currency}      +payout_amount
+     * DEBIT  revenue_fees_{currency}          +fee_amount
+     * CREDIT escrow_{currency}                +charge_amount
+     *
+     * Invariant : payout_amount + fee_amount = charge_amount
+     */
+    public function writePayoutReversal(
+        Transaction $payoutTransaction,
+        Transaction $feeTransaction,
+        Transaction $chargeTransaction,
+    ): void {
+        $currency     = $this->currencySlug($chargeTransaction);
+        $payoutAmount = $payoutTransaction->amount;
+        $feeAmount    = $feeTransaction->amount;
+        $chargeAmount = $chargeTransaction->amount;
+
+        $this->assertBalanced($chargeAmount, $payoutAmount + $feeAmount, 'PAYOUT_REVERSAL');
+
+        // Idempotence — vérifie si le reversal existe déjà sur payable_voyageur
+        if ($this->hasReversalEntry($payoutTransaction, "payable_voyageur_{$currency}")) {
+            return;
+        }
+
+        DB::transaction(function () use (
+            $payoutTransaction,
+            $feeTransaction,
+            $chargeTransaction,
+            $currency,
+            $payoutAmount,
+            $feeAmount,
+            $chargeAmount,
+        ): void {
+            // Reverse la dette voyageur
+            $this->writeEntry(
+                transaction: $payoutTransaction,
+                slug: "payable_voyageur_{$currency}",
+                direction: LedgerDirectionEnum::DEBIT,
+                amount: $payoutAmount,
+                description: "Payout reversal booking#{$chargeTransaction->booking_id} — annulation dette voyageur",
+            );
+
+            // Reverse la commission
+            $this->writeEntry(
+                transaction: $feeTransaction,
+                slug: "revenue_fees_{$currency}",
+                direction: LedgerDirectionEnum::DEBIT,
+                amount: $feeAmount,
+                description: "Payout reversal booking#{$chargeTransaction->booking_id} — annulation fee",
+            );
+
+            // Recrédite l'escrow
+            $this->writeEntry(
+                transaction: $chargeTransaction,
+                slug: "escrow_{$currency}",
+                direction: LedgerDirectionEnum::CREDIT,
+                amount: $chargeAmount,
+                description: "Payout reversal booking#{$chargeTransaction->booking_id} — retour escrow",
+            );
+        });
+    }
+
     // ── private ───────────────────────────────────────────────────────────────
 
     private function writeDoubleEntry(
@@ -225,6 +359,27 @@ final class LedgerWriter
             return false;
         }
 
+        return LedgerEntry::where('transaction_id', $transaction->id)
+            ->where('account_id', $account->id)
+            ->where('direction', LedgerDirectionEnum::DEBIT)
+            ->exists();
+    }
+
+    /**
+     * Vérifie si un reversal existe déjà sur un compte donné pour une transaction.
+     * Utilisé pour l'idempotence de writePayoutReversal.
+     */
+    private function hasReversalEntry(Transaction $transaction, string $slug): bool
+    {
+        $account = LedgerAccount::where('slug', $slug)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $account) {
+            return false;
+        }
+
+        // Un reversal sur payable_voyageur est un DEBIT (inverse du CREDIT initial)
         return LedgerEntry::where('transaction_id', $transaction->id)
             ->where('account_id', $account->id)
             ->where('direction', LedgerDirectionEnum::DEBIT)
