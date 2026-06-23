@@ -13,6 +13,7 @@ use App\Enums\TransactionTypeEnum;
 use App\Events\TransactionRefunded;
 use App\Models\Booking;
 use App\Models\Transaction;
+use App\Services\LedgerWriter;
 use App\Services\TransactionAmountCalculator;
 use App\Services\TransactionEligibilityService;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,7 @@ class RefundTransaction
         protected readonly PaymentProviderResolverContract $resolver,
         protected readonly TransactionEligibilityService $eligibility,
         protected readonly TransactionAmountCalculator $calculator,
+        protected readonly LedgerWriter $ledger,
     ) {}
 
     public function execute(Transaction $charge, ?string $reason = null): Transaction
@@ -89,7 +91,7 @@ class RefundTransaction
                 ]);
             }
 
-            return Transaction::query()->create([
+            $refund = Transaction::query()->create([
                 'user_id'                 => $charge->user_id,
                 'booking_id'              => $booking->id,
                 'type'                    => TransactionTypeEnum::REFUND,
@@ -101,6 +103,14 @@ class RefundTransaction
                 'provider_transaction_id' => $providerResult->providerTransactionId,
                 'processed_at'            => $status === TransactionStatusEnum::COMPLETED ? now() : null,
             ]);
+
+            // F-021 — écriture ledger uniquement si refund COMPLETED
+            // PENDING = remboursement manuel en attente → ledger écrit par le webhook refund.completed
+            if ($status === TransactionStatusEnum::COMPLETED) {
+                $this->ledger->writeRefund($charge, $refund);
+            }
+
+            return $refund;
         });
 
         event(new TransactionRefunded($result, $reason));
@@ -157,21 +167,11 @@ class RefundTransaction
 
     protected function resolveStatus(string $providerStatus): TransactionStatusEnum
     {
-        $status = match ($providerStatus) {
-            'completed'      => TransactionStatusEnum::COMPLETED,
-            'pending',
-            'pending_manual' => TransactionStatusEnum::PENDING,
-            'failed'         => TransactionStatusEnum::FAILED,
-            default          => null,
+        return match ($providerStatus) {
+            'completed' => TransactionStatusEnum::COMPLETED,
+            'pending'   => TransactionStatusEnum::PENDING,
+            'failed'    => TransactionStatusEnum::FAILED,
+            default     => throw new InvalidArgumentException("Statut provider inconnu : {$providerStatus}"),
         };
-
-        if ($status === null) {
-            Log::warning('resolveStatus : statut provider inconnu — PENDING par défaut', [
-                'provider_status' => $providerStatus,
-            ]);
-            return TransactionStatusEnum::PENDING;
-        }
-
-        return $status;
     }
 }

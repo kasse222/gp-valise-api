@@ -12,6 +12,7 @@ use App\Models\Booking;
 use App\Models\Transaction;
 use App\Models\Trip;
 use App\Models\User;
+use Database\Seeders\LedgerAccountSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
@@ -54,6 +55,7 @@ beforeEach(function () {
             eventId: null,
             rawPayload: [],
         ));
+    $this->seed(LedgerAccountSeeder::class);
 
     $resolver = mock(\App\Contracts\Payments\PaymentProviderResolverContract::class);
     $resolver->shouldReceive('resolve')->andReturn($this->provider);
