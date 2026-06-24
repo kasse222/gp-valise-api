@@ -1503,3 +1503,193 @@ Flow validé end-to-end : POST pay → PayDunya API → redirect checkout.
 ### Statut
 
 ✅ actif
+
+## [2026-06] — PSP Canonical Webhook Mapper
+
+### Contexte
+Les providers PSP retournent des formats hétérogènes. HandlePaymentWebhook devait interpréter des payloads bruts différents selon le provider — couplage PSP → domaine garanti.
+
+### Décision
+Couche de mappers dédiée : un mapper par provider, interface commune `PaymentStatusMapper`.
+
+```txt
+Provider → payload brut → Mapper → PaymentEventData canonique → HandlePaymentWebhook
+```
+
+- `PayDunyaStatusMapper` — SHA-512, payload nested `data`, token = transactionId
+- `NaboopayStatusMapper` — HMAC-SHA256, format flat
+- `KkiapayStatusMapper` — HMAC-SHA256, `transactionId` / `event`
+- `StripeStatusMapper` — eventId natif Stripe
+
+Statuts inconnus → `PaymentStatusEnum::INCONNU = 99` + `Log::warning`. Jamais d'exception traversant la state machine.
+
+eventId = `provider_txId_rawStatus` (F-019 — unique par événement, évite idempotence silencieuse entre pending et completed du même provider).
+
+### Conséquences
+- HandlePaymentWebhook agnostique au PSP
+- Ajout d'un provider = implémenter un mapper uniquement
+- Conseil Pavel Rodin (Senior PHP) : `isKnown()` sur l'interface mapper
+
+### Statut
+✅ actif — 4 mappers livrés, 571 tests passants
+
+---
+
+## [2026-06] — AfricaAggregatorDriver — routing Africa (F-020)
+
+### Contexte
+Corridor SN (Sénégal) utilise PayDunya comme provider primaire et Naboopay en fallback. Les webhooks Africa arrivent directement depuis PayDunya — pas depuis l'agrégateur.
+
+### Décision
+```txt
+SN → africa_aggregator → AfricaAggregatorDriver
+                       → PayDunya (primaire, health check avant charge)
+                       → Naboopay (fallback si PayDunya indisponible)
+
+Webhooks Africa : resolveByKey('paydunya') direct — pas l'agrégateur
+eventId = provider_txId_rawStatus construit dans normalizeWebhook()
+```
+
+Feature flags : `PAYDUNYA_ENABLED` / `NABOOPAY_ENABLED` — jamais post-charge (risque double intent).
+
+### Statut
+✅ actif
+
+---
+
+## [2026-06] — Ledger reversals post-payout (F-017)
+
+### Contexte
+Le ledger double-entry couvrait charge/release/paid/fee/refund mais pas les cas de reversal après libération escrow.
+
+### Décision
+Deux nouvelles méthodes dans `LedgerWriter` :
+
+```txt
+writeRefundAfterPayoutRelease()
+  DEBIT  payable_voyageur   +payout_amount  ← reverse dette voyageur
+  DEBIT  revenue_fees       +fee_amount     ← reverse commission
+  CREDIT external_psp_clearing +charge_amount
+
+writePayoutReversal()
+  DEBIT  payable_voyageur   +payout_amount  ← annule dette
+  DEBIT  revenue_fees       +fee_amount     ← annule fee
+  CREDIT escrow             +charge_amount  ← retour en escrow
+```
+
+Idempotence via `hasReversalEntry()`. `isBalanced()` vérifié sur tous les flows.
+
+### Statut
+✅ actif — 10 tests couverts
+
+---
+
+## [2026-06] — CurrencyEnum::forCountry() — devise canonique (F-007)
+
+### Contexte
+La devise était hardcodée EUR dans plusieurs endroits du backend et frontend.
+
+### Décision
+```php
+CurrencyEnum::forCountry('SN') = XOF
+CurrencyEnum::forCountry('MA') = MAD
+CurrencyEnum::forCountry('FR') = EUR
+// 17 pays mappés, fallback EUR
+```
+
+Règle absolue : XOF sans sous-unité (`hasSubunit = false`), jamais de ×100.
+EUR/MAD/GBP/USD : centimes, `hasSubunit = true`.
+
+CreateTransaction résout la devise depuis le pays si currency absent.
+
+### Statut
+✅ actif — miroir frontend `currencyForCountry()` dans utils.ts
+
+---
+
+## [2026-06] — LedgerWriter injecté dans RefundTransaction (F-021)
+
+### Décision
+`writeRefund($charge, $refund)` appelé uniquement si `$status === COMPLETED`.
+PENDING = remboursement manuel en attente → le webhook `refund.completed` écrira le ledger.
+
+### Statut
+✅ actif
+
+---
+
+## [2026-06] — CancelBooking déclenche RefundTransaction (F-014)
+
+### Décision
+`triggerRefundIfEligible()` appelé hors `DB::transaction` (RefundTransaction ouvre sa propre transaction).
+
+4 guards :
+- `refundRate = 0` → skip (no-show)
+- charge absente → skip (jamais payé)
+- refund existant → skip (idempotence)
+- PSP échoue → `Log::error` + continue (annulation ne bloque pas)
+
+### Statut
+✅ actif
+
+---
+
+## [2026-06] — Devise dynamique frontend CreateTripPage
+
+### Contexte
+Le formulaire de création de trajet affichait €/kg quelle que soit la destination.
+
+### Décision
+Ranges réalistes par devise, réinitialisés au changement de pays de départ :
+
+```txt
+XOF : 500 → 15 000 CFA/kg  (défaut 2 000), hasSubunit = false → pas de ×100
+EUR : 1   → 100 €/kg        (défaut 8),    hasSubunit = true  → ×100
+MAD : 5   → 500 DH/kg       (défaut 80),   hasSubunit = true  → ×100
+```
+
+Conversion backend : `price_per_kg * 100` pour EUR/MAD, pas de ×100 pour XOF.
+
+### Statut
+✅ actif
+
+---
+
+## [2026-06] — Polling webhook page succès paiement (F-026)
+
+### Contexte
+PSP redirige vers `/payment/success` avant que le webhook arrive. L'UI affichait "Confirmé" prématurément.
+
+### Décision
+Poll `GET /bookings/{id}` toutes les 3s pendant max 30s.
+- `confirmee` / `en_transit` / `livree` / `termine` → état "Confirmé"
+- timeout 30s → état "Paiement reçu, confirmation dans quelques minutes" (rassurant, pas alarmant)
+
+### Statut
+✅ actif
+
+---
+
+## [2026-06] — Error Boundary React global (F-031)
+
+### Décision
+`react-error-boundary` wrappé autour de toute l'app dans `App.tsx`.
+- Dev : stack trace visible
+- Prod : message générique + bouton Réessayer + retour accueil
+
+### Statut
+✅ actif
+
+---
+
+## [2026-06] — En attente registre de commerce
+
+### Contexte
+F-013 (payout PSP réel) et F-014 (remboursement PSP réel) sont bloqués par le KYC PSP qui nécessite un registre de commerce.
+
+### Décision
+Infrastructure prête. `PAYDUNYA_MODE=live` + clés live à configurer après obtention RC.
+PayDunya refund = `pending_manual` — traitement manuel admin jusqu'à RC.
+
+### Statut
+🟡 en attente RC
