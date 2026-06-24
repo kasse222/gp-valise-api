@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\{
     BookingItemController,
     BookingStatusHistoryController,
     DisputeController,
+    EarningsController,
     InvitationController,
     KycRequestController,
     LocationController,
@@ -91,6 +92,10 @@ Route::prefix('v1')
             Route::delete('/trips/{trip}', [TripController::class, 'destroy'])->name('trips.destroy');
             Route::get('/track/{trackingId}', TrackingController::class)
                 ->name('track.show');
+
+            // Gains GP : escrow / à recevoir / versé — groupés par devise
+            Route::get('/me/earnings', [EarningsController::class, 'index'])
+                ->name('me.earnings');
         });
 
         Route::get('/plans', [PlanController::class, 'index'])->name('plans.index');
