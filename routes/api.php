@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\{
     ReportController,
     TrackingController,
     TransactionController,
+    TravelerProfileController,
     TripController,
     UploadController,
     UserController,
@@ -41,6 +42,10 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
 
     Route::get('/trips', [TripController::class, 'index'])->name('trips.index');
     Route::get('/trips/{trip}', [TripController::class, 'show'])->name('trips.show');
+
+    // Profil public GP — accessible sans authentification (lien partageable WhatsApp)
+    Route::get('/travelers/{user}', [TravelerProfileController::class, 'show'])
+        ->name('travelers.show');
 
     Route::post('/webhooks/{providerKey}', WebhookController::class)
         ->middleware(['throttle:webhooks'])
@@ -134,10 +139,8 @@ Route::prefix('v1')
 
         // Instant Booking — actions traveler
         Route::middleware(EnsureRole::class . ':' . UserRoleEnum::TRAVELER->value)->group(function (): void {
-            // Remise physique sender → traveler (CONFIRMEE → EN_TRANSIT)
             Route::post('/bookings/{booking}/handover', [BookingController::class, 'handover'])
                 ->name('bookings.handover');
-            // Scan QR / code secret destinataire (EN_TRANSIT → LIVREE)
             Route::post('/bookings/{booking}/deliver', [BookingController::class, 'deliver'])
                 ->name('bookings.deliver');
         });
