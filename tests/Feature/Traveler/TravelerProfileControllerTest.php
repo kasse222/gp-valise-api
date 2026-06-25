@@ -68,30 +68,52 @@ it('retourne 404 si user inexistant', function (): void {
         ->assertNotFound();
 });
 
-it('compte les trajets actifs correctement', function (): void {
+it('compte les trajets réservables (active + pending, date future)', function (): void {
     Trip::factory()->count(2)->create([
         'user_id' => $this->traveler->id,
         'status'  => TripStatusEnum::ACTIVE,
+        'date'    => now()->addDays(10),
     ]);
     Trip::factory()->create([
         'user_id' => $this->traveler->id,
         'status'  => TripStatusEnum::PENDING,
+        'date'    => now()->addDays(10),
     ]);
 
     $this->getJson("/api/v1/travelers/{$this->traveler->id}")
         ->assertOk()
-        ->assertJsonPath('data.active_trips_count', 2)
+        ->assertJsonPath('data.active_trips_count', 3)
         ->assertJsonPath('data.total_trips_count', 3);
 });
 
-it('liste uniquement les trajets actifs dans active_trips', function (): void {
-    Trip::factory()->count(2)->create([
+it('exclut les trajets à date passée des trajets réservables', function (): void {
+    Trip::factory()->create([
         'user_id' => $this->traveler->id,
         'status'  => TripStatusEnum::ACTIVE,
+        'date'    => now()->addDays(10),
     ]);
     Trip::factory()->create([
         'user_id' => $this->traveler->id,
-        'status'  => TripStatusEnum::PENDING,
+        'status'  => TripStatusEnum::ACTIVE,
+        'date'    => now()->subDays(5),
+    ]);
+
+    $this->getJson("/api/v1/travelers/{$this->traveler->id}")
+        ->assertOk()
+        ->assertJsonPath('data.active_trips_count', 1)
+        ->assertJsonPath('data.total_trips_count', 2);
+});
+
+it('liste uniquement les trajets réservables dans active_trips', function (): void {
+    Trip::factory()->count(2)->create([
+        'user_id' => $this->traveler->id,
+        'status'  => TripStatusEnum::ACTIVE,
+        'date'    => now()->addDays(10),
+    ]);
+    Trip::factory()->create([
+        'user_id' => $this->traveler->id,
+        'status'  => TripStatusEnum::ACTIVE,
+        'date'    => now()->subDays(5),
     ]);
 
     $response = $this->getJson("/api/v1/travelers/{$this->traveler->id}")
@@ -99,7 +121,6 @@ it('liste uniquement les trajets actifs dans active_trips', function (): void {
 
     expect($response->json('data.active_trips'))->toHaveCount(2);
 });
-
 it('est accessible avec authentification également', function (): void {
     $this->actingAs($this->sender)
         ->getJson("/api/v1/travelers/{$this->traveler->id}")

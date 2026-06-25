@@ -4,16 +4,21 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
-use App\Enums\TripStatusEnum;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * Profil public d'un voyageur (GP).
+ * On expose uniquement les trajets RÉSERVABLES (scopeReservable) :
+ * statut ACTIVE/PENDING + date future + capacité non saturée.
+ */
 class TravelerProfileResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $activeTrips = $this->trips()
-            ->where('status', TripStatusEnum::ACTIVE)
+        /** @var \App\Models\User $this */
+        $reservableTrips = $this->trips()
+            ->reservable()
             ->with(['locations'])
             ->latest()
             ->get();
@@ -25,10 +30,10 @@ class TravelerProfileResource extends JsonResource
             'member_since' => $this->created_at->format('M Y'),
             'kyc_verified' => $this->hasKyc(),
 
-            'active_trips_count' => $activeTrips->count(),
+            'active_trips_count' => $reservableTrips->count(),
             'total_trips_count'  => $this->trips()->count(),
 
-            'active_trips' => TripResource::collection($activeTrips),
+            'active_trips' => TripResource::collection($reservableTrips),
         ];
     }
 }
