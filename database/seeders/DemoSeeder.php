@@ -154,6 +154,7 @@ class DemoSeeder extends Seeder
             'type_trip'     => TripTypeEnum::STANDARD->value,
             'flight_number' => 'AT201',
             'price_per_kg'  => 850,
+            'currency'      => CurrencyEnum::EUR->value,
         ]);
 
         $trip->locations()->createMany([

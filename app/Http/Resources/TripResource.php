@@ -28,6 +28,7 @@ class TripResource extends JsonResource
             'flight_number' => $this->flight_number,
             'capacity'      => $this->capacity,
             'price_per_kg'  => $this->price_per_kg,
+            'currency'      => $this->currency?->value,
 
             'type_trip'  => $this->type_trip?->value,
             'type_badge' => $this->type_trip?->badge(),

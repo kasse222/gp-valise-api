@@ -14,7 +14,7 @@ class TransactionSeeder extends Seeder
 {
     public function run(): void
     {
-        $bookings = Booking::whereIn('status', [
+        $bookings = Booking::with('trip')->whereIn('status', [
             \App\Enums\BookingStatusEnum::CONFIRMEE->value,
             \App\Enums\BookingStatusEnum::TERMINE->value,
         ])->get();
@@ -27,11 +27,14 @@ class TransactionSeeder extends Seeder
         $nb = 0;
 
         foreach ($bookings as $booking) {
+            // Devise = celle du trajet (source de vérité, jamais devinée).
+            $currency = $booking->trip?->currency ?? CurrencyEnum::XOF;
+
             Transaction::create([
                 'user_id'      => $booking->user_id,
                 'booking_id'   => $booking->id,
                 'amount'       => fake()->numberBetween(1500, 20000),
-                'currency'     => CurrencyEnum::default()->value,
+                'currency'     => $currency instanceof CurrencyEnum ? $currency->value : $currency,
                 'status'       => fake()->randomElement(TransactionStatusEnum::values()),
                 'method'       => fake()->randomElement(PaymentMethodEnum::values()),
                 'processed_at' => Carbon::parse($booking->created_at)->addDays(rand(0, 5)),

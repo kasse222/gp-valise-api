@@ -17,16 +17,19 @@ final class TripFactory extends Factory
 
     public function definition(): array
     {
+        $departureCountry = $this->faker->countryCode();
+
         return [
             'user_id'       => User::factory()->traveler(),
-            'departure'     => $this->faker->city() . ', ' . $this->faker->countryCode(),
+            'departure'     => $this->faker->city() . ', ' . $departureCountry,
             'destination'   => $this->faker->city() . ', ' . $this->faker->countryCode(),
             'date'          => $this->faker->dateTimeBetween('+1 day', '+1 month'),
-            'capacity'      => $this->faker->numberBetween(5000, 50000), // ← grammes : 5kg→50kg
+            'capacity'      => $this->faker->numberBetween(5000, 50000),
             'status'        => TripStatusEnum::ACTIVE->value,
             'type_trip'     => TripTypeEnum::STANDARD->value,
             'flight_number' => strtoupper(Str::random(2)) . $this->faker->numberBetween(100, 9999),
-            'price_per_kg'  => $this->faker->numberBetween(500, 3000), // ← centimes : 5.00€→30.00€
+            'price_per_kg'  => $this->faker->numberBetween(500, 3000),
+            'currency'      => \App\Enums\CurrencyEnum::forCountry($departureCountry)->value,
         ];
     }
 

@@ -44,6 +44,7 @@ it('crée un trajet avec des données valides', function (): void {
         'flight_number' => 'AF123',
         'capacity'      => 40000,       // ← grammes : 40kg
         'price_per_kg'  => 2050,        // ← centimes : 20.50€/kg
+        'currency'      => 'EUR',
         'type_trip'     => TripTypeEnum::STANDARD->value,
     ];
 
@@ -95,6 +96,7 @@ it('crée un trajet avec pickup location', function (): void {
         'date'          => now()->addDays(3)->toDateString(),
         'capacity'      => 40000,
         'price_per_kg'  => 2050,
+        'currency'      => 'EUR',
         'type_trip'     => TripTypeEnum::STANDARD->value,
 
         'pickup_address'               => '12 rue de la Paix',
@@ -123,6 +125,7 @@ it('bloque la création de trajet si traveler sans KYC', function (): void {
         'date'         => now()->addDays(3)->toDateString(),
         'capacity'     => 40000,
         'price_per_kg' => 2050,
+        'currency'     => 'EUR',
         'type_trip'    => TripTypeEnum::STANDARD->value,
     ])->assertStatus(422)
         ->assertJsonPath('errors.kyc.0', "Vous devez compléter votre vérification d'identité (KYC) avant de publier un trajet.");

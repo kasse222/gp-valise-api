@@ -65,8 +65,9 @@ class DemoDataSeeder extends Seeder
             'user_id'      => $traveler->id,
             'departure'    => 'Casablanca',
             'destination'  => 'Paris',
-            'capacity'     => 60000, // 60kg — largement suffisant
+            'capacity'     => 60000,
             'price_per_kg' => 800,
+            'currency'     => \App\Enums\CurrencyEnum::MAD->value,  // ← ajouter
             'date'         => now()->addDays(30),
         ]);
 
@@ -74,8 +75,9 @@ class DemoDataSeeder extends Seeder
             'user_id'      => $traveler->id,
             'departure'    => 'Dakar',
             'destination'  => 'Abidjan',
-            'capacity'     => 40000, // 40kg
+            'capacity'     => 40000,
             'price_per_kg' => 600,
+            'currency'     => \App\Enums\CurrencyEnum::XOF->value,  // ← ajouter
             'date'         => now()->addDays(20),
         ]);
 

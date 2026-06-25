@@ -127,11 +127,18 @@ class BookingController extends Controller
             ], 403);
         }
 
-        $booking->loadMissing('bookingItems');
+        $booking->loadMissing('bookingItems', 'trip');
         $totalCentimes = $booking->bookingItems->sum('price');
 
         if ($totalCentimes <= 0) {
             return response()->json(['message' => 'Aucun montant à payer.'], 422);
+        }
+
+        $tripCurrency = $booking->trip?->currency;
+        if ($tripCurrency === null) {
+            return response()->json([
+                'message' => 'Ce trajet n\'a pas de devise définie. Paiement impossible.',
+            ], 422);
         }
 
         $country = strtoupper($request->input('country') ?? $request->user()->country ?? 'FR');
@@ -141,9 +148,9 @@ class BookingController extends Controller
         $transaction = $action->execute($request->user(), [
             'booking_id'     => $booking->id,
             'amount'         => $totalCentimes,
-            'currency'       => 'EUR',
+            'currency'       => $tripCurrency,        // devise du trajet, pas du payeur
             'method'         => $method,
-            'country'        => $country,
+            'country'        => $country,             // routing PSP uniquement
             'phone'          => $phone,
             'correlation_id' => $request->header('X-Correlation-ID'),
         ]);

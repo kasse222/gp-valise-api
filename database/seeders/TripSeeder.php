@@ -30,16 +30,19 @@ class TripSeeder extends Seeder
                     $destinationCity = fake()->randomElement($cities);
                 } while ($destinationCity === $departureCity);
 
+                $departureCountry = fake()->countryCode();
+
                 $trip = Trip::create([
                     'user_id'       => $traveler->id,
-                    'departure'     => $departureCity . ', ' . fake()->countryCode(),
+                    'departure'     => $departureCity . ', ' . $departureCountry,
                     'destination'   => $destinationCity . ', ' . fake()->countryCode(),
                     'date'          => now()->addDays(rand(5, 60)),
-                    'capacity'      => fake()->numberBetween(5000, 50000), // ← grammes
+                    'capacity'      => fake()->numberBetween(5000, 50000),
                     'status'        => TripStatusEnum::ACTIVE->value,
                     'type_trip'     => TripTypeEnum::STANDARD->value,
                     'flight_number' => 'FL' . rand(100, 999),
-                    'price_per_kg'  => fake()->numberBetween(500, 2500),   // ← centimes
+                    'price_per_kg'  => fake()->numberBetween(500, 2500),
+                    'currency'      => \App\Enums\CurrencyEnum::forCountry($departureCountry)->value,
                 ]);
 
                 $trip->locations()->createMany([

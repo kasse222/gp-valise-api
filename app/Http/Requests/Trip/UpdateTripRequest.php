@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Trip;
 
+use App\Enums\CurrencyEnum;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules\Enum;
@@ -24,6 +25,7 @@ class UpdateTripRequest extends FormRequest
             'flight_number'  => ['nullable', 'string', 'max:255'],
             'capacity'       => ['sometimes', 'integer', 'min:1'],
             'price_per_kg'   => ['sometimes', 'numeric', 'min:0'],
+            'currency'       => ['sometimes', new Enum(CurrencyEnum::class)],
             'status'         => ['sometimes', new Enum(TripStatusEnum::class)],
             'type_trip'      => ['sometimes', new Enum(TripTypeEnum::class)],
 

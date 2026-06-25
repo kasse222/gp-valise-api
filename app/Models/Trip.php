@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Actions\Booking\CanBeReserved;
 use App\Enums\BookingStatusEnum;
+use App\Enums\CurrencyEnum;
 use App\Enums\TripStatusEnum;
 use App\Enums\TripTypeEnum;
 use Illuminate\Database\Eloquent\Model;
@@ -27,6 +28,7 @@ class Trip extends Model
         'type_trip',
         'flight_number',
         'price_per_kg',
+        'currency',
         'pickup_address',
         'pickup_city',
         'pickup_latitude',
@@ -49,6 +51,7 @@ class Trip extends Model
         'type_trip'  => TripTypeEnum::class,
         'capacity'    => 'integer',
         'price_per_kg' => 'integer',
+        'currency'     => CurrencyEnum::class,
 
     ];
     public function departureLocation(): HasOne
