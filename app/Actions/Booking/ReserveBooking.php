@@ -25,6 +25,7 @@ class ReserveBooking
         return DB::transaction(function () use ($user, $data) {
             $trip = Trip::query()
                 ->lockForUpdate()
+                ->with('categoryFees')
                 ->findOrFail($data['trip_id']);
 
             $this->validator->validateReservation($user, $trip, $data);
@@ -87,9 +88,7 @@ class ReserveBooking
                     'trip_id'     => $trip->id,
                     'luggage_id'  => $luggage->id,
                     'kg_reserved' => $itemData['kg_reserved'],
-                    'price'       => $itemData['price'] ?? (int) round(
-                        ($itemData['kg_reserved'] / 1000) * $trip->price_per_kg
-                    ),
+                    'price'       => $this->calculatePrice($trip, $luggage, $itemData['kg_reserved']),
                 ]);
 
                 $luggage->update([
@@ -119,5 +118,27 @@ class ReserveBooking
                 'recipient_email' => 'Email destinataire invalide.',
             ]);
         }
+    }
+
+    private function calculatePrice(
+        \App\Models\Trip    $trip,
+        \App\Models\Luggage $luggage,
+        int                 $gramsReserved
+    ): int {
+        // Base : prix au poids
+        $total = (int) round(($gramsReserved / 1000) * $trip->price_per_kg);
+
+        // Supplément : forfait fixe par content_item selon sa catégorie
+        // Un content_item = un article. Deux téléphones = deux content_items PHONE.
+        foreach ($luggage->getContentItems() as $item) {
+            $fee = $trip->categoryFees
+                ->first(fn($f) => $f->category->value === $item->category);
+
+            if ($fee) {
+                $total += $fee->fee;
+            }
+        }
+
+        return $total;
     }
 }

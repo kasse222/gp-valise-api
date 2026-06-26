@@ -41,7 +41,6 @@ class Location extends Model
 
 
 
-
     public function scopeOrdered(Builder $query): Builder
     {
         return $query->orderBy('order_index');

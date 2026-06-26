@@ -12,7 +12,7 @@ class ListTrips
     public function execute(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
         return Trip::query()
-            ->with(['user', 'locations'])
+            ->with(['user', 'locations', 'categoryFees'])
             ->reservable()
             ->when(
                 ! empty($filters['departure']),

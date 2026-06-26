@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany, HasOne};
 use Illuminate\Database\Eloquent\Builder;
+use App\Models\TripCategoryFee;
 use Illuminate\Support\Carbon;
 
 class Trip extends Model
@@ -64,7 +65,10 @@ class Trip extends Model
         return $this->hasOne(Location::class)->orderByDesc('order_index');
     }
 
-
+    public function categoryFees(): HasMany
+    {
+        return $this->hasMany(TripCategoryFee::class);
+    }
 
     public function user(): BelongsTo
     {

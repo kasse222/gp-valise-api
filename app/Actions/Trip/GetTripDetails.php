@@ -10,6 +10,6 @@ class GetTripDetails
 {
     public function execute(Trip $trip): Trip
     {
-        return $trip->load(['user']);
+        return $trip->load(['user', 'categoryFees']);
     }
 }

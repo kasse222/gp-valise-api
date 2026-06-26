@@ -6,6 +6,8 @@ namespace App\Actions\Trip;
 
 use App\Models\Trip;
 use App\Models\User;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CreateTrip
@@ -18,6 +20,19 @@ class CreateTrip
             ]);
         }
 
-        return $user->trips()->create($data);
+        return DB::transaction(function () use ($user, $data): Trip {
+            $categoryFees = Arr::pull($data, 'category_fees', []);
+
+            $trip = $user->trips()->create($data);
+
+            foreach ($categoryFees as $feeData) {
+                $trip->categoryFees()->create([
+                    'category' => $feeData['category'],
+                    'fee'      => (int) $feeData['fee'],
+                ]);
+            }
+
+            return $trip;
+        });
     }
 }

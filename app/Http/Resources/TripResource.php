@@ -30,6 +30,17 @@ class TripResource extends JsonResource
             'price_per_kg'  => $this->price_per_kg,
             'currency'      => $this->currency?->value,
 
+            'category_fees' => $this->whenLoaded(
+                'categoryFees',
+                fn() =>
+                $this->categoryFees->map(fn($f) => [
+                    'category'       => $f->category->value,
+                    'category_label' => $f->category->label(),
+                    'category_icon'  => $f->category->icon(),
+                    'fee'            => $f->fee,
+                ])
+            ),
+
             'type_trip'  => $this->type_trip?->value,
             'type_badge' => $this->type_trip?->badge(),
 

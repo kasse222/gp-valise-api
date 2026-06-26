@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Trip;
 
 use App\Enums\CurrencyEnum;
+use App\Enums\LuggageCategoryEnum;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules\Enum;
@@ -36,6 +37,11 @@ class StoreTripRequest extends FormRequest
             'currency'       => ['required', new Enum(CurrencyEnum::class)],
             'status'         => ['nullable', new Enum(TripStatusEnum::class)],
             'type_trip'      => ['required', new Enum(TripTypeEnum::class)],
+
+            // Forfaits par catégorie — optionnel, défini par le GP
+            'category_fees'              => ['nullable', 'array'],
+            'category_fees.*.category'   => ['required', new Enum(LuggageCategoryEnum::class)],
+            'category_fees.*.fee'        => ['required', 'integer', 'min:0'],
 
             // Pickup location
             'pickup_address'               => 'nullable|string|max:255',
