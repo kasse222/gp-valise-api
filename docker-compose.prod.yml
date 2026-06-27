@@ -82,5 +82,20 @@ services:
       - app
     restart: always
 
+  backup:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    # Backup quotidien à 02h00 UTC — rotation 30 jours incluse dans le script
+    command: sh -c "while true; do hour=$(date +%H); min=$(date +%M); if [ \"$$hour\" = '02' ] && [ \"$$min\" = '00' ]; then sh scripts/backup.sh; sleep 61; else sleep 30; fi; done"
+    env_file:
+      - .env.docker
+    volumes:
+      - .:/var/www
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+
 volumes:
   pgdata:

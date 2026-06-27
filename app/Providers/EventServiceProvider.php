@@ -17,7 +17,6 @@ use App\Events\KycRejected;
 use App\Events\KycSubmitted;
 use App\Events\TransactionCreated;
 use App\Events\TransactionRefunded;
-use App\Listeners\CreatePayoutAfterBookingDelivered;
 use App\Listeners\LogBookingCanceled;
 use App\Listeners\LogBookingConfirmed;
 use App\Listeners\LogBookingDelivered;

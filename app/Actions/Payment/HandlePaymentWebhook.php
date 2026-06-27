@@ -8,6 +8,7 @@ use App\Enums\BookingStatusEnum;
 use App\Enums\TransactionStatusEnum;
 use App\Enums\TransactionTypeEnum;
 use App\Enums\WebhookLogStatusEnum;
+use App\Events\BookingConfirmed;
 use App\Exceptions\RetryableWebhookException;
 use App\Models\Booking;
 use App\Models\Transaction;
@@ -125,6 +126,8 @@ class HandlePaymentWebhook
                 null,
                 'Paiement confirmé par webhook'
             );
+            // Emails de confirmation (sender, traveler, destinataire)
+            event(new BookingConfirmed($booking->fresh()));
         }
 
         $log->update([
