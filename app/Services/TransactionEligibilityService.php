@@ -77,6 +77,9 @@ class TransactionEligibilityService
         return in_array($booking->status, [
             BookingStatusEnum::CONFIRMEE,
             BookingStatusEnum::EN_LITIGE,
+            // F-032 — ANNULE ajouté : CancelBooking transitionne AVANT de
+            // tenter le refund, donc le statut au moment du check est déjà ANNULE.
+            BookingStatusEnum::ANNULE,
         ], true);
     }
 }
