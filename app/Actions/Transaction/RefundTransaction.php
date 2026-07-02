@@ -30,9 +30,12 @@ class RefundTransaction
         protected readonly LedgerWriter $ledger,
     ) {}
 
-    public function execute(Transaction $charge, ?string $reason = null): Transaction
-    {
-        $result = DB::transaction(function () use ($charge, $reason) {
+    public function execute(
+        Transaction $charge,
+        ?string $reason = null,
+        ?int $refundRatePercent = null,   // F-033
+    ): Transaction {
+        $result = DB::transaction(function () use ($charge, $reason, $refundRatePercent) {
             $charge = Transaction::query()
                 ->lockForUpdate()
                 ->findOrFail($charge->id);
@@ -64,7 +67,10 @@ class RefundTransaction
                 ]);
             }
 
-            $refundAmount = $this->calculator->calculateRefundAmount($charge);
+            // F-033 — appliquer le taux si fourni, sinon refund standard (90% flat)
+            $refundAmount = $refundRatePercent !== null
+                ? $this->calculator->calculateCancellationRefundAmount($charge, $refundRatePercent)
+                : $this->calculator->calculateRefundAmount($charge);
 
             if ($refundAmount <= 0) {
                 throw ValidationException::withMessages([
@@ -143,8 +149,6 @@ class RefundTransaction
             $provider = $this->resolver->resolveByKey($providerKey);
             return $provider->refund($refundRequest);
         } catch (\RuntimeException $e) {
-            // Provider ne supporte pas le refund automatique (ex: PayDunya)
-            // → PENDING pour traitement manuel admin
             Log::warning('Refund provider non supporté — traitement manuel requis', [
                 'provider'   => $providerKey,
                 'charge_id'  => $charge->id,

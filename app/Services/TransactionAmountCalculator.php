@@ -33,6 +33,22 @@ class TransactionAmountCalculator
         return $this->calculateFeeAmount($charge) - $this->calculatePaymentFeeAmount($charge);
     }
 
+    /**
+     * F-033 — Remboursement d'annulation pondéré par le taux métier (100/70/0%).
+     *
+     * Base : chargeAmount - fee (= 90% du charge par défaut).
+     *
+     * Décision business E1 : si taux 100% doit signifier remboursement intégral
+     * commission incluse, remplacer calculateRefundAmount($charge)
+     * par chargeAmount($charge) ci-dessous.
+     */
+    public function calculateCancellationRefundAmount(Transaction $charge, int $refundRatePercent): int
+    {
+        $baseRefundable = $this->calculateRefundAmount($charge);
+
+        return (int) round($baseRefundable * ($refundRatePercent / 100));
+    }
+
     private function chargeAmount(Transaction $charge): int
     {
         return (int) $charge->amount;

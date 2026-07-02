@@ -36,7 +36,6 @@ class CancelBooking
                 ]);
             }
 
-            // Calcul taux remboursement selon règles métier
             $refundRate = $booking->computeRefundRate($cancelledBy);
 
             $booking->cancel_reason = match ($cancelledBy) {
@@ -71,7 +70,6 @@ class CancelBooking
         });
 
         // F-014 — déclencher le remboursement PSP après la transaction DB
-        // Hors DB::transaction car RefundTransaction ouvre sa propre transaction
         $this->triggerRefundIfEligible($booking, $cancelledBy);
 
         event(new BookingCanceled($booking));
@@ -80,42 +78,37 @@ class CancelBooking
     }
 
     /**
-     * F-014 — Déclenche un remboursement PSP si :
+     * F-014 / F-033 — Déclenche un remboursement PSP si :
      * - une CHARGE COMPLETED existe sur ce booking
      * - le taux de remboursement est > 0
      * - aucun REFUND n'existe déjà (idempotence)
      *
-     * Loggue et continue sans exception si le provider échoue —
-     * le traitement manuel admin prend le relais.
+     * F-033 : le taux (100/70/0%) est maintenant appliqué au montant réel.
      */
     private function triggerRefundIfEligible(Booking $booking, string $cancelledBy): void
     {
         $refundRate = $booking->refund_rate ?? 0;
 
-        // Pas de remboursement si taux = 0 (no-show, annulation tardive sans remboursement)
         if ($refundRate <= 0) {
             Log::info('CancelBooking: taux remboursement = 0 — pas de refund PSP', [
-                'booking_id'    => $booking->id,
-                'cancelled_by'  => $cancelledBy,
-                'refund_rate'   => $refundRate,
+                'booking_id'   => $booking->id,
+                'cancelled_by' => $cancelledBy,
+                'refund_rate'  => $refundRate,
             ]);
             return;
         }
 
         $transactions = $booking->transactions ?? collect();
 
-        // Charge complétée requise
         $charge = $transactions->first(
             fn($tx) => $tx->type === TransactionTypeEnum::CHARGE
                 && $tx->status === TransactionStatusEnum::COMPLETED
         );
 
         if (! $charge) {
-            // Booking annulé avant paiement (EN_PAIEMENT non payé) → pas de refund
             return;
         }
 
-        // Idempotence — pas de double refund
         $existingRefund = $transactions->first(
             fn($tx) => $tx->type === TransactionTypeEnum::REFUND
         );
@@ -132,10 +125,9 @@ class CancelBooking
             $this->refundTransaction->execute(
                 charge: $charge,
                 reason: "Annulation booking#{$booking->id} — taux {$refundRate}% ({$cancelledBy})",
+                refundRatePercent: $refundRate,   // F-033
             );
         } catch (\Throwable $e) {
-            // Ne pas faire échouer l'annulation si le PSP échoue
-            // Le remboursement manuel sera géré par l'admin
             Log::error('CancelBooking: échec remboursement PSP — traitement manuel requis', [
                 'booking_id'   => $booking->id,
                 'charge_id'    => $charge->id,
